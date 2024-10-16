@@ -1,0 +1,14 @@
+selenium
+beautifulsoup4
+tqdm
+requests
+pyautogui
+opencv-python
+Flask
+pandas
+openpyxl
+
+
+firstName = 'John'
+lastName = "D'Agostino"
+companyName = 'Coinbase International'
