@@ -54,7 +54,8 @@ def countParents(element):
         count += 1
     return count
 
-def scrapeDataFrom(thisDriver, companyToFind):
+def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
+    runSelenium(thisDriver, f"https://www.linkedin.com/search/results/people/?company={companyName}&firstName={firstName}&lastName={lastName}&origin=FACETED_SEARCH")
     srContainer = WebDriverWait(thisDriver, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, 'search-results-container'))
     )
@@ -67,18 +68,14 @@ def scrapeDataFrom(thisDriver, companyToFind):
             ulElement = div.find_element(By.CSS_SELECTOR, "ul.reusable-search__entity-result-list")
             if ulElement:
                 liElements = ulElement.find_elements(By.CSS_SELECTOR, "li.reusable-search__result-container")
-                print(f"Number of <li> elements in this <ul>: {len(liElements)}")
                 
                 if liElements:
                     liElements[0].click()
                     sleep(2)
 
                     currentUrl = thisDriver.current_url
-                    # currentUrl = 'https://www.linkedin.com/in/johnjdagostino1/'
-                    print(f"Redirected URL: {currentUrl}")
-
                     sectionList = thisDriver.find_elements(By.CSS_SELECTOR, "section.artdeco-card.pv-profile-card.break-words")
-                    print(f"Number of sections found: {len(sectionList)}")
+                    # print(f"Number of sections found: {len(sectionList)}")
 
                     for section in sectionList:
                         try:
@@ -95,7 +92,8 @@ def scrapeDataFrom(thisDriver, companyToFind):
                                         jobData = getMeJsonData(li.get_attribute('innerHTML'))
                                         jobDataList.append(jobData)
 
-                                thisData = findClosestMatch(companyToFind, jobDataList)
+                                thisData = findClosestMatch(companyName, jobDataList)
+                                thisData['currentUrl'] = currentUrl
                                 return thisData
                         except Exception:
                             continue  
