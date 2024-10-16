@@ -3,58 +3,52 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side, PatternFill
 
-def readJson(file_path):
-    with open(file_path, 'r') as file:
+def readJson(filePath):
+    with open(filePath, 'r') as file:
         return json.load(file)
 
-def writeJson(file_path, data):
-    with open(file_path, 'w') as file:
+def writeJson(filePath, data):
+    with open(filePath, 'w') as file:
         json.dump(data, file, indent=4)
 
-def writeToExcel(data, output_file):
-    # Create a new Excel workbook and sheet
+def writeToExcel(data, outputFile):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Enriched Data"
 
-    # Define headers
     headers = [
         "Full Name", "Position", "LinkedIn URL", "Email 1", "Email 2", "Phone", 
         "Company Name", "Company URL", "Location", "First Name", "Last Name"
     ]
     
-    # Add headers to the first row
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")  # Bold white text
-        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")  # Blue fill
+    for colNum, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=colNum, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
 
-    # Populate the sheet with data
-    for row_num, entry in enumerate(data, 2):
-        ws.cell(row=row_num, column=1, value=entry['fullName'])
-        ws.cell(row=row_num, column=2, value=entry['companyPosition'])
+    for rowNum, entry in enumerate(data, 2):
+        ws.cell(row=rowNum, column=1, value=entry['fullName'])
+        ws.cell(row=rowNum, column=2, value=entry['companyPosition'])
         
-        # Create hyperlinks
-        ws.cell(row=row_num, column=3, value=entry['currentUrl']).hyperlink = entry['currentUrl']
-        ws.cell(row=row_num, column=3).font = Font(color="0000FF", underline="single")  # Blue, underlined
+        ws.cell(row=rowNum, column=3, value=entry['currentUrl']).hyperlink = entry['currentUrl']
+        ws.cell(row=rowNum, column=3).font = Font(color="0000FF", underline="single")
         
-        ws.cell(row=row_num, column=4, value=entry['email0'] or '').hyperlink = f'mailto:{entry["email0"]}' if entry['email0'] else ''
-        ws.cell(row=row_num, column=4).font = Font(color="0000FF", underline="single") if entry['email0'] else Font()  # Blue, underlined if exists
+        ws.cell(row=rowNum, column=4, value=entry['email0'] or '').hyperlink = f'mailto:{entry["email0"]}' if entry['email0'] else ''
+        ws.cell(row=rowNum, column=4).font = Font(color="0000FF", underline="single") if entry['email0'] else Font()
         
-        ws.cell(row=row_num, column=5, value=entry['email1'] or '').hyperlink = f'mailto:{entry["email1"]}' if entry['email1'] else ''
-        ws.cell(row=row_num, column=5).font = Font(color="0000FF", underline="single") if entry['email1'] else Font()  # Blue, underlined if exists
+        ws.cell(row=rowNum, column=5, value=entry['email1'] or '').hyperlink = f'mailto:{entry["email1"]}' if entry['email1'] else ''
+        ws.cell(row=rowNum, column=5).font = Font(color="0000FF", underline="single") if entry['email1'] else Font()
         
-        ws.cell(row=row_num, column=6, value=entry['phone'] or '')
-        ws.cell(row=row_num, column=7, value=entry['companyName'])
+        ws.cell(row=rowNum, column=6, value=entry['phone'] or '')
+        ws.cell(row=rowNum, column=7, value=entry['companyName'])
         
-        ws.cell(row=row_num, column=8, value=entry['companyUrl']).hyperlink = entry['companyUrl']
-        ws.cell(row=row_num, column=8).font = Font(color="0000FF", underline="single")  # Blue, underlined
+        ws.cell(row=rowNum, column=8, value=entry['companyUrl']).hyperlink = entry['companyUrl']
+        ws.cell(row=rowNum, column=8).font = Font(color="0000FF", underline="single")
         
-        ws.cell(row=row_num, column=9, value=entry['companyLocation'])
-        ws.cell(row=row_num, column=10, value=entry['firstName'])
-        ws.cell(row=row_num, column=11, value=entry['lastName'])
+        ws.cell(row=rowNum, column=9, value=entry['companyLocation'])
+        ws.cell(row=rowNum, column=10, value=entry['firstName'])
+        ws.cell(row=rowNum, column=11, value=entry['lastName'])
 
-    # Set column widths
     ws.column_dimensions[get_column_letter(1)].width = max(len(entry['fullName']) for entry in data) + 2
     ws.column_dimensions[get_column_letter(2)].width = 25
     ws.column_dimensions[get_column_letter(3)].width = 15
@@ -67,20 +61,26 @@ def writeToExcel(data, output_file):
     ws.column_dimensions[get_column_letter(10)].width = 20
     ws.column_dimensions[get_column_letter(11)].width = 20
 
-    # Apply border styles
     thin = Side(border_style="thin", color="000000")
     for row in ws.iter_rows(min_row=1, max_col=len(headers), max_row=len(data)+1):
         for cell in row:
             cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    wb.save(output_file)
+    dataToSort = list(ws.iter_rows(min_row=2, max_row=len(data)+1, values_only=True))
+    dataToSort.sort(key=lambda x: (x[6] == '', x[6]))
 
-def processJson(file_path):
-    data = readJson(file_path)
+    for rowNum, rowData in enumerate(dataToSort, start=2):
+        for colNum, value in enumerate(rowData, start=1):
+            ws.cell(row=rowNum, column=colNum, value=value)
 
-    formatted_data = []
+    wb.save(outputFile)
+
+def processJson(filePath):
+    data = readJson(filePath)
+
+    formattedData = []
     for entry in data:
-        formatted_entry = {
+        formattedEntry = {
             'fullName': entry['fullName'],
             'companyPosition': entry.get('companyPosition', ''),
             'currentUrl': entry.get('currentUrl', ''),
@@ -94,11 +94,11 @@ def processJson(file_path):
             'lastName': entry.get('lastName', '')
         }
 
-        formatted_data.append(formatted_entry)
+        formattedData.append(formattedEntry)
 
-    output_file = 'contacts.xlsx'
-    writeToExcel(formatted_data, output_file)
-    print(f"Data has been written to {output_file}")
+    outputFile = 'contacts.xlsx'
+    writeToExcel(formattedData, outputFile)
+    print(f"Data has been written to {outputFile}")
 
-file_path = 'output.json'
-processJson(file_path)
+filePath = 'output.json'
+processJson(filePath)

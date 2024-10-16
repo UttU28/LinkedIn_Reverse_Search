@@ -1,7 +1,8 @@
 import requests
 import json
 from time import sleep
-import random  # Import random module
+import random
+from tqdm import tqdm  # Import tqdm for progress bar
 
 def makeAPIRequest(linkedInUrl):
     API_TOKEN = "ZAuOYiUjklVmhWoVVUKqoXzboZ9XSQ7s"
@@ -17,7 +18,6 @@ def makeAPIRequest(linkedInUrl):
 
     if response.status_code == 200:
         data = response.json()
-        companyUrl = ''
         emails = list(map(lambda x: x['email'], data['emails'])) if data.get('emails') else []
         phones = list(map(lambda x: x['phone'], data['phones'])) if data.get('phones') else []
         companyUrl = data.get('organization', {}).get('website', '')
@@ -36,22 +36,21 @@ def writeJson(file_path, data):
 def processJson(file_path):
     data = readJson(file_path)
 
-    for i, entry in enumerate(data):
+    # Use tqdm to create a progress bar
+    for i, entry in tqdm(enumerate(data), total=len(data), desc="Processing Entries"):
         if entry.get('found') and not entry.get('called'):
-                currentUrl = entry.get('currentUrl')
-                if currentUrl:
-                    allEmail, allPhone, companyUrl = makeAPIRequest(currentUrl)
+            currentUrl = entry.get('currentUrl')
+            if currentUrl:
+                allEmail, allPhone, companyUrl = makeAPIRequest(currentUrl)
 
-                    entry['email0'] = allEmail[0] if len(allEmail) > 0 else None
-                    entry['email1'] = allEmail[1] if len(allEmail) > 1 else None
-                    entry['phone'] = allPhone[0] if len(allPhone) > 0 else None
-                    entry['companyUrl'] = companyUrl or ''
-                    entry['called'] = True
+                entry['email0'] = allEmail[0] if len(allEmail) > 0 else None
+                entry['email1'] = allEmail[1] if len(allEmail) > 1 else None
+                entry['phone'] = allPhone[0] if len(allPhone) > 0 else None
+                entry['companyUrl'] = companyUrl or ''
+                entry['called'] = True
 
-                    writeJson(file_path, data)
-                    print(f"Updated entry {i + 1} in the file")
-
-                    sleep(random.uniform(9, 12))
+                writeJson(file_path, data)
+                sleep(random.uniform(9, 12))
 
 file_path = 'output.json'
 processJson(file_path)
