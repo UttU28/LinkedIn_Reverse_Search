@@ -17,49 +17,50 @@ def writeToExcel(data, outputFile):
     ws.title = "Enriched Data"
 
     headers = [
-        "Full Name", "Position", "LinkedIn URL", "Email 1", "Email 2", "Phone", 
-        "Company Name", "Company URL", "Location", "First Name", "Last Name"
+        "Full Name", "First Name", "Last Name", "Position", "Company Name", "Company URL", "LinkedIn", "Email 1", "Email 2", "Location", "Phone"
     ]
     
+    header_font = Font(bold=True, color="000000", size=12)
+    header_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+
     for colNum, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=colNum, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        cell.font = header_font
+        cell.fill = header_fill
 
     for rowNum, entry in enumerate(data, 2):
         ws.cell(row=rowNum, column=1, value=entry['fullName'])
-        ws.cell(row=rowNum, column=2, value=entry['companyPosition'])
+        ws.cell(row=rowNum, column=2, value=entry['firstName'])
+        ws.cell(row=rowNum, column=3, value=entry['lastName'])
+        ws.cell(row=rowNum, column=4, value=entry['companyPosition'])
+        ws.cell(row=rowNum, column=5, value=entry['companyName'] or entry['company'])
         
-        ws.cell(row=rowNum, column=3, value=entry['currentUrl']).hyperlink = entry['currentUrl']
-        ws.cell(row=rowNum, column=3).font = Font(color="0000FF", underline="single")
+        ws.cell(row=rowNum, column=6, value=entry['companyUrl']).hyperlink = entry['companyUrl']
+        ws.cell(row=rowNum, column=6).font = Font(color="0000FF", underline="single") if entry['companyUrl'] else Font()
         
-        ws.cell(row=rowNum, column=4, value=entry['email0'] or '').hyperlink = f'mailto:{entry["email0"]}' if entry['email0'] else ''
-        ws.cell(row=rowNum, column=4).font = Font(color="0000FF", underline="single") if entry['email0'] else Font()
+        ws.cell(row=rowNum, column=7, value=entry['currentUrl']).hyperlink = entry['currentUrl']
+        ws.cell(row=rowNum, column=7).font = Font(color="0000FF", underline="single") if entry['currentUrl'] else Font()
         
-        ws.cell(row=rowNum, column=5, value=entry['email1'] or '').hyperlink = f'mailto:{entry["email1"]}' if entry['email1'] else ''
-        ws.cell(row=rowNum, column=5).font = Font(color="0000FF", underline="single") if entry['email1'] else Font()
+        ws.cell(row=rowNum, column=8, value=entry['email0'] or '').hyperlink = f'mailto:{entry["email0"]}' if entry['email0'] else ''
+        ws.cell(row=rowNum, column=8).font = Font(color="0000FF", underline="single") if entry['email0'] else Font()
         
-        ws.cell(row=rowNum, column=6, value=entry['phone'] or '')
-        ws.cell(row=rowNum, column=7, value=entry['companyName'])
+        ws.cell(row=rowNum, column=9, value=entry['email1'] or '').hyperlink = f'mailto:{entry["email1"]}' if entry['email1'] else ''
+        ws.cell(row=rowNum, column=9).font = Font(color="0000FF", underline="single") if entry['email1'] else Font()
         
-        ws.cell(row=rowNum, column=8, value=entry['companyUrl']).hyperlink = entry['companyUrl']
-        ws.cell(row=rowNum, column=8).font = Font(color="0000FF", underline="single")
-        
-        ws.cell(row=rowNum, column=9, value=entry['companyLocation'])
-        ws.cell(row=rowNum, column=10, value=entry['firstName'])
-        ws.cell(row=rowNum, column=11, value=entry['lastName'])
+        ws.cell(row=rowNum, column=10, value=entry['companyLocation'])
+        ws.cell(row=rowNum, column=11, value=entry['phone'] or '')
 
     ws.column_dimensions[get_column_letter(1)].width = max(len(entry['fullName']) for entry in data) + 2
-    ws.column_dimensions[get_column_letter(2)].width = 25
+    ws.column_dimensions[get_column_letter(2)].width = 15
     ws.column_dimensions[get_column_letter(3)].width = 15
-    ws.column_dimensions[get_column_letter(4)].width = 15
-    ws.column_dimensions[get_column_letter(5)].width = 15
+    ws.column_dimensions[get_column_letter(4)].width = 25
+    ws.column_dimensions[get_column_letter(5)].width = 35
     ws.column_dimensions[get_column_letter(6)].width = 15
-    ws.column_dimensions[get_column_letter(7)].width = 45
-    ws.column_dimensions[get_column_letter(8)].width = 15
-    ws.column_dimensions[get_column_letter(9)].width = 45
-    ws.column_dimensions[get_column_letter(10)].width = 20
-    ws.column_dimensions[get_column_letter(11)].width = 20
+    ws.column_dimensions[get_column_letter(7)].width = 15
+    ws.column_dimensions[get_column_letter(8)].width = 20
+    ws.column_dimensions[get_column_letter(9)].width = 15
+    ws.column_dimensions[get_column_letter(10)].width = 45
+    ws.column_dimensions[get_column_letter(11)].width = 15
 
     thin = Side(border_style="thin", color="000000")
     for row in ws.iter_rows(min_row=1, max_col=len(headers), max_row=len(data)+1):
@@ -91,7 +92,8 @@ def processJson(filePath):
             'companyUrl': entry.get('companyUrl', ''),
             'companyLocation': entry.get('companyLocation', ''),
             'firstName': entry.get('firstName', ''),
-            'lastName': entry.get('lastName', '')
+            'lastName': entry.get('lastName', ''),
+            'company': entry.get('company', '')
         }
 
         formattedData.append(formattedEntry)
