@@ -1,5 +1,5 @@
 // components/Form.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -15,6 +15,7 @@ import {
 } from '@chakra-ui/react';
 import { SunIcon, MoonIcon } from '@chakra-ui/icons'; 
 import { useNavigate } from 'react-router-dom';
+import { AddToCaching, GetFromCaching, } from './Caching';
 
 function Form() {
   const [formData, setFormData] = useState({
@@ -25,7 +26,19 @@ function Form() {
 
   const toast = useToast();
   const { colorMode, toggleColorMode } = useColorMode();
-  const navigate = useNavigate();  // React Router's navigation function
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const savedName = GetFromCaching('name');
+    const savedEmail = GetFromCaching('email');
+
+    if (savedName) {
+      setFormData((prevData) => ({ ...prevData, name: savedName }));
+    }
+    if (savedEmail) {
+      setFormData((prevData) => ({ ...prevData, email: savedEmail }));
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,6 +58,9 @@ function Form() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formDataObj = new FormData();
+    AddToCaching("name", formData.name);
+    AddToCaching("email", formData.email);
+
     formDataObj.append('file', formData.file);
     formDataObj.append('name', formData.name);
     formDataObj.append('email', formData.email);
@@ -77,7 +93,12 @@ function Form() {
   };
 
   return (
-    <Container centerContent>
+    <Container centerContent
+    minHeight="90vh"
+    display={"flex"}
+    alignItems={"center"}
+    justifyContent={"center"}
+    >
       <IconButton
         aria-label="Toggle theme"
         icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}

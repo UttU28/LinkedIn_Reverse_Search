@@ -1,9 +1,14 @@
+// Caching.js
 import Cookies from 'universal-cookie';
 
-function Caching() {
+function AddToCaching(what, whatData) {
     const cookies = new Cookies();
-    cookies.set('myCat', 'Pacman', { path: '/' });
-    console.log(cookies.get('myCat')); // Pacman
+    cookies.set(what, whatData, { path: '/' });
 }
 
-export default Caching;
+function GetFromCaching(what) {
+    const cookies = new Cookies();
+    return cookies.get(what);
+}
+
+export { AddToCaching, GetFromCaching };
