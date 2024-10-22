@@ -1,0 +1,9 @@
+selenium
+beautifulsoup4
+tqdm
+requests
+pyautogui
+opencv-python
+Flask
+pandas
+openpyxl

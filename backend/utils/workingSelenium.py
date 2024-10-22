@@ -8,9 +8,9 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup  # Ensure you have this import
+from bs4 import BeautifulSoup
 
-chromeDriverPath = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/chromeDriver/chromedriver.exe'
+chromeDriverPath = 'C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/chromeDriver/chromedriver.exe'
 
 options = Options()
 options.add_experimental_option("debuggerAddress", "localhost:8989")
@@ -36,7 +36,7 @@ def prepareChromeAndSelenium():
     chromeProcess = subprocess.Popen([
         'C:/Program Files/Google/Chrome/Application/chrome.exe',
         '--remote-debugging-port=8989',
-        '--user-data-dir=C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/chromeData/'
+        '--user-data-dir=C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/chromeData/'
     ])
     # chromeProcess = ''
     driver = webdriver.Chrome(options=options)
@@ -69,7 +69,6 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
             ulElement = div.find_element(By.CSS_SELECTOR, "ul.reusable-search__entity-result-list")
             if ulElement:
                 liElements = ulElement.find_elements(By.CSS_SELECTOR, "li.reusable-search__result-container")
-                
                 if liElements:
                     liElements[0].click()
                     sleep(2)
@@ -77,13 +76,11 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                     currentUrl = thisDriver.current_url
                     sectionList = thisDriver.find_elements(By.CSS_SELECTOR, "section.artdeco-card.pv-profile-card.break-words")
                     # print(f"Number of sections found: {len(sectionList)}")
-
                     for section in sectionList:
                         try:
                             experienceDiv = section.find_element(By.ID, 'experience')
                             jobDataList = []
                             if experienceDiv:
-                                # print('IM EXP')
                                 ulElements = section.find_elements(By.TAG_NAME, 'ul')
                                 listElements = ulElements[0].find_elements(By.TAG_NAME, 'li')
 
@@ -92,7 +89,6 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                                     if 'artdeco-list__item' in liClass:
                                         jobData = getMeJsonData(li.get_attribute('innerHTML'))
                                         jobDataList.append(jobData)
-                                        # print(jobDataList)
 
                                 thisData = findClosestMatch(companyName, jobDataList)
                                 thisData['currentUrl'] = currentUrl
