@@ -1,9 +1,9 @@
 import json
 import time
+from tqdm import tqdm
 from utils.workingSelenium import prepareChromeAndSelenium, scrapeDataFrom
 
 chromeProcess, driver = prepareChromeAndSelenium()
-
 
 def readJson(file_path):
     with open(file_path, 'r') as file:
@@ -16,19 +16,26 @@ def writeJson(file_path, data):
 def processJson(file_path):
     data = readJson(file_path)
 
-    for entry in data:
-        if entry['hasViewed'] == False:
+    # Use tqdm to create a progress bar
+    for entry in tqdm(data, desc="Processing entries"):
+        if not entry['hasViewed']:
             entry['hasViewed'] = True
             companyName, lastName, firstName = entry['company'], entry['lastName'], entry['firstName']
-            # print(companyName, lastName, firstName)
             thisData = scrapeDataFrom(driver, companyName, lastName, firstName)
-            print(thisData)
             if thisData:
-                entry['companyName'], entry['companyPosition'], entry['companyLocation'], entry['currentUrl'], entry['found'] = thisData['companyName'], thisData['companyPosition'], thisData['companyLocation'], thisData['currentUrl'], True
+                entry['currentUrl'] = thisData['currentUrl']
+                try:
+                    entry['companyName'] = thisData['companyName']
+                    entry['companyPosition'] = thisData['companyPosition']
+                    entry['companyLocation'] = thisData['companyLocation']
+                except:
+                    entry['companyName'] = ''
+                    entry['companyPosition'] = ''
+                    entry['companyLocation'] = ''
+                entry['found'] = True
             else:
                 entry['found'] = False
 
-            
             writeJson(file_path, data)
 
 file_path = 'output.json'  

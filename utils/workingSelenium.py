@@ -28,6 +28,7 @@ def getDataFromFile():
     return allEventData
 
 def putDataToFile(taazaMaal):
+    # pass
     with open('data/baseData.json', 'w') as jsonFile:
         json.dump(taazaMaal, jsonFile, indent=4)
 
@@ -61,7 +62,7 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
     )
 
     childDivs = srContainer.find_elements(By.TAG_NAME, 'div')
-    print(f"Number of child divs in 'search-results-container': {len(childDivs)}")
+    # print(f"Number of child divs in 'search-results-container': {len(childDivs)}")
 
     for div in childDivs:
         try:
@@ -82,7 +83,7 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                             experienceDiv = section.find_element(By.ID, 'experience')
                             jobDataList = []
                             if experienceDiv:
-                                print('IM EXP')
+                                # print('IM EXP')
                                 ulElements = section.find_elements(By.TAG_NAME, 'ul')
                                 listElements = ulElements[0].find_elements(By.TAG_NAME, 'li')
 
@@ -91,13 +92,14 @@ def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                                     if 'artdeco-list__item' in liClass:
                                         jobData = getMeJsonData(li.get_attribute('innerHTML'))
                                         jobDataList.append(jobData)
+                                        # print(jobDataList)
 
                                 thisData = findClosestMatch(companyName, jobDataList)
                                 thisData['currentUrl'] = currentUrl
                                 return thisData
                         except Exception:
-                            continue  
-                    break  
+                            continue
+                    return {'currentUrl': currentUrl}
         except:
             continue  
 

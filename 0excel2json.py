@@ -37,7 +37,7 @@ for index, row in df.iterrows():
         'fullName': row['Full Name'],
         'firstName': result['firstName'],
         'lastName': result['lastName'],
-        'company': row['Company'],
+        'company': row['Company Name'],
         'hasViewed': False
     }
     data.append(entry)

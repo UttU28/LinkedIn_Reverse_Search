@@ -22,6 +22,7 @@ def getMeJsonData(htmlContent):
     company_info_tag = li_element.find('span', class_='t-14 t-normal')
     if company_info_tag:
         company_info = company_info_tag.get_text(strip=True)
+        # print("company_info", company_info)
         company_info_parts = company_info.split(' · ')
         company_name = company_info_parts[0] if company_info_parts else None
 
