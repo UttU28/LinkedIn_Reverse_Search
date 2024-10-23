@@ -1,5 +1,3 @@
-import requests
-import json
 import aiohttp
 
 async def makeAPIRequest(linkedInUrl):
@@ -27,8 +25,8 @@ async def getEmailAndPhoneFor(thisGuy):
     if thisGuy.get('found') and not thisGuy.get('called'):
         currentUrl = thisGuy.get('currentUrl')
         if currentUrl:
-            # allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)  # Await the API request
-            allEmail, allPhone, companyUrl = '','',''
+            allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)  # Await the API request
+            # allEmail, allPhone, companyUrl = '','',''
             thisGuy['email0'] = allEmail[0] if len(allEmail) > 0 else None
             thisGuy['email1'] = allEmail[1] if len(allEmail) > 1 else None
             thisGuy['phone'] = allPhone[0] if len(allPhone) > 0 else None

@@ -1,16 +1,13 @@
-import json
-from tqdm import tqdm
-from utils.workingSelenium import prepareChromeAndSelenium, scrapeDataFrom
-from utils.fileActions import readJson, writeJson
+from utils.workingSelenium import *
 
-# chromeProcess, driver = prepareChromeAndSelenium()
-
-async def getLinkedInFor(thisGuy):
+async def getLinkedInFor(driver, thisGuy):
+    print(thisGuy)
     if not thisGuy.get('hasViewed', False):
         thisGuy['hasViewed'] = True
         companyName, lastName, firstName = thisGuy['company'], thisGuy['lastName'], thisGuy['firstName']
-        # thisData = scrapeDataFrom(driver, companyName, lastName, firstName)
-        thisData = {'currentUrl': 'curl', 'companyPosition': 'cposition', 'companyLocation': 'clocation'}
+        thisData = await scrapeDataFrom(driver, companyName, lastName, firstName)
+        print(thisData)
+        # thisData = {'currentUrl': 'curl', 'companyPosition': 'cposition', 'companyLocation': 'clocation'}
         if thisData:
             thisGuy['currentUrl'] = thisData['currentUrl']
             thisGuy['companyName'] = thisData.get('companyName', '')

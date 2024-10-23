@@ -1,13 +1,22 @@
-import asyncio, os
+import asyncio
+import os
+import socket
+import json
 from tqdm import tqdm
 from time import sleep
 
 from aExcel2json import scrapeDataFromExcel
-from bSeleniumWorker import getLinkedInFor
+from bSeleniumWorker import getLinkedInFor, prepareChromeAndSelenium
 from cSalesQL_API import getEmailAndPhoneFor
 from dConvertExcel import makeExcelForThisSession
 
-import json
+thisChromeDriver = None
+
+async def isChromeRunning():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    result = sock.connect_ex(('localhost', 8989))
+    sock.close()
+    return result != 0 # Yaad rakh ! to invert the result to get True if Chrome is running, False otherwise
 
 async def writeDataToJson(refinedData):
     currentSessionData = {}
@@ -23,20 +32,24 @@ async def writeDataToJson(refinedData):
 
     fullName = refinedData.get('fullName')
 
-    if fullName not in currentSessionData: currentSessionData[fullName] = refinedData
-    if fullName not in global_session_data: global_session_data[fullName] = refinedData
+    if fullName not in currentSessionData:
+        currentSessionData[fullName] = refinedData
+    if fullName not in global_session_data:
+        global_session_data[fullName] = refinedData
 
-    with open('currentSession.json', 'w') as f: json.dump(currentSessionData, f, indent=4)
-    with open('globalSession.json', 'w') as f: json.dump(global_session_data, f, indent=4)
-
+    with open('currentSession.json', 'w') as f:
+        json.dump(currentSessionData, f, indent=4)
+    with open('globalSession.json', 'w') as f:
+        json.dump(global_session_data, f, indent=4)
 
 async def processOne(queueOne, queueTwo):
+    global thisChromeDriver 
     while True:
         item = await queueOne.get()
         if item is None:
             break
         try:
-            result = await getLinkedInFor(item)
+            result = await getLinkedInFor(thisChromeDriver, item)
             await queueTwo.put(result)
         except Exception as e:
             print(f"Error processing item {item}: {e}")
@@ -46,12 +59,11 @@ async def processOne(queueOne, queueTwo):
 async def processTwo(queueTwo):
     while True:
         baseData = await queueTwo.get()
-        if baseData is None: break
+        if baseData is None:
+            break
 
         refinedData = await getEmailAndPhoneFor(baseData)
         await writeDataToJson(refinedData)
-
-        # await asyncio.sleep(4)
         queueTwo.task_done()
 
 async def statusMonitor(queueOne, queueTwo, totalItems):
@@ -80,6 +92,9 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
             await asyncio.sleep(1)
 
 async def main(inputString):
+    global thisChromeDriver
+    thisChromeDriver = prepareChromeAndSelenium(await isChromeRunning())
+    
     excelFile = inputString
     jsonData = scrapeDataFromExcel(excelFile)
     with open('output.json', 'w') as json_file:
@@ -114,4 +129,3 @@ async def main(inputString):
 if __name__ == "__main__":
     inputData = "People.xlsx"
     asyncio.run(main(inputData))
-    

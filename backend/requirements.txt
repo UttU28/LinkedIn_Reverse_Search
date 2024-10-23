@@ -9,3 +9,5 @@ pandas
 openpyxl
 aiofiles
 aiohttp
+pygetwindow
+psutil

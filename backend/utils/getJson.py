@@ -1,14 +1,14 @@
 from bs4 import BeautifulSoup
 import json
 
-def checkDuplicate(data):
+async def checkDuplicate(data):
     if data is None:
         return ""
     if data[:len(data)//2] == data[len(data)//2:]:
         data = data[:len(data)//2]
     return data.strip()
 
-def getMeJsonData(htmlContent):
+async def getMeJsonData(htmlContent):
     li_element = BeautifulSoup(htmlContent, 'html.parser')
     
     position = None
@@ -31,9 +31,9 @@ def getMeJsonData(htmlContent):
         location = location_tags[1].get_text(strip=True)
 
     jobData = {
-        "companyName": checkDuplicate(company_name),
-        "companyPosition": checkDuplicate(position),
-        "companyLocation": checkDuplicate(location)
+        "companyName": await checkDuplicate(company_name),
+        "companyPosition": await checkDuplicate(position),
+        "companyLocation": await checkDuplicate(location)
     }
     
     return jobData
@@ -42,15 +42,15 @@ def getMeJsonData(htmlContent):
 
 # //////////////////////////////////
 
-def normalizeString(s):
+async def normalizeString(s):
     """Normalize the string by lowering case and removing extra spaces."""
     return ' '.join(s.lower().strip().split())
 
-def findClosestMatch(inputString, data):
-    normalized_input = normalizeString(inputString)
+async def findClosestMatch(inputString, data):
+    normalized_input = await normalizeString(inputString)
     
     for index, entry in enumerate(data):
-        normalized_company_name = normalizeString(entry['companyName'])
+        normalized_company_name = await normalizeString(entry['companyName'])
         if normalized_company_name in normalized_input or normalized_input in normalized_company_name:
             return data[index]
         input_components = normalized_input.split()
