@@ -102,5 +102,7 @@ def processJson(filePath):
     writeToExcel(formattedData, outputFile)
     print(f"Data has been written to {outputFile}")
 
-filePath = 'output.json'
-processJson(filePath)
+
+if "__name__" == '__main__':
+    filePath = 'output.json'
+    processJson(filePath)

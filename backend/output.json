@@ -4,112 +4,77 @@
         "firstName": "Gary",
         "lastName": "Zhu",
         "company": "AllianceBernstein",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/garyzhu/",
-        "companyName": "",
-        "companyPosition": "",
-        "companyLocation": "",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "B.K. Lee",
         "firstName": "B.K.",
         "lastName": "Lee",
         "company": "Alston & Bird",
-        "hasViewed": true,
-        "found": false
+        "hasViewed": false
     },
     {
         "fullName": "Tim Ruxton",
         "firstName": "Tim",
         "lastName": "Ruxton",
         "company": "Alter Domus",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/timruxton/",
-        "companyName": "Alter Domus",
-        "companyPosition": "Managing Director",
-        "companyLocation": "",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "Rob McDonough",
         "firstName": "Rob Mc",
         "lastName": "Donough",
         "company": "Angel Oak Capital Advisors",
-        "hasViewed": true,
-        "found": false
+        "hasViewed": false
     },
     {
         "fullName": "Danny Mamo",
         "firstName": "Danny",
         "lastName": "Mamo",
         "company": "Arch MI",
-        "hasViewed": true,
-        "found": false
+        "hasViewed": false
     },
     {
         "fullName": "Spencer Hunsberger",
         "firstName": "Spencer",
         "lastName": "Hunsberger",
         "company": "ATLAS SP Partners",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/spencer-hunsberger-98b5a8149/",
-        "companyName": "ATLAS SP Partners",
-        "companyPosition": "Managing Director",
-        "companyLocation": "New York, New York, United States",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "Alan Todd",
         "firstName": "Alan",
         "lastName": "Todd",
         "company": "Bank of America",
-        "hasViewed": true,
-        "found": false
+        "hasViewed": false
     },
     {
         "fullName": "Theresa O'Neill",
         "firstName": "Theresa",
         "lastName": "O'Neill",
         "company": "Bank of America",
-        "hasViewed": true,
-        "found": false
+        "hasViewed": false
     },
     {
         "fullName": "Elana Lipchak",
         "firstName": "Elana",
         "lastName": "Lipchak",
         "company": "Bank of America",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/elana-lipchak-cfa-b74a9821/",
-        "companyName": "Bank of America",
-        "companyPosition": "Financial Management Associate Program Intern",
-        "companyLocation": "",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "Pratik Gupta",
         "firstName": "Pratik",
         "lastName": "Gupta",
         "company": "Bank of America",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/pratikg/",
-        "companyName": "",
-        "companyPosition": "",
-        "companyLocation": "",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "Toms Zachariah",
         "firstName": "Toms",
         "lastName": "Zachariah",
         "company": "Barings",
-        "hasViewed": true,
-        "currentUrl": "https://www.linkedin.com/in/tomszac/",
-        "companyName": "Barings",
-        "companyPosition": "Fixed Income Analyst",
-        "companyLocation": "Charlotte, North Carolina, United States",
-        "found": true
+        "hasViewed": false
     },
     {
         "fullName": "Amit Siroya",

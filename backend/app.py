@@ -3,19 +3,16 @@ import datetime
 import os
 from werkzeug.utils import secure_filename
 
-# Configuration
-UPLOAD_FOLDER = 'uploads'  # Folder to save uploaded files
-ALLOWED_EXTENSIONS = {'xlsx'}
+upload_folder = 'uploads'
+allowed_extensions = {'xlsx'}
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = upload_folder
 
-# Ensure the upload folder exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(upload_folder, exist_ok=True)
 
-# Check if the uploaded file is an allowed type
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -34,12 +31,10 @@ def upload_file():
 
         print(f"Received Name: {name}, Email: {email}, File saved as: {filename}")
         
-        # Simulate scraping data and sending email
         print("Data is being scraped...")
         return jsonify({'message': 'Your data is being scraped. We will send an email once the data is found.'}), 200
     else:
         return jsonify({'message': 'File type not allowed'}), 400
 
-# Running app
 if __name__ == '__main__':
     app.run(debug=True)

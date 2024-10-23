@@ -2,21 +2,15 @@ import json
 import time
 from tqdm import tqdm
 from utils.workingSelenium import prepareChromeAndSelenium, scrapeDataFrom
+from utils.fileActions import readJson, writeJson
+import asyncio
+
+THIS_FILE_PATH = 'output.json'
 
 chromeProcess, driver = prepareChromeAndSelenium()
 
-def readJson(file_path):
-    with open(file_path, 'r') as file:
-        return json.load(file)
-
-def writeJson(file_path, data):
-    with open(file_path, 'w') as file:
-        json.dump(data, file, indent=4)
-
-def processJson(file_path):
-    data = readJson(file_path)
-
-    # Use tqdm to create a progress bar
+async def processJson(THIS_FILE_PATH):
+    data = await readJson(THIS_FILE_PATH)
     for entry in tqdm(data, desc="Processing entries"):
         if not entry['hasViewed']:
             entry['hasViewed'] = True
@@ -36,7 +30,7 @@ def processJson(file_path):
             else:
                 entry['found'] = False
 
-            writeJson(file_path, data)
+            await writeJson(THIS_FILE_PATH, data)
 
-file_path = 'output.json'  
-processJson(file_path)
+if __name__ == '__main__':
+    asyncio.run(processJson(THIS_FILE_PATH))

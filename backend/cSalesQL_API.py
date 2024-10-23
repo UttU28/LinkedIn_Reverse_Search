@@ -3,8 +3,12 @@ import json
 from time import sleep
 import random
 from tqdm import tqdm  # Import tqdm for progress bar
+import asyncio
 
-def makeAPIRequest(linkedInUrl):
+from utils.fileActions import readJson, writeJson
+THIS_FILE_PATH = 'output.json'
+
+async def makeAPIRequest(linkedInUrl):
     API_TOKEN = "ZAuOYiUjklVmhWoVVUKqoXzboZ9XSQ7s"
 
     url = f"https://api-public.salesql.com/v1/persons/enrich/?linkedin_url={linkedInUrl}"
@@ -25,23 +29,15 @@ def makeAPIRequest(linkedInUrl):
     else:
         return [], [], ''
 
-def readJson(file_path):
-    with open(file_path, 'r') as file:
-        return json.load(file)
-
-def writeJson(file_path, data):
-    with open(file_path, 'w') as file:
-        json.dump(data, file, indent=4)
-
-def processJson(file_path):
-    data = readJson(file_path)
+async def processJson(THIS_FILE_PATH):
+    data = await readJson(THIS_FILE_PATH)
 
     # Use tqdm to create a progress bar
     for i, entry in tqdm(enumerate(data), total=len(data), desc="Processing Entries"):
         if entry.get('found') and not entry.get('called'):
             currentUrl = entry.get('currentUrl')
             if currentUrl:
-                allEmail, allPhone, companyUrl = makeAPIRequest(currentUrl)
+                allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)
 
                 entry['email0'] = allEmail[0] if len(allEmail) > 0 else None
                 entry['email1'] = allEmail[1] if len(allEmail) > 1 else None
@@ -49,8 +45,8 @@ def processJson(file_path):
                 entry['companyUrl'] = companyUrl or ''
                 entry['called'] = True
 
-                writeJson(file_path, data)
-                sleep(random.uniform(9, 12))
+                await writeJson(THIS_FILE_PATH, data)
+                await asyncio.sleep(random.uniform(9, 12))
 
-file_path = 'output.json'
-processJson(file_path)
+if __name__ == '__main__':
+    asyncio.run(processJson(THIS_FILE_PATH))

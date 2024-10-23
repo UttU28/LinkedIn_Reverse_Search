@@ -111,7 +111,7 @@ function Form() {
       <Box className={`container ${colorMode}`}>
         <VStack spacing={4}>
           <Heading as="h1" size="lg">
-            Upload Your Data
+            LinkedIn Reverse Search
           </Heading>
           <form onSubmit={handleSubmit}>
             <FormControl isRequired>
