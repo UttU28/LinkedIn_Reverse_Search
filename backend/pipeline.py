@@ -1,25 +1,57 @@
-import asyncio
+import asyncio, os
 from tqdm import tqdm
+from time import sleep
+
 from aExcel2json import scrapeDataFromExcel
-from bSeleniumWorker import processJson
+from bSeleniumWorker import getLinkedInFor
+from cSalesQL_API import getEmailAndPhoneFor
+from dConvertExcel import makeExcelForThisSession
+
 import json
+
+async def writeDataToJson(refinedData):
+    currentSessionData = {}
+    global_session_data = {}
+
+    if os.path.exists('currentSession.json'):
+        with open('currentSession.json', 'r') as f:
+            currentSessionData = json.load(f)
+
+    if os.path.exists('globalSession.json'):
+        with open('globalSession.json', 'r') as f:
+            global_session_data = json.load(f)
+
+    fullName = refinedData.get('fullName')
+
+    if fullName not in currentSessionData: currentSessionData[fullName] = refinedData
+    if fullName not in global_session_data: global_session_data[fullName] = refinedData
+
+    with open('currentSession.json', 'w') as f: json.dump(currentSessionData, f, indent=4)
+    with open('globalSession.json', 'w') as f: json.dump(global_session_data, f, indent=4)
+
 
 async def processOne(queueOne, queueTwo):
     while True:
         item = await queueOne.get()
         if item is None:
             break
-        await result = asyncio.run(processJson('output.json'))
-        result = f"Processed {item}"
-        await queueTwo.put(result)
-        queueOne.task_done()
+        try:
+            result = await getLinkedInFor(item)
+            await queueTwo.put(result)
+        except Exception as e:
+            print(f"Error processing item {item}: {e}")
+        finally:
+            queueOne.task_done()
 
 async def processTwo(queueTwo):
     while True:
-        result = await queueTwo.get()
-        if result is None:
-            break
-        await asyncio.sleep(4)
+        baseData = await queueTwo.get()
+        if baseData is None: break
+
+        refinedData = await getEmailAndPhoneFor(baseData)
+        await writeDataToJson(refinedData)
+
+        # await asyncio.sleep(4)
         queueTwo.task_done()
 
 async def statusMonitor(queueOne, queueTwo, totalItems):
@@ -48,8 +80,7 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
             await asyncio.sleep(1)
 
 async def main(inputString):
-    # items = inputString.split(',')
-    excelFile = 'People.xlsx'
+    excelFile = inputString
     jsonData = scrapeDataFromExcel(excelFile)
     with open('output.json', 'w') as json_file:
         json_file.write(json.dumps(jsonData, indent=4))
@@ -66,19 +97,21 @@ async def main(inputString):
         await queueOne.put(item)
 
     await queueOne.join()
-
     await queueOne.put(None)
     
     await queueTwo.join()
-
     await queueTwo.put(None)
 
     await p1
     await p2
     monitor.cancel()
 
+    sleep(2)
+    await makeExcelForThisSession()
+
     print("\nTask finished")
 
 if __name__ == "__main__":
-    inputData = "task1,task2,task3,task4,task5"
+    inputData = "People.xlsx"
     asyncio.run(main(inputData))
+    

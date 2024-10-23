@@ -2,16 +2,9 @@ import json
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side, PatternFill
+from utils.fileActions import readJson
 
-def readJson(filePath):
-    with open(filePath, 'r') as file:
-        return json.load(file)
-
-def writeJson(filePath, data):
-    with open(filePath, 'w') as file:
-        json.dump(data, file, indent=4)
-
-def writeToExcel(data, outputFile):
+async def writeToExcel(data, outputFile):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Enriched Data"
@@ -76,11 +69,10 @@ def writeToExcel(data, outputFile):
 
     wb.save(outputFile)
 
-def processJson(filePath):
-    data = readJson(filePath)
-
+async def makeExcelForThisSession():
+    thisData = await readJson('currentSession.json')
     formattedData = []
-    for entry in data:
+    for _, entry in thisData.items():
         formattedEntry = {
             'fullName': entry['fullName'],
             'companyPosition': entry.get('companyPosition', ''),
@@ -99,10 +91,5 @@ def processJson(filePath):
         formattedData.append(formattedEntry)
 
     outputFile = 'contacts.xlsx'
-    writeToExcel(formattedData, outputFile)
+    await writeToExcel(formattedData, outputFile)
     print(f"Data has been written to {outputFile}")
-
-
-if "__name__" == '__main__':
-    filePath = 'output.json'
-    processJson(filePath)
