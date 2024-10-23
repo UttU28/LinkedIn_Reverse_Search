@@ -40,7 +40,6 @@ async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
         EC.presence_of_element_located((By.CLASS_NAME, 'search-results-container'))
     )
 
-    print(companyName, lastName, firstName)
     childDivs = srContainer.find_elements(By.TAG_NAME, 'div')
     # print(f"Number of child divs in 'search-results-container': {len(childDivs)}")
 
@@ -59,13 +58,12 @@ async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                     htmlContent = thisDriver.page_source
                     soup = BeautifulSoup(htmlContent, 'html.parser')
                     sectionList = soup.select("section.artdeco-card.pv-profile-card.break-words")
-                    print(f"Number of sections found: {len(sectionList)}")
+                    # print(f"Number of sections found: {len(sectionList)}")
 
                     for section in sectionList:
                         experienceDiv = section.select_one("div.pv-profile-card__anchor")
 
                         if experienceDiv and experienceDiv.get('id') == 'experience':
-                            print(experienceDiv.get('id'))
                             jobDataList = []
                             ulElements = section.find_all('ul')
                             if ulElements:
@@ -82,5 +80,9 @@ async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                                 return thisData
 
                     return {'currentUrl': currentUrl}
+                else:
+                    return None
+            else:
+                return None
         except:
             continue  

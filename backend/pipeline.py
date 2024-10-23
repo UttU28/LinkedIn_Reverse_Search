@@ -16,18 +16,18 @@ async def isChromeRunning():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     result = sock.connect_ex(('localhost', 8989))
     sock.close()
-    return result != 0 # Yaad rakh ! to invert the result to get True if Chrome is running, False otherwise
+    return result != 0
 
 async def writeDataToJson(refinedData):
     currentSessionData = {}
     global_session_data = {}
 
-    if os.path.exists('currentSession.json'):
-        with open('currentSession.json', 'r') as f:
+    if os.path.exists('data/currentSession.json'):
+        with open('data/currentSession.json', 'r') as f:
             currentSessionData = json.load(f)
 
-    if os.path.exists('globalSession.json'):
-        with open('globalSession.json', 'r') as f:
+    if os.path.exists('data/globalSession.json'):
+        with open('data/globalSession.json', 'r') as f:
             global_session_data = json.load(f)
 
     fullName = refinedData.get('fullName')
@@ -37,9 +37,9 @@ async def writeDataToJson(refinedData):
     if fullName not in global_session_data:
         global_session_data[fullName] = refinedData
 
-    with open('currentSession.json', 'w') as f:
+    with open('data/currentSession.json', 'w') as f:
         json.dump(currentSessionData, f, indent=4)
-    with open('globalSession.json', 'w') as f:
+    with open('data/globalSession.json', 'w') as f:
         json.dump(global_session_data, f, indent=4)
 
 async def processOne(queueOne, queueTwo):
@@ -97,7 +97,7 @@ async def main(inputString):
     
     excelFile = inputString
     jsonData = scrapeDataFromExcel(excelFile)
-    with open('output.json', 'w') as json_file:
+    with open('data/output.json', 'w') as json_file:
         json_file.write(json.dumps(jsonData, indent=4))
     
     queueOne = asyncio.Queue()
@@ -121,7 +121,7 @@ async def main(inputString):
     await p2
     monitor.cancel()
 
-    sleep(2)
+    sleep(1)
     await makeExcelForThisSession()
 
     print("\nTask finished")

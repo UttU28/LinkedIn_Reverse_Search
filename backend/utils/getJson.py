@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup
-import json
 
 async def checkDuplicate(data):
     if data is None:
@@ -28,7 +27,6 @@ async def getMeJsonData(htmlContent):
         company_info_tag = li_element.find('span', class_='t-14 t-normal')
         if company_info_tag:
             company_info = company_info_tag.get_text(strip=True)
-            print("company_info", company_info)
             company_info_parts = company_info.split(' · ')
             companyName = company_info_parts[0] if company_info_parts else None
 
@@ -43,8 +41,6 @@ async def getMeJsonData(htmlContent):
     }
     
     return jobData
-
-
 
 # //////////////////////////////////
 

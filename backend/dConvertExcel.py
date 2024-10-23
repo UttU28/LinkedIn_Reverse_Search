@@ -60,7 +60,7 @@ async def writeToExcel(data, outputFile):
             cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     dataToSort = list(ws.iter_rows(min_row=2, max_row=len(data)+1, values_only=True))
-    dataToSort.sort(key=lambda x: (x[6] == '', x[6]))
+    dataToSort.sort(key=lambda x: (x[6] == None, x[6]))
 
     for rowNum, rowData in enumerate(dataToSort, start=2):
         for colNum, value in enumerate(rowData, start=1):
@@ -69,7 +69,7 @@ async def writeToExcel(data, outputFile):
     wb.save(outputFile)
 
 async def makeExcelForThisSession():
-    thisData = await readJson('currentSession.json')
+    thisData = await readJson('data/currentSession.json')
     formattedData = []
     for _, entry in thisData.items():
         formattedEntry = {
@@ -89,6 +89,6 @@ async def makeExcelForThisSession():
 
         formattedData.append(formattedEntry)
 
-    outputFile = 'contacts.xlsx'
+    outputFile = 'data/contacts.xlsx'
     await writeToExcel(formattedData, outputFile)
     print(f"Data has been written to {outputFile}")
