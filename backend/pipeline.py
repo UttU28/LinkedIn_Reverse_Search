@@ -2,7 +2,7 @@ import asyncio
 import os
 import socket
 import json
-from tqdm import tqdm
+from tqdm import tqdm 
 from time import sleep
 
 from aExcel2json import scrapeDataFromExcel
@@ -45,12 +45,13 @@ async def writeDataToJson(refinedData):
 async def processOne(queueOne, queueTwo):
     global thisChromeDriver 
     while True:
-        item = await queueOne.get()
-        if item is None:
+        jsonData = await queueOne.get()
+        if jsonData is None:
             break
         try:
-            result = await getLinkedInFor(thisChromeDriver, item)
-            await queueTwo.put(result)
+            for item in jsonData:
+                result = await getLinkedInFor(thisChromeDriver, item)
+                await queueTwo.put(result)
         except Exception as e:
             print(f"Error processing item {item}: {e}")
         finally:
@@ -65,6 +66,14 @@ async def processTwo(queueTwo):
         refinedData = await getEmailAndPhoneFor(baseData)
         await writeDataToJson(refinedData)
         queueTwo.task_done()
+
+async def processZero(queueOne, excelFileName):
+    # CHACK: QUEUE IF ANY ACTIVE, 
+    jsonData = scrapeDataFromExcel(excelFileName)
+    with open('data/output.json', 'w') as json_file:
+        json_file.write(json.dumps(jsonData, indent=4))
+
+    await queueOne.put(jsonData)
 
 async def statusMonitor(queueOne, queueTwo, totalItems):
     with tqdm(total=totalItems, desc="Process 1 Progress", 
@@ -91,26 +100,23 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
 
             await asyncio.sleep(1)
 
-async def main(inputString):
+
+from utils.fileActions import readJson, writeJson
+async def main(email, excelFileName, timestamp='12345677'):
     global thisChromeDriver
     thisChromeDriver = prepareChromeAndSelenium(await isChromeRunning())
-    
-    excelFile = inputString
-    jsonData = scrapeDataFromExcel(excelFile)
-    with open('data/output.json', 'w') as json_file:
-        json_file.write(json.dumps(jsonData, indent=4))
-    
+
     queueOne = asyncio.Queue()
     queueTwo = asyncio.Queue()
-    totalItems = len(jsonData)
+    totalItems = len('jsonData')
 
+    # Start Process 0
+    p0 = asyncio.create_task(processZero(queueOne, excelFileName))
     p1 = asyncio.create_task(processOne(queueOne, queueTwo))
     p2 = asyncio.create_task(processTwo(queueTwo))
     monitor = asyncio.create_task(statusMonitor(queueOne, queueTwo, totalItems))
 
-    for item in jsonData:
-        await queueOne.put(item)
-
+    await p0  # Wait for Process 0 to finish
     await queueOne.join()
     await queueOne.put(None)
     
@@ -122,10 +128,18 @@ async def main(inputString):
     monitor.cancel()
 
     sleep(1)
-    await makeExcelForThisSession()
+    fileLocation = await makeExcelForThisSession(timestamp)
+
+    currentQueue = await readJson('data.json')
+    currentQueue[email][timestamp]['status'] = 'finished'
+    currentQueue[email][timestamp]['newLocation'] = fileLocation
+
+    await writeJson('data.json', currentQueue)
+    # print(currentQueue)
 
     print("\nTask finished")
 
 if __name__ == "__main__":
-    inputData = "People.xlsx"
-    asyncio.run(main(inputData))
+    excelFileName = "People.xlsx"
+    email="sample@gmail.com"
+    asyncio.run(main(email, excelFileName))

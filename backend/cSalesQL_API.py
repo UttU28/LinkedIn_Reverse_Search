@@ -32,7 +32,7 @@ async def getEmailAndPhoneFor(thisGuy):
     currentUrl = thisGuy.get('currentUrl')
     print(currentUrl)
     if currentUrl:
-        allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)  # Await the API request
+        allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)
         # allEmail, allPhone, companyUrl = '','',''
         thisGuy['email0'] = allEmail[0] if len(allEmail) > 0 else None
         thisGuy['email1'] = allEmail[1] if len(allEmail) > 1 else None

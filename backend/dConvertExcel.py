@@ -68,7 +68,7 @@ async def writeToExcel(data, outputFile):
 
     wb.save(outputFile)
 
-async def makeExcelForThisSession():
+async def makeExcelForThisSession(timestamp):
     thisData = await readJson('data/currentSession.json')
     formattedData = []
     for _, entry in thisData.items():
@@ -89,6 +89,6 @@ async def makeExcelForThisSession():
 
         formattedData.append(formattedEntry)
 
-    outputFile = 'data/contacts.xlsx'
+    outputFile = f'../uploads/results/{timestamp}.xlsx'
     await writeToExcel(formattedData, outputFile)
-    print(f"Data has been written to {outputFile}")
+    return outputFile
