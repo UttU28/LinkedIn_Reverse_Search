@@ -1,4 +1,4 @@
-// Caching.js
+// components/Caching.js
 import Cookies from 'universal-cookie';
 
 function AddToCaching(what, whatData) {

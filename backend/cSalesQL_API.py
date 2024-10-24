@@ -7,8 +7,7 @@ async def makeAPIRequest(linkedInUrl):
     API_TOKEN = "ZAuOYiUjklVmhWoVVUKqoXzboZ9XSQ7s"
     
     # URL encode the LinkedIn URL
-    encodedUrl = quote(linkedInUrl, safe='')
-    url = f"https://api-public.salesql.com/v1/persons/enrich/?linkedin_url={encodedUrl}"
+    url = f"https://api-public.salesql.com/v1/persons/enrich/?linkedin_url={linkedInUrl}"
 
     headers = {
         "accept": "application/json",
@@ -24,7 +23,7 @@ async def makeAPIRequest(linkedInUrl):
                 companyUrl = data.get('organization', {}).get('website', '')
                 return emails, phones, companyUrl
             else:
-                print(f"Error: {response.status}")
+                # print(f"Error: {response.status}")
                 return [], [], ''
 
 async def getEmailAndPhoneFor(thisGuy):

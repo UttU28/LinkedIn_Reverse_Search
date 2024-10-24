@@ -107,48 +107,51 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
             await asyncio.sleep(1)
 
 
-async def thisMainFunction(email, excelFileName, timeStamp):
-    await writeJson(THE_DATA_FILE,{})
-    await writeJson('data/currentSession.json',{})
-    await writeJson('data/output.json',{})
+async def thisMainFunction(email, excelFileName, timeStamp, sendNotification):
+    await sendNotification(email, "Data scraping completed successfully!")
+    # timeStamp = str(timeStamp)
+    # await writeJson(THE_DATA_FILE,{})
+    # await writeJson('data/currentSession.json',{})
+    # await writeJson('data/output.json',{})
 
-    await addEntryToQueue(email, "name", excelFileName, timeStamp)
-    global thisChromeDriver
-    thisChromeDriver = prepareChromeAndSelenium(await isChromeRunning())
+    # await addEntryToQueue(email, "name", excelFileName, timeStamp)
+    # global thisChromeDriver
+    # thisChromeDriver = prepareChromeAndSelenium(await isChromeRunning())
 
-    await changeQueueStatus(timeStamp, email)
-    queueOne = asyncio.Queue()
-    queueTwo = asyncio.Queue()
-    totalItems = len('jsonData')
+    # await changeQueueStatus(timeStamp, email)
+    # queueOne = asyncio.Queue()
+    # queueTwo = asyncio.Queue()
+    # totalItems = len('jsonData')
 
 
-    # Start Process 0
-    p0 = asyncio.create_task(processZero(queueOne, excelFileName))
-    p1 = asyncio.create_task(processOne(queueOne, queueTwo))
-    p2 = asyncio.create_task(processTwo(queueTwo))
-    monitor = asyncio.create_task(statusMonitor(queueOne, queueTwo, totalItems))
+    # # Start Process 0
+    # p0 = asyncio.create_task(processZero(queueOne, excelFileName))
+    # p1 = asyncio.create_task(processOne(queueOne, queueTwo))
+    # p2 = asyncio.create_task(processTwo(queueTwo))
+    # monitor = asyncio.create_task(statusMonitor(queueOne, queueTwo, totalItems))
 
-    await p0  # Wait for Process 0 to finish
-    await queueOne.join()
-    await queueOne.put(None)
+    # await p0  # Wait for Process 0 to finish
+    # await queueOne.join()
+    # await queueOne.put(None)
     
-    await queueTwo.join()
-    await queueTwo.put(None)
+    # await queueTwo.join()
+    # await queueTwo.put(None)
 
-    await p1
-    await p2
-    monitor.cancel()
+    # await p1
+    # await p2
+    # monitor.cancel()
 
-    sleep(1)
-    fileLocation = await makeExcelForThisSession(timeStamp)
+    # sleep(1)
+    # fileLocation = await makeExcelForThisSession(timeStamp)
 
-    currentQueue = await readJson(THE_DATA_FILE)
-    currentQueue[email][timeStamp]['status'] = 'finished'
-    currentQueue[email][timeStamp]['newLocation'] = fileLocation
+    # currentQueue = await readJson(THE_DATA_FILE)
+    # currentQueue[email][timeStamp]['status'] = 'finished'
+    # currentQueue[email][timeStamp]['newLocation'] = fileLocation
 
-    await writeJson(THE_DATA_FILE, currentQueue)
+    # await writeJson(THE_DATA_FILE, currentQueue)
+    # await sendNotification(email, "Data scraping completed successfully!")
 
-    print("\nTask finished")
+
 
 if __name__ == "__main__":
     excelFileName = "People.xlsx"

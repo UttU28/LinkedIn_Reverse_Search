@@ -20,6 +20,7 @@ async def addEntryToQueue(email, name, location, timeStamp, status='pending', fi
 
 async def changeQueueStatus(queueID, email, status='waiting', fileName='data/data.json'):
     print(queueID, email)
+    queueID = str(queueID)
     data = await readJson(fileName)
     print(data)
     data[email][queueID]['status'] = status
