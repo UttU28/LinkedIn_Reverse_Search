@@ -1,3 +1,5 @@
+// components/StartUp.js
+
 import React, { useEffect, useState } from 'react';
 import { GetFromCaching } from './Caching';
 import {
@@ -91,7 +93,7 @@ const StartUp = () => {
           Search History
         </Heading>
         {data && data.thisUserData ? (
-          <VStack spacing={4} align="center">
+          <VStack spacing={4} align="center" className='historyBox'>
             {Object.entries(data.thisUserData).map(([key, assignment]) => (
               <Box key={key} p={3} borderWidth={1} borderRadius="md" bg="gray.700" width={300}>
                 <Text fontWeight="bold" color="teal.200">{assignment.name}</Text>

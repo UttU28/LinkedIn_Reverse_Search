@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GetFromCaching } from './Caching';
 import { useToast } from '@chakra-ui/react';
+import fetchData from './StartUp'
 
 const Notifications = () => {
   const [messages, setMessages] = useState([]);
@@ -29,14 +30,18 @@ const Notifications = () => {
             setLastProcessedTimestamp(timestamp);
             setMessages((prevMessages) => [...prevMessages, message]);
 
-            toast({
-              title: 'New Notification',
-              position: 'top-right',
-              description: message,
-              status: 'info',
-              duration: 5000,
-              isClosable: true,
-            });
+            if (message['status'] === 'notification') {
+              toast({
+                title: 'New Notification',
+                position: 'top-right',
+                description: message,
+                status: 'info',
+                duration: 5000,
+                isClosable: true,
+              });
+            } else{
+              // fetchData();
+            }
           } else {
             console.log("Duplicate notification ignored for timestamp:", timestamp);
           }

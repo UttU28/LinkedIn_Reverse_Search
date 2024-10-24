@@ -13,7 +13,7 @@ from utils.queueManagement import addEntryToQueue
 from utils.initialCleanup import createInitialDirs
 from eJobsPipeline import thisMainFunction
 from utils.fileActions import readJson, writeJson
-
+import aiofiles
 # Define the folder to save uploads and allowed file types
 uploadFolder = 'uploads'
 downloadFolder = 'downloads'
@@ -43,26 +43,25 @@ active_connections = {}
 pending_notifications = {}
 
 # Check if a file extension is allowed
-def allowedFile(filename: str) -> bool:
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowedExtensions
+def allowedFile(fileName: str) -> bool:
+    return '.' in fileName and fileName.rsplit('.', 1)[1].lower() in allowedExtensions
 
 # Pydantic model for email requests
 class EmailRequest(BaseModel):
     email: str
 
 
-# @app.get("/download/{filename}")
-# async def download_file(filename: str):
+# @app.get("/download/{fileName}")
+# async def download_file(fileName: str):
 #     file_path = '/downloads/1729791124.xlsx'
 #     if os.path.exists(file_path):
 #         return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 #     else:
 #         raise HTTPException(status_code=404, detail="File not found")
 
-@app.get("/download/{filename}")
-async def download_file(filename: str):
-    file_path = 'downloads/1729791124.xlsx'  # This should dynamically reference `filename`
-    print(filename, os.getcwd())
+@app.get("/download/{fileName}")
+async def download_file(fileName: str):
+    file_path = f'downloads/{fileName}.xlsx'  # This should dynamically reference `fileName`
     if os.path.exists(file_path):
         return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     else:
@@ -76,7 +75,7 @@ def readTheFile(filePath):
 @app.post("/startup")
 async def get_startup_data(email_request: EmailRequest):
     email = email_request.email
-    allData = readTheFile(f"data/data.json")
+    allData = await readJson(f"data/data.json")
     thisUserData = allData[email]
     if email:
         return {"email": email, "thisUserData": thisUserData, "status": "active"}
@@ -94,13 +93,15 @@ async def uploadFile(
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
 
     timeStamp = int(time.time())
-    filename = f"{timeStamp}.xlsx"
-    filePath = os.path.join(uploadFolder, filename)
+    fileName = f"{timeStamp}.xlsx"
+    filePath = os.path.join(uploadFolder, fileName)
 
-    with open(filePath, "wb") as buffer:
-        buffer.write(await file.read())
+    # Use aiofiles to write the file asynchronously
+    async with aiofiles.open(filePath, "wb") as buffer:
+        content = await file.read()
+        await buffer.write(content)
 
-    logging.info(f"Received Name: {name}, Email: {email}, File saved as: {filename}")
+    logging.info(f"Received Name: {name}, Email: {email}, File saved as: {fileName}")
     thisID = await addEntryToQueue(email, name, filePath, timeStamp)
 
     # Run the background job and send notification when ready
@@ -108,16 +109,18 @@ async def uploadFile(
 
     return JSONResponse(content={'message': 'Your data is being scraped. We will send an email once the data is found.'}, status_code=200)
 
+
 # Function to send a notification
-async def sendNotification(email: str, message: str):
+async def sendNotification(email: str, message: str, statusMessage: str):
     logging.info(f"Attempting to send notification to {email}")
+    newMessage = {"status": statusMessage, "message": message}
     if email in active_connections:
         connection = active_connections[email]
-        notification_data = {
+        notificationData = {
             "timestamp": int(time.time()),
-            "message": message
+            "message": newMessage
         }
-        await connection.send_text(json.dumps(notification_data))
+        await connection.send_text(json.dumps(notificationData))
         logging.info(f"Sent notification to {email} with timestamp")
     else:
         logging.warning(f"No active connection for {email}, storing notification")
@@ -146,11 +149,11 @@ async def websocket_endpoint(websocket: WebSocket, email: str):
     # Send any pending notifications when the user reconnects
     if email in pending_notifications:
         for message in pending_notifications[email]:
-            notification_data = {
+            notificationData = {
                 "timestamp": int(time.time()),
                 "message": message
             }
-            await websocket.send_text(json.dumps(notification_data))
+            await websocket.send_text(json.dumps(notificationData))
             logging.info(f"Sent pending notification to {email}")
 
         # Clear the stored notifications after sending
@@ -167,6 +170,13 @@ async def websocket_endpoint(websocket: WebSocket, email: str):
     except Exception as e:
         logging.error(f"Error during WebSocket connection: {e}")
 
+
+
 if __name__ == '__main__':
     createInitialDirs()
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
+
+
+# Add function to call the history websocket_endpoint every 30 seconds and update the start up queue by calling the function fetchData fron StartUp.js and refreshing the content in html again Along with a notification using toast saying 'Updating the Data'.
+# StartUp

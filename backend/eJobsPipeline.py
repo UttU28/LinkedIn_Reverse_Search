@@ -108,9 +108,9 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
 
 
 async def thisMainFunction(email, excelFileName, timeStamp, sendNotification):
-    await sendNotification(email, "Data scraping Started!")
+    await sendNotification(email, "Data scraping Started!", 'notif')
     timeStamp = str(timeStamp)
-    await writeJson(THE_DATA_FILE,{})
+    # await writeJson(THE_DATA_FILE,{})
     await writeJson('data/currentSession.json',{})
     await writeJson('data/output.json',{})
 
@@ -149,7 +149,7 @@ async def thisMainFunction(email, excelFileName, timeStamp, sendNotification):
     currentQueue[email][timeStamp]['newLocation'] = fileLocation
 
     await writeJson(THE_DATA_FILE, currentQueue)
-    await sendNotification(email, "Data scraping completed successfully!")
+    await sendNotification(email, "Data scraping completed successfully!", 'notif')
 
 
 
