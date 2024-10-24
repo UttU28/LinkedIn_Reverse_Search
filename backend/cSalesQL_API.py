@@ -22,7 +22,6 @@ async def makeAPIRequest(linkedInUrl):
                 emails = list(map(lambda x: x['email'], data.get('emails', [])))
                 phones = list(map(lambda x: x['phone'], data.get('phones', [])))
                 companyUrl = data.get('organization', {}).get('website', '')
-                print(emails, phones, companyUrl)
                 return emails, phones, companyUrl
             else:
                 print(f"Error: {response.status}")
@@ -30,7 +29,6 @@ async def makeAPIRequest(linkedInUrl):
 
 async def getEmailAndPhoneFor(thisGuy):
     currentUrl = thisGuy.get('currentUrl')
-    print(currentUrl)
     if currentUrl:
         allEmail, allPhone, companyUrl = await makeAPIRequest(currentUrl)
         # allEmail, allPhone, companyUrl = '','',''

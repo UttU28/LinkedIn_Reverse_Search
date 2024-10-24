@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
 import time
+import asyncio
 import os
 from werkzeug.utils import secure_filename
 from utils.queueManagement import addEntryToQueue
+from pipeline import thisMainFunction
 
 upload_folder = 'uploads'
 allowed_extensions = {'xlsx'}
@@ -27,12 +29,14 @@ async def upload_file():
         timeStamp = int(time.time())
         name = request.form.get('name')
         email = request.form.get('email')
-        filename = f"{timeStamp}_{secure_filename(email.split('@')[0])}.xlsx"
+        filename = f"{timeStamp}.xlsx"
         filePath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filePath)
 
         print(f"Received Name: {name}, Email: {email}, File saved as: {filename}")
-        thisID = addEntryToQueue(email, filePath, timeStamp)
+        thisID = await addEntryToQueue(email, name, filePath, timeStamp)
+        asyncio.run(thisMainFunction(email, filePath, thisID))
+
         
 
         print("Data is being scraped...")

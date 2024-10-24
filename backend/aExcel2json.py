@@ -49,8 +49,6 @@ def scrapeDataFromExcel(whichExcel):
 if __name__ == '__main__':
     excel_file = 'People.xlsx'
     jsonData = scrapeDataFromExcel(excel_file)
-    print(len(jsonData))
-    print(jsonData[0])
     with open('output.json', 'w') as json_file:
         jsonData = json.dumps(jsonData, indent=4)
         json_file.write(jsonData)

@@ -10,6 +10,12 @@ from bSeleniumWorker import getLinkedInFor, prepareChromeAndSelenium
 from cSalesQL_API import getEmailAndPhoneFor
 from dConvertExcel import makeExcelForThisSession
 
+from utils.queueManagement import changeQueueStatus, addEntryToQueue
+from utils.fileActions import readJson, writeJson
+
+
+THE_DATA_FILE = 'data/data.json'
+
 thisChromeDriver = None
 
 async def isChromeRunning():
@@ -101,14 +107,20 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
             await asyncio.sleep(1)
 
 
-from utils.fileActions import readJson, writeJson
-async def main(email, excelFileName, timestamp='12345677'):
+async def thisMainFunction(email, excelFileName, timeStamp):
+    await writeJson(THE_DATA_FILE,{})
+    await writeJson('data/currentSession.json',{})
+    await writeJson('data/output.json',{})
+
+    await addEntryToQueue(email, "name", excelFileName, timeStamp)
     global thisChromeDriver
     thisChromeDriver = prepareChromeAndSelenium(await isChromeRunning())
 
+    await changeQueueStatus(timeStamp, email)
     queueOne = asyncio.Queue()
     queueTwo = asyncio.Queue()
     totalItems = len('jsonData')
+
 
     # Start Process 0
     p0 = asyncio.create_task(processZero(queueOne, excelFileName))
@@ -128,18 +140,17 @@ async def main(email, excelFileName, timestamp='12345677'):
     monitor.cancel()
 
     sleep(1)
-    fileLocation = await makeExcelForThisSession(timestamp)
+    fileLocation = await makeExcelForThisSession(timeStamp)
 
-    currentQueue = await readJson('data.json')
-    currentQueue[email][timestamp]['status'] = 'finished'
-    currentQueue[email][timestamp]['newLocation'] = fileLocation
+    currentQueue = await readJson(THE_DATA_FILE)
+    currentQueue[email][timeStamp]['status'] = 'finished'
+    currentQueue[email][timeStamp]['newLocation'] = fileLocation
 
-    await writeJson('data.json', currentQueue)
-    # print(currentQueue)
+    await writeJson(THE_DATA_FILE, currentQueue)
 
     print("\nTask finished")
 
 if __name__ == "__main__":
     excelFileName = "People.xlsx"
-    email="sample@gmail.com"
-    asyncio.run(main(email, excelFileName))
+    email = "sample@gmail.com"
+    asyncio.run(thisMainFunction(email, excelFileName, '12345677'))

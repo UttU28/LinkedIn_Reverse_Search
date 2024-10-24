@@ -14,6 +14,7 @@ import psutil
 
 
 chromeDriverPath = 'C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/chromeDriver/chromedriver.exe'
+chromeDriverPath = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/backend/chromeDriver/chromedriver.exe'
 
 options = Options()
 options.add_experimental_option("debuggerAddress", "localhost:8989")
@@ -27,7 +28,7 @@ def prepareChromeAndSelenium(wantChrome):
         subprocess.Popen([
             'C:/Program Files/Google/Chrome/Application/chrome.exe',
             '--remote-debugging-port=8989',
-            '--user-data-dir=C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/chromeData/'
+            '--user-data-dir=C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/backend/chromeData/'
         ])
     # chromeProcess = ''
     driver = webdriver.Chrome(options=options)

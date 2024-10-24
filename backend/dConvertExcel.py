@@ -89,6 +89,6 @@ async def makeExcelForThisSession(timestamp):
 
         formattedData.append(formattedEntry)
 
-    outputFile = f'../uploads/results/{timestamp}.xlsx'
+    outputFile = f'uploads/{timestamp}.xlsx'
     await writeToExcel(formattedData, outputFile)
     return outputFile
