@@ -13,7 +13,6 @@ import {
   useColorMode,
   IconButton,
 } from '@chakra-ui/react';
-import { SunIcon, MoonIcon } from '@chakra-ui/icons'; 
 import { useNavigate } from 'react-router-dom';
 import { AddToCaching, GetFromCaching, } from './Caching';
 
@@ -94,20 +93,11 @@ function Form() {
 
   return (
     <Container centerContent
-    minHeight="90vh"
+    minHeight="80vh"
     display={"flex"}
     alignItems={"center"}
     justifyContent={"center"}
     >
-      <IconButton
-        aria-label="Toggle theme"
-        icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
-        onClick={toggleColorMode}
-        position="absolute"
-        top="10px"
-        right="10px"
-        size="lg"
-      />
       <Box className={`container ${colorMode}`}>
         <VStack spacing={4}>
           <Heading as="h1" size="lg">
@@ -115,7 +105,7 @@ function Form() {
           </Heading>
           <form onSubmit={handleSubmit}>
             <FormControl isRequired>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>File Name</FormLabel>
               <Input
                 type="text"
                 name="name"

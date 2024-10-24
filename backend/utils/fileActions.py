@@ -1,4 +1,4 @@
-import asyncio, os
+import asyncio
 import json
 import aiofiles
 

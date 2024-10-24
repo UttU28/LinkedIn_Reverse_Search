@@ -1,43 +1,94 @@
-# Python server with improved WebSocket management
-
+import uvicorn
+import json
 import logging
 import time
 import os
 import asyncio, urllib
-from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from utils.queueManagement import addEntryToQueue
+from utils.initialCleanup import createInitialDirs
 from eJobsPipeline import thisMainFunction
+from utils.fileActions import readJson, writeJson
 
+# Define the folder to save uploads and allowed file types
 uploadFolder = 'uploads'
+downloadFolder = 'downloads'
 allowedExtensions = {'xlsx'}
 
+# Create FastAPI app
 app = FastAPI()
 
+# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, this should be limited to your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Ensure the upload folder exists
 os.makedirs(uploadFolder, exist_ok=True)
+os.makedirs(downloadFolder, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 
 # Keep track of active WebSocket connections per email
 active_connections = {}
+# Store notifications for emails that do not have active WebSocket connections
+pending_notifications = {}
 
+# Check if a file extension is allowed
 def allowedFile(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowedExtensions
 
+# Pydantic model for email requests
+class EmailRequest(BaseModel):
+    email: str
+
+
+# @app.get("/download/{filename}")
+# async def download_file(filename: str):
+#     file_path = '/downloads/1729791124.xlsx'
+#     if os.path.exists(file_path):
+#         return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+#     else:
+#         raise HTTPException(status_code=404, detail="File not found")
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    file_path = 'downloads/1729791124.xlsx'  # This should dynamically reference `filename`
+    print(filename, os.getcwd())
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
+
+
+def readTheFile(filePath):
+    with open(filePath, 'r') as file:
+        return json.load(file)
+
+@app.post("/startup")
+async def get_startup_data(email_request: EmailRequest):
+    email = email_request.email
+    allData = readTheFile(f"data/data.json")
+    thisUserData = allData[email]
+    if email:
+        return {"email": email, "thisUserData": thisUserData, "status": "active"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid email")
+
+# POST route to handle file uploads
 @app.post("/upload")
 async def uploadFile(
     name: str = Form(...),
     email: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
 ):
     if not allowedFile(file.filename):
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
@@ -57,38 +108,65 @@ async def uploadFile(
 
     return JSONResponse(content={'message': 'Your data is being scraped. We will send an email once the data is found.'}, status_code=200)
 
+# Function to send a notification
 async def sendNotification(email: str, message: str):
     logging.info(f"Attempting to send notification to {email}")
     if email in active_connections:
         connection = active_connections[email]
-        await connection.send_text(message)
-        logging.info(f"Sent notification to {email}")
+        notification_data = {
+            "timestamp": int(time.time()),
+            "message": message
+        }
+        await connection.send_text(json.dumps(notification_data))
+        logging.info(f"Sent notification to {email} with timestamp")
     else:
-        logging.warning(f"No active connection for {email}")
+        logging.warning(f"No active connection for {email}, storing notification")
+        # Store the notification for later if the user is not connected
+        if email not in pending_notifications:
+            pending_notifications[email] = []
+        pending_notifications[email].append(message)
 
+# WebSocket endpoint for receiving real-time notifications
 @app.websocket("/ws/{email}")
 async def websocket_endpoint(websocket: WebSocket, email: str):
-    email = urllib.parse.unquote(email)  # Decode the email if needed
+    email = urllib.parse.unquote(email)
     await websocket.accept()
-    logging.info(f"WebSocket connection accepted for {email}")
 
+    logging.info(f"WebSocket connection accepted for {email}")
     if email in active_connections:
-        # Close the old connection if it exists
         old_websocket = active_connections[email]
-        await old_websocket.close()
-        logging.info(f"Closed previous WebSocket for {email}")
-    
+        try:
+            await old_websocket.close()
+            logging.info(f"Closed previous WebSocket for {email}")
+        except Exception as e:
+            logging.error(f"Error closing previous WebSocket: {e}")
+
     active_connections[email] = websocket
+
+    # Send any pending notifications when the user reconnects
+    if email in pending_notifications:
+        for message in pending_notifications[email]:
+            notification_data = {
+                "timestamp": int(time.time()),
+                "message": message
+            }
+            await websocket.send_text(json.dumps(notification_data))
+            logging.info(f"Sent pending notification to {email}")
+
+        # Clear the stored notifications after sending
+        del pending_notifications[email]
 
     try:
         while True:
             data = await websocket.receive_text()
             logging.info(f"Received data from {email}: {data}")
     except WebSocketDisconnect:
-        del active_connections[email]
+        if email in active_connections:
+            del active_connections[email]
         logging.info(f"WebSocket disconnected for {email}")
-
+    except Exception as e:
+        logging.error(f"Error during WebSocket connection: {e}")
 
 if __name__ == '__main__':
-    import uvicorn
+    createInitialDirs()
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

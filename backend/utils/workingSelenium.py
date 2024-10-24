@@ -1,7 +1,5 @@
 import subprocess 
 from time import sleep
-import json
-import random
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -9,12 +7,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from utils.getJson import getMeJsonData, findClosestMatch
-import pygetwindow as gw
-import psutil
 
 
-chromeDriverPath = 'C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/chromeDriver/chromedriver.exe'
-chromeDriverPath = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/backend/chromeDriver/chromedriver.exe'
+PTATH_TILL_PROJECT = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/'
+PTATH_TILL_PROJECT = "C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/"
+chromeDriverPath = f'{PTATH_TILL_PROJECT}backend/chromeDriver/chromedriver.exe'
 
 options = Options()
 options.add_experimental_option("debuggerAddress", "localhost:8989")
@@ -28,7 +25,7 @@ def prepareChromeAndSelenium(wantChrome):
         subprocess.Popen([
             'C:/Program Files/Google/Chrome/Application/chrome.exe',
             '--remote-debugging-port=8989',
-            '--user-data-dir=C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/backend/chromeData/'
+            f'--user-data-dir={PTATH_TILL_PROJECT}backend/chromeData/'
         ])
     # chromeProcess = ''
     driver = webdriver.Chrome(options=options)

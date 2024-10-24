@@ -1,8 +1,5 @@
 import aiohttp
 
-import aiohttp
-from urllib.parse import quote
-
 async def makeAPIRequest(linkedInUrl):
     API_TOKEN = "ZAuOYiUjklVmhWoVVUKqoXzboZ9XSQ7s"
     
