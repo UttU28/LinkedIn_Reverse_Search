@@ -9,6 +9,7 @@ import {
   Button,
   Flex,
   Container,
+  useColorMode, // Import useColorMode
 } from '@chakra-ui/react';
 import axios from 'axios';
 import { GetFromCaching } from './Caching';
@@ -33,6 +34,7 @@ export const handlePostRequest = async (cachedEmail, setData) => {
 };
 
 const EmailPostComponent = () => {
+  const { colorMode } = useColorMode(); // Get current color mode
   const [data, setData] = useState(null);
   const [email, setEmail] = useState('');
 
@@ -72,21 +74,30 @@ const EmailPostComponent = () => {
   };
 
   return (
-    <Container display={'flex'} justifyContent={'center'}>
-      <Box p={4} bg="gray.800" borderRadius="md" boxShadow="md">
-        <Heading size="md" mb={4} color="white" textAlign="center">
+    <Container display={'flex'} justifyContent={'end'}>
+      <Box 
+        p={4} 
+        bg={colorMode === 'dark' ? 'gray.800' : 'white'} // Responsive background color
+        borderRadius="md" 
+        boxShadow="md"
+      >
+        <Heading size="md" mb={4} color={colorMode === 'dark' ? 'white' : 'black'} textAlign="center">
           Search History
         </Heading>
 
-        {data === null ? (
-          <Text color="white" mt={4}>Loading...</Text>
+        {email === '' ? (
+          <Text color={colorMode === 'dark' ? 'white' : 'black'} mt={4} textAlign="center">
+            Add your Email, make one request to access this part.
+          </Text>
+        ) : data === null ? (
+          <Text color={colorMode === 'dark' ? 'white' : 'black'} mt={4}>Loading...</Text>
         ) : (
           <VStack spacing={4} align="center" className="historyBox" mt={4}>
             {data.thisUserData &&
               Object.entries(data.thisUserData)
                 .sort(([keyA], [keyB]) => parseInt(keyB) - parseInt(keyA)) // Sort by key (timestamp as number, latest first)
                 .map(([key, assignment]) => (
-                  <Box key={key} p={3} borderWidth={1} borderRadius="md" bg="gray.700" width={300}>
+                  <Box key={key} p={3} borderWidth={1} borderRadius="md" bg={colorMode === 'dark' ? 'gray.700' : 'gray.200'} width={300}>
                     <Text fontWeight="bold" color="teal.200">{assignment.firstName}</Text>
                     <Text color="gray.300" fontSize="xs">{formatDate(key)}</Text> {/* Format using key */}
                     <Flex justify="space-between" align="center" mt={2}>
@@ -99,12 +110,12 @@ const EmailPostComponent = () => {
                           Download File
                         </Button>
                       )}
-                    <Badge colorScheme={
-                      assignment.status === 'pending' ? 'blue' :
-                        assignment.status === 'waiting' ? 'yellow' :
-                        assignment.status === 'finished' ? 'green' :
+                      <Badge colorScheme={
+                        assignment.status === 'pending' ? 'blue' :
+                          assignment.status === 'waiting' ? 'yellow' :
+                          assignment.status === 'finished' ? 'green' :
                           'red'
-                    }>
+                      }>
                         {assignment.status}
                       </Badge>
                     </Flex>

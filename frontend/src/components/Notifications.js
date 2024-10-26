@@ -34,7 +34,7 @@ const Notifications = ({ setData }) => { // Accept setData as a prop
               toast({
                 title: 'New Notification',
                 position: 'top-right',
-                description: message['message']['description'] || 'No description available',
+                description: message['message'] || 'No description available',
                 status: 'info',
                 duration: 5000,
                 isClosable: true,

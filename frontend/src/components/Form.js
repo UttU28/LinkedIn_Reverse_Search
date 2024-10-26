@@ -61,7 +61,7 @@ function Form() {
     AddToCaching("email", formData.email);
 
     formDataObj.append('file', formData.file);
-    formDataObj.append('firstName', formData.firstName);
+    formDataObj.append('firstName', formData.file.name);
     formDataObj.append('email', formData.email);
 
     try {
