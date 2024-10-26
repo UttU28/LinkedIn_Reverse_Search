@@ -18,7 +18,7 @@ import { AddToCaching, GetFromCaching, } from './Caching';
 
 function Form() {
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
     email: '',
     file: null,
   });
@@ -26,13 +26,13 @@ function Form() {
   const toast = useToast();
   const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
-  
+
   useEffect(() => {
-    const savedName = GetFromCaching('name');
+    const savedName = GetFromCaching('firstName');
     const savedEmail = GetFromCaching('email');
 
     if (savedName) {
-      setFormData((prevData) => ({ ...prevData, name: savedName }));
+      setFormData((prevData) => ({ ...prevData, firstName: savedName }));
     }
     if (savedEmail) {
       setFormData((prevData) => ({ ...prevData, email: savedEmail }));
@@ -57,11 +57,11 @@ function Form() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formDataObj = new FormData();
-    AddToCaching("name", formData.name);
+    AddToCaching("firstName", formData.firstName);
     AddToCaching("email", formData.email);
 
     formDataObj.append('file', formData.file);
-    formDataObj.append('name', formData.name);
+    formDataObj.append('firstName', formData.firstName);
     formDataObj.append('email', formData.email);
 
     try {
@@ -108,9 +108,9 @@ function Form() {
               <FormLabel>File Name</FormLabel>
               <Input
                 type="text"
-                name="name"
+                name="firstName"
                 placeholder="Your Name"
-                value={formData.name}
+                value={formData.firstName}
                 onChange={handleChange}
               />
             </FormControl>

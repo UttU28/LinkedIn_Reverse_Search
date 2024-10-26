@@ -46,18 +46,8 @@ pending_notifications = {}
 def allowedFile(fileName: str) -> bool:
     return '.' in fileName and fileName.rsplit('.', 1)[1].lower() in allowedExtensions
 
-# Pydantic model for email requests
 class EmailRequest(BaseModel):
     email: str
-
-
-# @app.get("/download/{fileName}")
-# async def download_file(fileName: str):
-#     file_path = '/downloads/1729791124.xlsx'
-#     if os.path.exists(file_path):
-#         return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#     else:
-#         raise HTTPException(status_code=404, detail="File not found")
 
 @app.get("/download/{fileName}")
 async def download_file(fileName: str):
@@ -85,10 +75,13 @@ async def get_startup_data(email_request: EmailRequest):
 # POST route to handle file uploads
 @app.post("/upload")
 async def uploadFile(
-    name: str = Form(...),
+    firstName: str = Form(...),
     email: str = Form(...),
     file: UploadFile = File(...),
 ):
+    # Log the incoming data to ensure it's correct
+    logging.info(f"Received firstName: {firstName}, email: {email}")
+
     if not allowedFile(file.filename):
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
 
@@ -101,11 +94,16 @@ async def uploadFile(
         content = await file.read()
         await buffer.write(content)
 
-    logging.info(f"Received Name: {name}, Email: {email}, File saved as: {fileName}")
-    thisID = await addEntryToQueue(email, name, filePath, timeStamp)
+    # Log to confirm the file saving process
+    logging.info(f"File saved at {filePath}")
+
+    # Pass the data to the addEntryToQueue function
+    thisID = await addEntryToQueue(email, firstName, filePath, timeStamp)
+
+    await sendNotification(email, "Data scraping Started!", 'notif')
 
     # Run the background job and send notification when ready
-    asyncio.create_task(thisMainFunction(email, filePath, thisID, sendNotification))
+    asyncio.create_task(thisMainFunction(email, firstName, filePath, thisID, sendNotification))
 
     return JSONResponse(content={'message': 'Your data is being scraped. We will send an email once the data is found.'}, status_code=200)
 
@@ -175,8 +173,3 @@ async def websocket_endpoint(websocket: WebSocket, email: str):
 if __name__ == '__main__':
     createInitialDirs()
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
-
-
-
-# Add function to call the history websocket_endpoint every 30 seconds and update the start up queue by calling the function fetchData fron StartUp.js and refreshing the content in html again Along with a notification using toast saying 'Updating the Data'.
-# StartUp

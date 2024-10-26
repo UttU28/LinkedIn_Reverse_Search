@@ -41,7 +41,7 @@ const SuccessPage = () => {
         <VStack spacing={4}>
           <Heading as="h1" size="lg">Submission Successful!</Heading>
           <Text fontSize="lg">
-            Thank you, {state?.formData?.name}. We'll shortly send you an email at {state?.formData?.email}.
+            Thank you, {state?.formData?.firstName}. We'll shortly send you an email at {state?.formData?.email}.
           </Text>
           <Button
             colorScheme="teal"
