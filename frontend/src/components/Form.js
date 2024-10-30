@@ -11,7 +11,6 @@ import {
   VStack,
   useToast,
   useColorMode,
-  IconButton,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { AddToCaching, GetFromCaching, } from './Caching';
@@ -24,7 +23,7 @@ function Form() {
   });
 
   const toast = useToast();
-  const { colorMode, toggleColorMode } = useColorMode();
+  const { colorMode } = useColorMode();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,9 +53,10 @@ function Form() {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     const formDataObj = new FormData();
+
     AddToCaching("firstName", formData.firstName);
     AddToCaching("email", formData.email);
 
@@ -64,23 +64,11 @@ function Form() {
     formDataObj.append('firstName', formData.file.name);
     formDataObj.append('email', formData.email);
 
-    try {
-      const response = await fetch('/upload', {
-        method: 'POST',
-        body: formDataObj,
-      });
-      const data = await response.json();
-      toast({
-        title: 'Success!',
-        description: data.message,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-
-      // Save form data in state and navigate to success page
-      navigate('/success', { state: { formData } });
-    } catch (error) {
+    // Fire-and-forget: No need to await the fetch response
+    fetch('/upload', {
+      method: 'POST',
+      body: formDataObj,
+    }).catch((error) => {
       toast({
         title: 'Error!',
         description: 'Failed to upload the file',
@@ -88,15 +76,27 @@ function Form() {
         duration: 5000,
         isClosable: true,
       });
-    }
+    });
+
+    // Immediately notify the user and navigate to the success page
+    toast({
+      title: 'Success!',
+      description: 'Data scraping started successfully!',
+      status: 'success',
+      duration: 5000,
+      isClosable: true,
+    });
+
+    navigate('/success', { state: { formData } });
   };
+
 
   return (
     <Container centerContent
-    minHeight="80vh"
-    display={"flex"}
-    alignItems={"center"}
-    justifyContent={"center"}
+      minHeight="80vh"
+      display={"flex"}
+      alignItems={"center"}
+      justifyContent={"center"}
     >
       <Box className={`container ${colorMode}`}>
         <VStack spacing={4}>

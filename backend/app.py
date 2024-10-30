@@ -3,85 +3,64 @@ import json
 import logging
 import time
 import os
-import asyncio, urllib
+import asyncio
+import urllib
 from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from utils.queueManagement import addEntryToQueue
 from utils.initialCleanup import createInitialDirs
-from eJobsPipeline import thisMainFunction
-from utils.fileActions import readJson, writeJson
+from utils.fileActions import readJson
 import aiofiles
-# Define the folder to save uploads and allowed file types
+import httpx
+
 uploadFolder = 'uploads'
 downloadFolder = 'downloads'
 allowedExtensions = {'xlsx'}
 
-# Create FastAPI app
 app = FastAPI()
 
-# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, this should be limited to your frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Ensure the upload folder exists
 os.makedirs(uploadFolder, exist_ok=True)
 os.makedirs(downloadFolder, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 
-# Keep track of active WebSocket connections per email
-active_connections = {}
-# Store notifications for emails that do not have active WebSocket connections
-pending_notifications = {}
-
-# Check if a file extension is allowed
-def allowedFile(fileName: str) -> bool:
-    return '.' in fileName and fileName.rsplit('.', 1)[1].lower() in allowedExtensions
+activeConnections = {}
+pendingNotifications = {}
 
 class EmailRequest(BaseModel):
     email: str
 
+def allowedFile(fileName: str) -> bool:
+    return '.' in fileName and fileName.rsplit('.', 1)[1].lower() in allowedExtensions
+
 @app.get("/download/{fileName}")
-async def download_file(fileName: str):
-    file_path = f'downloads/{fileName}.xlsx'  # This should dynamically reference `fileName`
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    else:
-        raise HTTPException(status_code=404, detail="File not found")
-
-
-def readTheFile(filePath):
-    with open(filePath, 'r') as file:
-        return json.load(file)
+async def downloadFile(fileName: str):
+    filePath = f'{downloadFolder}/{fileName}.xlsx'
+    if os.path.exists(filePath):
+        return FileResponse(filePath, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    raise HTTPException(status_code=404, detail="File not found")
 
 @app.post("/startup")
-async def get_startup_data(email_request: EmailRequest):
-    email = email_request.email
-    allData = await readJson(f"data/data.json")
-    thisUserData = allData[email]
-    if email:
-        return {"email": email, "thisUserData": thisUserData, "status": "active"}
-    else:
-        raise HTTPException(status_code=400, detail="Invalid email")
+async def getStartupData(emailRequest: EmailRequest):
+    email = emailRequest.email
+    allData = await readJson("data/data.json")
+    userData = allData.get(email)
+    if userData:
+        return {"email": email, "thisUserData": userData, "status": "active"}
+    raise HTTPException(status_code=400, detail="Invalid email")
 
-# POST route to handle file uploads
 @app.post("/upload")
-async def uploadFile(
-    firstName: str = Form(...),
-    email: str = Form(...),
-    file: UploadFile = File(...),
-):
-    # Log the incoming data to ensure it's correct
-    logging.info(f"Received firstName: {firstName}, email: {email}")
-
+async def uploadFile(firstName: str = Form(...), email: str = Form(...), file: UploadFile = File(...)):
     if not allowedFile(file.filename):
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
 
@@ -89,86 +68,56 @@ async def uploadFile(
     fileName = f"{timeStamp}.xlsx"
     filePath = os.path.join(uploadFolder, fileName)
 
-    # Use aiofiles to write the file asynchronously
     async with aiofiles.open(filePath, "wb") as buffer:
-        content = await file.read()
-        await buffer.write(content)
+        await buffer.write(await file.read())
 
-    # Log to confirm the file saving process
-    logging.info(f"File saved at {filePath}")
-
-    # Pass the data to the addEntryToQueue function
     thisID = await addEntryToQueue(email, firstName, filePath, timeStamp)
+    await sendNotification(email, "Data scraping started!", 'notif')
 
-    await sendNotification(email, "Data scraping Started!", 'notif')
+    asyncio.create_task(sendToServerB(email, firstName, filePath, thisID))
 
-    # Run the background job and send notification when ready
-    asyncio.create_task(thisMainFunction(email, firstName, filePath, thisID, sendNotification))
+    return JSONResponse(content={'message': 'Your data is being processed. We will notify you when it is ready.'}, status_code=200)
 
-    return JSONResponse(content={'message': 'Your data is being scraped. We will send an email once the data is found.'}, status_code=200)
+async def sendToServerB(email: str, firstName: str, filePath: str, thisID: str):
+    async with httpx.AsyncClient() as client:
+        try:
+            await client.post(
+                "http://localhost:8001/process",
+                json={"email": email, "firstName": firstName, "filePath": filePath, "thisID": str(thisID)}
+            )
+        except Exception as e:
+            logging.error(f"Error sending data to Server B: {e}")
 
-
-# Function to send a notification
 async def sendNotification(email: str, message: str, statusMessage: str):
-    logging.info(f"Attempting to send notification to {email}")
-    newMessage = {"status": statusMessage, "message": message}
-    if email in active_connections:
-        connection = active_connections[email]
-        notificationData = {
-            "timestamp": int(time.time()),
-            "message": newMessage
-        }
-        await connection.send_text(json.dumps(notificationData))
-        logging.info(f"Sent notification to {email} with timestamp")
+    notification = {"status": statusMessage, "message": message}
+    if email in activeConnections:
+        await activeConnections[email].send_text(json.dumps({"timestamp": int(time.time()), "message": notification}))
     else:
-        logging.warning(f"No active connection for {email}, storing notification")
-        # Store the notification for later if the user is not connected
-        if email not in pending_notifications:
-            pending_notifications[email] = []
-        pending_notifications[email].append(message)
+        pendingNotifications.setdefault(email, []).append(notification)
 
-# WebSocket endpoint for receiving real-time notifications
+@app.post("/task_done")
+async def taskDone(data: dict):
+    await sendNotification(data["email"], data.get("message", "Task completed!"), data.get("statusMessage", "notif"))
+    return JSONResponse(content={'message': 'Notification sent'}, status_code=200)
+
 @app.websocket("/ws/{email}")
-async def websocket_endpoint(websocket: WebSocket, email: str):
+async def websocketEndpoint(websocket: WebSocket, email: str):
     email = urllib.parse.unquote(email)
     await websocket.accept()
 
-    logging.info(f"WebSocket connection accepted for {email}")
-    if email in active_connections:
-        old_websocket = active_connections[email]
-        try:
-            await old_websocket.close()
-            logging.info(f"Closed previous WebSocket for {email}")
-        except Exception as e:
-            logging.error(f"Error closing previous WebSocket: {e}")
+    if email in activeConnections:
+        await activeConnections[email].close()
+    activeConnections[email] = websocket
 
-    active_connections[email] = websocket
-
-    # Send any pending notifications when the user reconnects
-    if email in pending_notifications:
-        for message in pending_notifications[email]:
-            notificationData = {
-                "timestamp": int(time.time()),
-                "message": message
-            }
-            await websocket.send_text(json.dumps(notificationData))
-            logging.info(f"Sent pending notification to {email}")
-
-        # Clear the stored notifications after sending
-        del pending_notifications[email]
+    if email in pendingNotifications:
+        for notification in pendingNotifications.pop(email):
+            await websocket.send_text(json.dumps({"timestamp": int(time.time()), "message": notification}))
 
     try:
         while True:
-            data = await websocket.receive_text()
-            logging.info(f"Received data from {email}: {data}")
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        if email in active_connections:
-            del active_connections[email]
-        logging.info(f"WebSocket disconnected for {email}")
-    except Exception as e:
-        logging.error(f"Error during WebSocket connection: {e}")
-
-
+        activeConnections.pop(email, None)
 
 if __name__ == '__main__':
     createInitialDirs()
