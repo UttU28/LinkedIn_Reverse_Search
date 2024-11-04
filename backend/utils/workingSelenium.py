@@ -6,11 +6,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-from utils.getJson import getMeJsonData, findClosestMatch
+from collections import defaultdict
 
-
-PTATH_TILL_PROJECT = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/'
-# PTATH_TILL_PROJECT = "C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/"
+# PTATH_TILL_PROJECT = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/'
+PTATH_TILL_PROJECT = "C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/"
 chromeDriverPath = f'{PTATH_TILL_PROJECT}backend/chromeDriver/chromedriver.exe'
 
 options = Options()
@@ -31,15 +30,46 @@ def prepareChromeAndSelenium(wantChrome):
     driver = webdriver.Chrome(options=options)
     return driver
 
+async def findPersonOnChrome(thisDriver, companyName, lastName, firstName):
+    joinedCompanyName = '+'.join(companyName.split(' '))
+    joinedFirstName = '+'.join(firstName.split(' '))
+    joinedLastName = '+'.join(lastName.split(' '))
+    query = f'"{joinedFirstName}"+"{joinedLastName}"+"{joinedCompanyName}"+linkedin+profile'
+    
+    thisDriver.get(f"https://www.google.com/search?q={query}")
+    
+    srContainer = WebDriverWait(thisDriver, 5).until(
+        EC.presence_of_element_located((By.ID, 'search'))
+    )
+    searchContainer = WebDriverWait(srContainer, 5).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, '[data-async-context]'))
+    )
+
+    childDivs = searchContainer.find_elements(By.TAG_NAME, 'div')
+    linkCounter = defaultdict(int)
+    
+    for div in childDivs:
+        try:
+            link_element = div.find_element(By.TAG_NAME, 'a')
+            if link_element:
+                href = link_element.get_attribute('href')
+                if 'www.linkedin.com' in href and '/posts/' not in href:
+                    linkCounter[href] += 1
+        except:
+            pass
+
+    print("\nLink Occurrences:")
+    if linkCounter:
+        max_link, max_count = max(linkCounter.items(), key=lambda x: x[1])
+        print(f"{max_link}: {max_count}")
 
 async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
     thisDriver.get(f"https://www.linkedin.com/search/results/people/?company={companyName}&firstName={firstName}&lastName={lastName}&origin=FACETED_SEARCH")
-    srContainer = WebDriverWait(thisDriver, 10).until(
+    srContainer = WebDriverWait(thisDriver, 5).until(
         EC.presence_of_element_located((By.CLASS_NAME, 'search-results-container'))
     )
 
     childDivs = srContainer.find_elements(By.TAG_NAME, 'div')
-    # print(f"Number of child divs in 'search-results-container': {len(childDivs)}")
 
     for div in childDivs:
         try:
@@ -84,3 +114,15 @@ async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
                 return None
         except:
             continue  
+
+
+if __name__ == "__main__":
+    from getJson import getMeJsonData, findClosestMatch
+    import asyncio
+    # from utils.getJson import getMeJsonData, findClosestMatch
+    driver = prepareChromeAndSelenium(True)
+    companyName = "Arch MI"
+    lastName = "Mamo"
+    firstName = "Danny"
+    asyncio.run(findPersonOnChrome(driver, companyName, lastName, firstName))
+    driver.quit()
