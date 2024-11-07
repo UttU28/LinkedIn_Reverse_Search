@@ -2,7 +2,7 @@ from utils.workingSelenium import *
 
 async def getLinkedInFor(driver, thisGuy):
     companyName, lastName, firstName = thisGuy['company'], thisGuy['lastName'], thisGuy['firstName']
-    thisData = await scrapeDataFrom(driver, companyName, lastName, firstName)
+    thisData = await scrapeDataFromLinkedIn(driver, companyName, lastName, firstName)
     # thisData = {'currentUrl': 'curl', 'companyPosition': 'cposition', 'companyLocation': 'clocation'}
     if thisData:
         thisGuy['currentUrl'] = thisData['currentUrl']

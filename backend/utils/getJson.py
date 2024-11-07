@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from fuzzywuzzy import fuzz
 
 async def checkDuplicate(data):
     if data is None:
@@ -43,23 +44,3 @@ async def getMeJsonData(htmlContent):
     return jobData
 
 # //////////////////////////////////
-
-async def normalizeString(s):
-    """Normalize the string by lowering case and removing extra spaces."""
-    return ' '.join(s.lower().strip().split())
-
-async def findClosestMatch(inputString, data):
-    normalized_input = await normalizeString(inputString)
-    
-    for index, entry in enumerate(data):
-        normalized_companyName = await normalizeString(entry['companyName'])
-        if normalized_companyName in normalized_input or normalized_input in normalized_companyName:
-            return data[index]
-        input_components = normalized_input.split()
-        if all(comp in normalized_companyName for comp in input_components):
-            return data[index]
-        
-        if normalized_input.replace(" ", "") in normalized_companyName.replace(" ", ""):
-            return data[index]
-        
-    return None

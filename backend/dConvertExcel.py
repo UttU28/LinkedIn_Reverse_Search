@@ -2,6 +2,10 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side, PatternFill
 from utils.fileActions import readJson
+import json
+import asyncio
+import re
+from datetime import datetime
 
 async def writeToExcel(data, outputFile):
     wb = openpyxl.Workbook()
@@ -92,3 +96,65 @@ async def makeExcelForThisSession(timestamp):
     outputFile = f'downloads/{timestamp}.xlsx'
     await writeToExcel(formattedData, outputFile)
     return outputFile
+
+
+
+def splitFullName(fullName):
+    prefixPattern = r'^(Dr\.?|H\.E\.?\.?)\s+'
+    match = re.match(prefixPattern, fullName)
+    
+    if match:
+        namePart = fullName[match.end():].strip()
+    else:
+        namePart = fullName.strip()
+    
+    nameParts = re.split(r'(?<!^)\s+(?=[A-Z])|(?<=[a-z])(?=[A-Z])', namePart)
+    
+    if len(nameParts) > 1:
+        firstName = ' '.join(nameParts[:-1])
+        lastName = nameParts[-1]
+    else:
+        firstName = namePart
+        lastName = ''
+    
+    return {
+        'firstName': firstName.strip(),
+        'lastName': lastName.strip()
+    }
+
+async def main():
+    try:
+        with open("linkedin_members.json", "r") as json_file:
+            membersDict = json.load(json_file)
+    except FileNotFoundError:
+        print("No data file found.")
+        return
+    
+    formattedData = []
+
+    for _, entry in membersDict.items():
+        nameParts = splitFullName(entry['fullName'])
+
+        formattedEntry = {
+            'fullName': entry['fullName'],
+            'firstName': nameParts['firstName'],
+            'lastName': nameParts['lastName'],
+            'companyPosition': entry['jobDataList'][0]['companyPosition'] if entry.get('jobDataList') else '',
+            'companyName': entry['jobDataList'][0]['companyName'] if entry.get('jobDataList') else '',
+            'companyUrl': entry.get('companyUrl', ''),
+            'currentUrl': _,
+            'email0': entry.get('email0', ''),
+            'email1': entry.get('email1', ''),
+            'companyLocation': entry.get('location', ''),
+            'phone': entry.get('phone', ''),
+            'company': entry.get('company', '')
+        }
+        formattedData.append(formattedEntry)
+
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    outputFile = f'zzziAmHere{timestamp}.xlsx'
+    await writeToExcel(formattedData, outputFile)
+    print(f"Excel file saved as: {outputFile}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -9,3 +9,4 @@ selenium
 tqdm
 python-multipart
 uvicorn
+fuzzywuzzy
