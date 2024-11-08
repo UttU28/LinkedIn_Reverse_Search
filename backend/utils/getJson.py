@@ -34,6 +34,7 @@ async def getMeJsonData(htmlContent):
         location_tags = li_element.find_all('span', class_='t-14 t-normal t-black--light')
         if len(location_tags) > 1:
             companyLocation = location_tags[1].get_text(strip=True)
+            if 'Present' in companyLocation: companyLocation = None
 
     jobData = {
         "companyName": await checkDuplicate(companyName),
@@ -44,3 +45,30 @@ async def getMeJsonData(htmlContent):
     return jobData
 
 # //////////////////////////////////
+
+async def normalizeString(s):
+    """Normalize the string by lowering case and removing extra spaces."""
+    return ' '.join(s.lower().strip().split())
+
+async def findClosestMatch(inputString, data):
+    normalInput = await normalizeString(inputString)
+    potential_matches = {}
+    
+    for index, entry in enumerate(data):
+        normalCompanyName = await normalizeString(entry['companyName'])
+        input_components = normalInput.split()
+        if normalCompanyName in normalInput or normalInput in normalCompanyName:
+            return data[index]
+        elif all(comp in normalCompanyName for comp in input_components):
+            return data[index]
+        elif normalInput.replace(" ", "") in normalCompanyName.replace(" ", ""):
+            return data[index]
+
+        match_score = fuzz.partial_ratio(normalCompanyName, normalInput)
+        if match_score > 50:
+            potential_matches[index] = match_score
+
+    if potential_matches:
+        best_match_index = max(potential_matches, key=potential_matches.get)
+        return data[best_match_index]
+    return {}

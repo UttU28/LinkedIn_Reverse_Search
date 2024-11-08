@@ -33,6 +33,6 @@ async def changeQueueStatus(queueID, email, status='waiting', fileName='data/dat
     print(queueID, email)
     queueID = str(queueID)
     data = await readJson(fileName)
-    print(data)
+    # print(data)
     data[email][queueID]['status'] = status
     await writeJson(fileName, data)

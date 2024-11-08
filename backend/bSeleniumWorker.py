@@ -4,6 +4,9 @@ async def getLinkedInFor(driver, thisGuy):
     companyName, lastName, firstName = thisGuy['company'], thisGuy['lastName'], thisGuy['firstName']
     thisData = await scrapeDataFromLinkedIn(driver, companyName, lastName, firstName)
     # thisData = {'currentUrl': 'curl', 'companyPosition': 'cposition', 'companyLocation': 'clocation'}
+    isMaybeUrl = thisData.get('maybeUrl', None)
+    if isMaybeUrl:
+        thisData = await checkMaybeLinkedIn(driver, companyName, isMaybeUrl)
     if thisData:
         thisGuy['currentUrl'] = thisData['currentUrl']
         thisGuy['companyName'] = thisData.get('companyName', '')
