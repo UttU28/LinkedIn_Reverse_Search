@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from fuzzywuzzy import fuzz
 
 async def checkDuplicate(data):
     if data is None:
@@ -33,6 +34,7 @@ async def getMeJsonData(htmlContent):
         location_tags = li_element.find_all('span', class_='t-14 t-normal t-black--light')
         if len(location_tags) > 1:
             companyLocation = location_tags[1].get_text(strip=True)
+            if 'Present' in companyLocation: companyLocation = None
 
     jobData = {
         "companyName": await checkDuplicate(companyName),
@@ -49,17 +51,24 @@ async def normalizeString(s):
     return ' '.join(s.lower().strip().split())
 
 async def findClosestMatch(inputString, data):
-    normalized_input = await normalizeString(inputString)
+    normalInput = await normalizeString(inputString)
+    potential_matches = {}
     
     for index, entry in enumerate(data):
-        normalized_companyName = await normalizeString(entry['companyName'])
-        if normalized_companyName in normalized_input or normalized_input in normalized_companyName:
+        normalCompanyName = await normalizeString(entry['companyName'])
+        input_components = normalInput.split()
+        if normalCompanyName in normalInput or normalInput in normalCompanyName:
             return data[index]
-        input_components = normalized_input.split()
-        if all(comp in normalized_companyName for comp in input_components):
+        elif all(comp in normalCompanyName for comp in input_components):
             return data[index]
-        
-        if normalized_input.replace(" ", "") in normalized_companyName.replace(" ", ""):
+        elif normalInput.replace(" ", "") in normalCompanyName.replace(" ", ""):
             return data[index]
-        
-    return None
+
+        match_score = fuzz.partial_ratio(normalCompanyName, normalInput)
+        if match_score > 50:
+            potential_matches[index] = match_score
+
+    if potential_matches:
+        best_match_index = max(potential_matches, key=potential_matches.get)
+        return data[best_match_index]
+    return {}

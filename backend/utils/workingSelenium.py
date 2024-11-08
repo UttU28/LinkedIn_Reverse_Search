@@ -8,6 +8,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from collections import defaultdict
 
+try: from utils.getJson import getMeJsonData, findClosestMatch
+except: from getJson import getMeJsonData, findClosestMatch
+
 # PTATH_TILL_PROJECT = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/'
 PTATH_TILL_PROJECT = "C:/Users/UtsavChaudhary/OneDrive - EDGE196/Desktop/LinkedIn_Reverse_Search/"
 chromeDriverPath = f'{PTATH_TILL_PROJECT}backend/chromeDriver/chromedriver.exe'
@@ -26,103 +29,108 @@ def prepareChromeAndSelenium(wantChrome):
             '--remote-debugging-port=8989',
             f'--user-data-dir={PTATH_TILL_PROJECT}backend/chromeData/'
         ])
-    # chromeProcess = ''
     driver = webdriver.Chrome(options=options)
     return driver
 
-async def findPersonOnChrome(thisDriver, companyName, lastName, firstName):
+
+async def checkMaybeLinkedIn(thisDriver, companyName, linkedInUrl):
+    try:
+        thisDriver.get(linkedInUrl)
+        WebDriverWait(thisDriver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "section.artdeco-card.pv-profile-card.break-words"))
+            )
+        htmlContent = thisDriver.page_source
+        thisData = await readLinkedInProfile(linkedInUrl, htmlContent, companyName)
+        return thisData
+    except:
+        return {'currentUrl': linkedInUrl}
+    
+    
+async def readLinkedInProfile(currentUrl, htmlContent, companyName):
+    try:
+        soup = BeautifulSoup(htmlContent, 'html.parser')
+        sectionList = soup.select("section.artdeco-card.pv-profile-card.break-words")
+        for section in sectionList:
+            experienceDiv = section.select_one("div.pv-profile-card__anchor")
+            if experienceDiv and experienceDiv.get('id') == 'experience':
+                jobDataList = []
+                ulElements = section.find_all('ul')
+                if ulElements:
+                    listElements = ulElements[0].find_all('li')
+                    for li in listElements:
+                        liClass = li.get('class', [])
+                        if 'artdeco-list__item' in liClass:
+                            jobData = await getMeJsonData(str(li))
+                            jobDataList.append(jobData)
+                    thisData = await findClosestMatch(companyName, jobDataList)
+                    thisData['currentUrl'] = currentUrl
+                    return thisData
+        # Return a consistent structure if no data is found
+        return {'currentUrl': currentUrl, 'companyName': None, 'companyPosition': None, 'companyLocation': None}
+    except Exception as e:
+        print(f"Error in readLinkedInProfile: {e}")
+        return {'currentUrl': currentUrl, 'companyName': None, 'companyPosition': None, 'companyLocation': None}
+
+
+async def scrapeDataFromLinkedIn(thisDriver, companyName, lastName, firstName):
+    thisDriver.get(f"https://www.linkedin.com/search/results/people/?company={companyName}&firstName={firstName}&lastName={lastName}&origin=FACETED_SEARCH")
+    try:
+        srContainer = WebDriverWait(thisDriver, 5).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'search-results-container'))
+        )
+        childDivs = srContainer.find_elements(By.TAG_NAME, 'div')
+        for div in childDivs:
+            try:
+                ulElement = div.find_element(By.CSS_SELECTOR, "ul.reusable-search__entity-result-list")
+                if ulElement:
+                    liElements = ulElement.find_elements(By.CSS_SELECTOR, "li.reusable-search__result-container")
+                    if liElements:
+                        liElements[0].click()
+                        sleep(2)
+                        currentUrl = thisDriver.current_url
+                        htmlContent = thisDriver.page_source
+                        thisData = await readLinkedInProfile(currentUrl, htmlContent, companyName)
+                        return thisData
+            except:
+                continue
+    except Exception as e:
+        print(f"Error in LinkedIn search: {e}")
+    
+    # Fallback in case no LinkedIn profile is found in the main search
     joinedCompanyName = '+'.join(companyName.split(' '))
     joinedFirstName = '+'.join(firstName.split(' '))
     joinedLastName = '+'.join(lastName.split(' '))
     query = f'"{joinedFirstName}"+"{joinedLastName}"+"{joinedCompanyName}"+linkedin+profile'
     
-    thisDriver.get(f"https://www.google.com/search?q={query}")
-    
-    srContainer = WebDriverWait(thisDriver, 5).until(
-        EC.presence_of_element_located((By.ID, 'search'))
-    )
-    searchContainer = WebDriverWait(srContainer, 5).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, '[data-async-context]'))
-    )
+    try:
+        thisDriver.get(f"https://www.google.com/search?q={query}")
+        
+        srContainer = WebDriverWait(thisDriver, 5).until(
+            EC.presence_of_element_located((By.ID, 'search'))
+        )
+        searchContainer = WebDriverWait(srContainer, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '[data-async-context]'))
+        )
 
-    childDivs = searchContainer.find_elements(By.TAG_NAME, 'div')
-    linkCounter = defaultdict(int)
-    
-    for div in childDivs:
-        try:
-            link_element = div.find_element(By.TAG_NAME, 'a')
-            if link_element:
-                href = link_element.get_attribute('href')
-                if 'www.linkedin.com' in href and '/posts/' not in href:
-                    linkCounter[href] += 1
-        except:
-            pass
+        childDivs = searchContainer.find_elements(By.TAG_NAME, 'div')
+        linkCounter = defaultdict(int)
+        
+        for div in childDivs:
+            try:
+                link_element = div.find_element(By.TAG_NAME, 'a')
+                if link_element:
+                    href = link_element.get_attribute('href')
+                    if 'linkedin.com/in/' in href and '/posts/' not in href:
+                        linkCounter[href] += 1
+            except: 
+                pass
 
-    print("\nLink Occurrences:")
-    if linkCounter:
-        max_link, max_count = max(linkCounter.items(), key=lambda x: x[1])
-        print(f"{max_link}: {max_count}")
+        if linkCounter:
+            theLink, _count = max(linkCounter.items(), key=lambda x: x[1])
+            return {'maybeUrl': theLink}
 
-async def scrapeDataFrom(thisDriver, companyName, lastName, firstName):
-    thisDriver.get(f"https://www.linkedin.com/search/results/people/?company={companyName}&firstName={firstName}&lastName={lastName}&origin=FACETED_SEARCH")
-    srContainer = WebDriverWait(thisDriver, 5).until(
-        EC.presence_of_element_located((By.CLASS_NAME, 'search-results-container'))
-    )
+    except Exception as e:
+        print(f"Error during Google search fallback: {e}")
 
-    childDivs = srContainer.find_elements(By.TAG_NAME, 'div')
-
-    for div in childDivs:
-        try:
-            ulElement = div.find_element(By.CSS_SELECTOR, "ul.reusable-search__entity-result-list")
-            if ulElement:
-                liElements = ulElement.find_elements(By.CSS_SELECTOR, "li.reusable-search__result-container")
-                if liElements:
-                    liElements[0].click()
-
-                    # THIS IS AFTER CLICKING ON THE PERSON
-                    sleep(2)
-
-                    currentUrl = thisDriver.current_url
-                    htmlContent = thisDriver.page_source
-                    soup = BeautifulSoup(htmlContent, 'html.parser')
-                    sectionList = soup.select("section.artdeco-card.pv-profile-card.break-words")
-                    # print(f"Number of sections found: {len(sectionList)}")
-
-                    for section in sectionList:
-                        experienceDiv = section.select_one("div.pv-profile-card__anchor")
-
-                        if experienceDiv and experienceDiv.get('id') == 'experience':
-                            jobDataList = []
-                            ulElements = section.find_all('ul')
-                            if ulElements:
-                                listElements = ulElements[0].find_all('li')
-
-                                for li in listElements:
-                                    liClass = li.get('class', [])
-                                    if 'artdeco-list__item' in liClass:
-                                        jobData = await getMeJsonData(str(li))
-                                        jobDataList.append(jobData)
-
-                                thisData = await findClosestMatch(companyName, jobDataList)
-                                thisData['currentUrl'] = currentUrl
-                                return thisData
-
-                    return {'currentUrl': currentUrl}
-                else:
-                    return None
-            else:
-                return None
-        except:
-            continue  
-
-
-if __name__ == "__main__":
-    from getJson import getMeJsonData, findClosestMatch
-    import asyncio
-    # from utils.getJson import getMeJsonData, findClosestMatch
-    driver = prepareChromeAndSelenium(True)
-    companyName = "Arch MI"
-    lastName = "Mamo"
-    firstName = "Danny"
-    asyncio.run(findPersonOnChrome(driver, companyName, lastName, firstName))
-    driver.quit()
+    # Return None to indicate no result if neither LinkedIn nor Google results are available
+    return {'currentUrl': None, 'companyName': None, 'companyPosition': None, 'companyLocation': None}

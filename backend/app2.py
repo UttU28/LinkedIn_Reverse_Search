@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import logging
 import os
 import httpx
+import uvicorn
 from eJobsPipeline import thisMainFunction
 
 app = FastAPI()
@@ -32,3 +33,8 @@ async def sendNotification(email: str, message: str, statusMessage: str):
             )
         except Exception as e:
             logging.error(f"Error notifying Server A: {e}")
+
+if __name__ == '__main__':
+    uvicorn.run(app, host="localhost", port=8001, log_level="info")
+# uvicorn app2:app --host 0.0.0.0 --port 8001 --reload --log-level info
+# cd backend/; .\env\Scripts\activate; python app2.py

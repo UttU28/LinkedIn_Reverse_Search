@@ -121,4 +121,7 @@ async def websocketEndpoint(websocket: WebSocket, email: str):
 
 if __name__ == '__main__':
     createInitialDirs()
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="localhost", port=8000, log_level="info")
+
+# uvicorn app:app --host 0.0.0.0 --port 8000 --reload --log-level info
+# cd backend/; .\env\Scripts\activate; python app.py
