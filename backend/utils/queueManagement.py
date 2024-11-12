@@ -3,29 +3,29 @@ import os
 from utils.fileActions import readJson, writeJson
 import logging
 
-async def addEntryToQueue(email, firstName, location, timeStamp, status='pending', fileName='data/data.json'):
-    logging.info(f"Adding entry for firstName: {firstName}, email: {email}")
+async def addEntryToQueue(email, fileName, location, timeStamp, status='pending', thisFileName='data/data.json'):
+    logging.info(f"Adding entry for fileName: {fileName}, email: {email}")
     newEntry = { 
         timeStamp: { 
-            'firstName': firstName, 
+            'fileName': fileName, 
             'email': email, 
             'location': location, 
             'status': status 
         }
     }
 
-    if not os.path.isfile(fileName):
-        with open(fileName, 'w') as f:
+    if not os.path.isfile(thisFileName):
+        with open(thisFileName, 'w') as f:
             json.dump({}, f)
-    data = await readJson(fileName)
+    data = await readJson(thisFileName)
 
     if email in data:
         data[email].update(newEntry) 
     else:
         data[email] = newEntry 
-    await writeJson(fileName, data)
+    await writeJson(thisFileName, data)
 
-    logging.info(f"Entry added for {firstName}, timestamp: {timeStamp}")
+    logging.info(f"Entry added for {fileName}, timestamp: {timeStamp}")
     return timeStamp
 
 

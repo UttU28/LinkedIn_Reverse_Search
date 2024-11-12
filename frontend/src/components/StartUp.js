@@ -20,7 +20,6 @@ const formatDate = (timestamp) => {
   return date.toLocaleString();
 };
 
-// Define handlePostRequest outside of the component
 export const handlePostRequest = async (cachedEmail, setData) => {
   try {
     const response = await axios.post('http://127.0.0.1:8000/startup', {
@@ -98,7 +97,7 @@ const EmailPostComponent = () => {
                 .sort(([keyA], [keyB]) => parseInt(keyB) - parseInt(keyA)) // Sort by key (timestamp as number, latest first)
                 .map(([key, assignment]) => (
                   <Box key={key} p={3} borderWidth={1} borderRadius="md" bg={colorMode === 'dark' ? 'gray.700' : 'gray.200'} width={300}>
-                    <Text fontWeight="bold" color="teal.200">{assignment.firstName}</Text>
+                    <Text fontWeight="bold" color="teal.200">{assignment.fileName}</Text>
                     <Text color="gray.300" fontSize="xs">{formatDate(key)}</Text> {/* Format using key */}
                     <Flex justify="space-between" align="center" mt={2}>
                       {assignment.status === 'finished' && (

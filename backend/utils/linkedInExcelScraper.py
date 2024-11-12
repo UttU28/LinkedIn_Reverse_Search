@@ -1,7 +1,3 @@
-import subprocess 
-from time import sleep
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,27 +7,8 @@ from collections import defaultdict
 try: from utils.getJson import getMeJsonData, findClosestMatch
 except: from getJson import getMeJsonData, findClosestMatch
 
-# PTATH_TILL_PROJECT = 'C:/Users/utsav/OneDrive/Desktop/LinkedIn_Reverse_Search/'
-PTATH_TILL_PROJECT = "C:/Users/UtsavChaudhary/Desktop/LinkedIn_Reverse_Search/"
-chromeDriverPath = f'{PTATH_TILL_PROJECT}backend/chromeDriver/chromedriver.exe'
-
-options = Options()
-options.add_experimental_option("debuggerAddress", "localhost:8989")
-options.add_argument(f"webdriver.chrome.driver={chromeDriverPath}")
-options.add_argument("--disable-notifications")
-options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-options.add_argument("window-size=1920x1080")
-
-def prepareChromeAndSelenium(wantChrome):
-    if wantChrome:
-        subprocess.Popen([
-            'C:/Program Files/Google/Chrome/Application/chrome.exe',
-            '--remote-debugging-port=8989',
-            f'--user-data-dir={PTATH_TILL_PROJECT}backend/chromeData/'
-        ])
-    driver = webdriver.Chrome(options=options)
-    return driver
-
+try: from utils.seleniumManager import *
+except: from seleniumManager import *
 
 async def checkMaybeLinkedIn(thisDriver, companyName, linkedInUrl):
     try:
@@ -72,7 +49,7 @@ async def readLinkedInProfile(currentUrl, htmlContent, companyName):
         return {'currentUrl': currentUrl, 'companyName': None, 'companyPosition': None, 'companyLocation': None}
 
 
-async def scrapeDataFromLinkedIn(thisDriver, companyName, lastName, firstName):
+async def getSingleLinkedIn(thisDriver, companyName, lastName, firstName):
     thisDriver.get(f"https://www.linkedin.com/search/results/people/?company={companyName}&firstName={firstName}&lastName={lastName}&origin=FACETED_SEARCH")
     try:
         srContainer = WebDriverWait(thisDriver, 5).until(

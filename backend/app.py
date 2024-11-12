@@ -60,10 +60,10 @@ async def getStartupData(emailRequest: EmailRequest):
     raise HTTPException(status_code=400, detail="Invalid email")
 
 @app.post("/upload")
-async def uploadFile(firstName: str = Form(...), email: str = Form(...), file: UploadFile = File(...)):
+async def uploadFile(email: str = Form(...), file: UploadFile = File(...)):
     if not allowedFile(file.filename):
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
-
+    thisFileName = file.filename
     timeStamp = int(time.time())
     fileName = f"{timeStamp}.xlsx"
     filePath = os.path.join(uploadFolder, fileName)
@@ -71,19 +71,50 @@ async def uploadFile(firstName: str = Form(...), email: str = Form(...), file: U
     async with aiofiles.open(filePath, "wb") as buffer:
         await buffer.write(await file.read())
 
-    thisID = await addEntryToQueue(email, firstName, filePath, timeStamp)
+    thisID = await addEntryToQueue(email, thisFileName, filePath, timeStamp)
     await sendNotification(email, "Data scraping started!", 'notif')
 
-    asyncio.create_task(sendToServerB(email, firstName, filePath, thisID))
+    asyncio.create_task(findLinkedInFromCompany(email, filePath, thisID))
 
     return JSONResponse(content={'message': 'Your data is being processed. We will notify you when it is ready.'}, status_code=200)
 
-async def sendToServerB(email: str, firstName: str, filePath: str, thisID: str):
+@app.post("/scrapeLinkedIn")
+async def scrapeLinkedIn(email: str = Form(...), url: str = Form(...)):
+    thisFileName = "Scraping LinkedIn"
+    timeStamp = int(time.time())
+    thisID = await addEntryToQueue(email, thisFileName, url, timeStamp)
+    await sendNotification(email, "Data scraping started!", 'notif')
+    # print(email, url, thisID)
+    asyncio.create_task(scrapeLinkedInFor(email, url, thisID))
+
+    return JSONResponse(content={'message': 'Your data is being processed. We will notify you when it is ready.'}, status_code=200)
+
+async def findLinkedInFromCompany(email: str, filePath: str, thisID: str):
     async with httpx.AsyncClient() as client:
         try:
             await client.post(
-                "http://localhost:8001/process",
-                json={"email": email, "firstName": firstName, "filePath": filePath, "thisID": str(thisID)}
+                "http://localhost:8001/linkedinfromcompany",
+                json={"email": email, "filePath": filePath, "thisID": str(thisID)}
+            )
+        except Exception as e:
+            logging.error(f"Error sending data to Server B: {e}")
+
+async def scrapeLinkedInFor(email: str, url: str, thisID: str):
+    async with httpx.AsyncClient() as client:
+        try:
+            await client.post(
+                "http://localhost:8001/scrapelinkedinfor",
+                json={"email": email, "searchUrl": url, "thisID": str(thisID)}
+            )
+        except Exception as e:
+            logging.error(f"Error sending data to Server B: {e}")
+
+async def findCompanyFromLinkedIn(email: str, filePath: str, thisID: str):
+    async with httpx.AsyncClient() as client:
+        try:
+            await client.post(
+                "http://localhost:8001/companyfromlinkedin",
+                json={"email": email, "filePath": filePath, "thisID": str(thisID)}
             )
         except Exception as e:
             logging.error(f"Error sending data to Server B: {e}")

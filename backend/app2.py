@@ -4,25 +4,42 @@ import logging
 import os
 import httpx
 import uvicorn
-from eJobsPipeline import thisMainFunction
+from eJobsPipeline import extractFromExcel, scrapeFromLinkedIn, companyFromLinkedIn
+from typing import Optional
+
 
 app = FastAPI()
 
 class ProcessRequest(BaseModel):
     email: str
-    firstName: str
-    filePath: str
+    fileName: Optional[str] = None
+    filePath: Optional[str] = None
     thisID: str
+    searchUrl: Optional[str] = None
 
 os.makedirs('logs', exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 
-@app.post("/process")
+@app.post("/linkedinfromcompany")
 async def processData(request: ProcessRequest):
     try:
-        await thisMainFunction(request.email, request.firstName, request.filePath, request.thisID, sendNotification)
+        await extractFromExcel(request.email, request.filePath, request.thisID, sendNotification)
     except Exception as e:
         logging.error(f"Error processing {request.filePath} for {request.email}: {str(e)}")
+
+@app.post("/scrapelinkedinfor")
+async def processData(request: ProcessRequest):
+    try:
+        await scrapeFromLinkedIn(request.email, request.searchUrl, request.thisID, sendNotification)
+    except Exception as e:
+        logging.error(f"Error processing {request.searchUrl} for {request.email}: {str(e)}")
+
+# @app.post("/companyfromlinkedin")
+# async def processData(request: ProcessRequest):
+#     try:
+#         await companyFromLinkedIn(request.email, request.filePath, request.thisID, sendNotification)
+#     except Exception as e:
+#         logging.error(f"Error processing {request.searchUrl} for {request.email}: {str(e)}")
 
 async def sendNotification(email: str, message: str, statusMessage: str):
     async with httpx.AsyncClient() as client:

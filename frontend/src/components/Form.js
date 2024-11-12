@@ -13,13 +13,13 @@ import {
   useColorMode,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { AddToCaching, GetFromCaching, } from './Caching';
+import { AddToCaching, GetFromCaching } from './Caching';
 
 function Form() {
   const [formData, setFormData] = useState({
-    firstName: '',
     email: '',
     file: null,
+    url: '', // Added URL field
   });
 
   const toast = useToast();
@@ -27,12 +27,8 @@ function Form() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const savedName = GetFromCaching('firstName');
     const savedEmail = GetFromCaching('email');
 
-    if (savedName) {
-      setFormData((prevData) => ({ ...prevData, firstName: savedName }));
-    }
     if (savedEmail) {
       setFormData((prevData) => ({ ...prevData, email: savedEmail }));
     }
@@ -57,31 +53,57 @@ function Form() {
     e.preventDefault();
     const formDataObj = new FormData();
 
-    AddToCaching("firstName", formData.firstName);
     AddToCaching("email", formData.email);
 
-    formDataObj.append('file', formData.file);
-    formDataObj.append('firstName', formData.file.name);
-    formDataObj.append('email', formData.email);
+    if (formData.file) {
+      // If file is provided, submit to /upload
+      formDataObj.append('file', formData.file);
+      formDataObj.append('email', formData.email);
 
-    // Fire-and-forget: No need to await the fetch response
-    fetch('/upload', {
-      method: 'POST',
-      body: formDataObj,
-    }).catch((error) => {
+      fetch('/upload', {
+        method: 'POST',
+        body: formDataObj,
+      }).catch((error) => {
+        toast({
+          title: 'Error!',
+          description: 'Failed to upload the file',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      });
+    } else if (formData.url) {
+      // If URL is provided, submit to /scrapeLinkedIn
+      formDataObj.append('email', formData.email);
+      formDataObj.append('url', formData.url);
+
+      fetch('/scrapeLinkedIn', {
+        method: 'POST',
+        body: formDataObj,
+      }).catch((error) => {
+        toast({
+          title: 'Error!',
+          description: 'Failed to start LinkedIn scraping',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      });
+    } else {
       toast({
         title: 'Error!',
-        description: 'Failed to upload the file',
+        description: 'Please provide either a file or a URL',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-    });
+      return;
+    }
 
-    // Immediately notify the user and navigate to the success page
+    // Notify the user and navigate to the success page
     toast({
       title: 'Success!',
-      description: 'Data scraping started successfully!',
+      description: 'Data processing started successfully!',
       status: 'success',
       duration: 5000,
       isClosable: true,
@@ -89,7 +111,6 @@ function Form() {
 
     navigate('/success', { state: { formData } });
   };
-
 
   return (
     <Container centerContent
@@ -104,17 +125,6 @@ function Form() {
             LinkedIn Reverse Search
           </Heading>
           <form onSubmit={handleSubmit}>
-            <FormControl isRequired>
-              <FormLabel>File Name</FormLabel>
-              <Input
-                type="text"
-                name="firstName"
-                placeholder="Your Name"
-                value={formData.firstName}
-                onChange={handleChange}
-              />
-            </FormControl>
-
             <FormControl isRequired mt={4}>
               <FormLabel>Email</FormLabel>
               <Input
@@ -126,13 +136,24 @@ function Form() {
               />
             </FormControl>
 
-            <FormControl isRequired mt={4}>
+            <FormControl mt={4}>
               <FormLabel>Upload File</FormLabel>
               <Input type="file" accept=".xlsx" onChange={handleFileChange} pt={1} />
             </FormControl>
 
+            <FormControl mt={4}>
+              <FormLabel>LinkedIn Profile URL</FormLabel>
+              <Input
+                type="url"
+                name="url"
+                placeholder="LinkedIn Profile URL"
+                value={formData.url}
+                onChange={handleChange}
+              />
+            </FormControl>
+
             <Button type="submit" colorScheme="teal" size="md" width="full" mt={6}>
-              Upload
+              Submit
             </Button>
           </form>
         </VStack>

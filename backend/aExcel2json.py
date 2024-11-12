@@ -33,12 +33,14 @@ def scrapeDataFromExcel(whichExcel):
         fullName = row.get('Full Name') or row.get('Full_Name', '')
         result = splitFullName(fullName.strip())
         companyName = row.get('Company Name') or row.get('Company', '')
+        linkedInUrl = row.get('Linkedin') or row.get('LinkedIn', '')
 
         entry = {
             'fullName': fullName.strip(),
             'firstName': result['firstName'],
             'lastName': result['lastName'],
             'company': companyName.strip(),
+            'currentUrl': linkedInUrl.strip(),
             'hasViewed': False
         }
         data.append(entry)

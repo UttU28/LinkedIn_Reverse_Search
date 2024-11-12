@@ -1,8 +1,9 @@
-from utils.workingSelenium import *
+from utils.linkedInExcelScraper import *
+from utils.bulkLinkedInScraper import *
 
 async def getLinkedInFor(driver, thisGuy):
     companyName, lastName, firstName = thisGuy['company'], thisGuy['lastName'], thisGuy['firstName']
-    thisData = await scrapeDataFromLinkedIn(driver, companyName, lastName, firstName)
+    thisData = await getSingleLinkedIn(driver, companyName, lastName, firstName)
     # thisData = {'currentUrl': 'curl', 'companyPosition': 'cposition', 'companyLocation': 'clocation'}
     isMaybeUrl = thisData.get('maybeUrl', None)
     if isMaybeUrl:
