@@ -30,20 +30,27 @@ def scrapeDataFromExcel(whichExcel):
 
     data = []
     for index, row in thisDataFrame.iterrows():
-        fullName = row.get('Full Name') or row.get('Full_Name', '')
-        result = splitFullName(fullName.strip())
-        companyName = row.get('Company Name') or row.get('Company', '')
-        linkedInUrl = row.get('Linkedin') or row.get('LinkedIn', '')
-
-        entry = {
-            'fullName': fullName.strip(),
-            'firstName': result['firstName'],
-            'lastName': result['lastName'],
-            'company': companyName.strip(),
-            'currentUrl': linkedInUrl.strip(),
-            'hasViewed': False
-        }
-        data.append(entry)
+        if not (row.get('Full Name') or row.get('Full_Name')):
+            firstName = str(row.get('First Name') or row.get('First_Name', ''))
+            lastName = str(row.get('Last Name') or row.get('Last_Name', ''))
+            fullName = firstName+' '+lastName
+        else:
+            fullName = str(row.get('Full Name') or row.get('Full_Name', ''))
+            result = splitFullName(fullName.strip())
+            firstName = result['firstName']
+            lastName = result['lastName']
+        companyName = str(row.get('Company Name') or row.get('Company', ''))
+        linkedInUrl = str(row.get('Linkedin') or row.get('LinkedIn', ''))
+        if 'linkedin.com/in/' in linkedInUrl:
+            entry = {
+                'fullName': fullName.strip(),
+                'firstName': firstName.strip(),
+                'lastName': lastName.strip(),
+                'company': companyName.strip(),
+                'currentUrl': linkedInUrl.strip(),
+                'hasViewed': False
+            }
+            data.append(entry)
 
     return data
 

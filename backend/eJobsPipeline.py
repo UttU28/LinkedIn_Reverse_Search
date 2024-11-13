@@ -13,6 +13,7 @@ from dConvertExcel import makeExcelForThisSession
 from utils.queueManagement import changeQueueStatus, addEntryToQueue
 from utils.fileActions import readJson, writeJson
 from utils.bulkLinkedInScraper import *
+from utils.companyScraper import companyScrapingLinkedIn
 
 
 THE_DATA_FILE = 'data/data.json'
@@ -31,17 +32,25 @@ async def writeDataToJson(refinedData):
         with open('data/globalSession.json', 'r') as f:
             global_session_data = json.load(f)
 
-    fullName = refinedData.get('fullName')
+    currentUrl = refinedData.get('currentUrl')
 
-    if fullName not in currentSessionData:
-        currentSessionData[fullName] = refinedData
-    if fullName not in global_session_data:
-        global_session_data[fullName] = refinedData
+    if currentUrl not in currentSessionData:
+        currentSessionData[currentUrl] = refinedData
+    if currentUrl not in global_session_data:
+        global_session_data[currentUrl] = refinedData
 
     with open('data/currentSession.json', 'w') as f:
         json.dump(currentSessionData, f, indent=4)
     with open('data/globalSession.json', 'w') as f:
         json.dump(global_session_data, f, indent=4)
+
+
+async def processZero(queueOne, excelFileName):
+    jsonData = scrapeDataFromExcel(excelFileName)
+    with open('data/output.json', 'w') as json_file:
+        json_file.write(json.dumps(jsonData, indent=4))
+
+    await queueOne.put(jsonData)
 
 async def oneProcessOne(queueOne, queueTwo):
     global thisChromeDriver 
@@ -58,7 +67,7 @@ async def oneProcessOne(queueOne, queueTwo):
         finally:
             queueOne.task_done()
 
-async def twoProcessOne(queueOne, queueTwo):
+async def twoProcessOne(queueOne):
     global thisChromeDriver 
     while True:
         jsonData = await queueOne.get()
@@ -66,8 +75,8 @@ async def twoProcessOne(queueOne, queueTwo):
             break
         try:
             for item in jsonData:
-                result = await scrapeDataFromLinkedIn(thisChromeDriver, item)
-                await queueTwo.put(result)
+                result = await companyScrapingLinkedIn(thisChromeDriver, item)
+                await writeDataToJson(result)
         except Exception as e:
             print(f"Error processing item {item}: {e}")
         finally:
@@ -82,14 +91,6 @@ async def oneProcessTwo(queueTwo):
         refinedData = await getEmailAndPhoneFor(baseData)
         await writeDataToJson(refinedData)
         queueTwo.task_done()
-
-async def processZero(queueOne, excelFileName):
-    # CHACK: QUEUE IF ANY ACTIVE, 
-    jsonData = scrapeDataFromExcel(excelFileName)
-    with open('data/output.json', 'w') as json_file:
-        json_file.write(json.dumps(jsonData, indent=4))
-
-    await queueOne.put(jsonData)
 
 async def statusMonitor(queueOne, queueTwo, totalItems):
     with tqdm(total=totalItems, desc="Process 1 Progress", 
@@ -120,7 +121,6 @@ async def statusMonitor(queueOne, queueTwo, totalItems):
 async def extractFromExcel(email, excelFileName, timeStamp, sendNotification):
     try:
         timeStamp = str(timeStamp)
-        # await writeJson(THE_DATA_FILE,{})
         await writeJson('data/currentSession.json',{})
         await writeJson('data/output.json',{})
 
@@ -128,23 +128,22 @@ async def extractFromExcel(email, excelFileName, timeStamp, sendNotification):
         thisChromeDriver = await prepareChromeAndSelenium()
 
         await changeQueueStatus(timeStamp, email)
-        queueOne = asyncio.Queue()
-        queueTwo = asyncio.Queue()
+        oneQueueOne = asyncio.Queue()
+        oneQueueTwo = asyncio.Queue()
         totalItems = len('jsonData')
 
 
-        # Start Process 0
-        p0 = asyncio.create_task(processZero(queueOne, excelFileName))
-        p1 = asyncio.create_task(oneProcessOne(queueOne, queueTwo))
-        p2 = asyncio.create_task(oneProcessTwo(queueTwo))
-        monitor = asyncio.create_task(statusMonitor(queueOne, queueTwo, totalItems))
+        p0 = asyncio.create_task(processZero(oneQueueOne, excelFileName))
+        p1 = asyncio.create_task(oneProcessOne(oneQueueOne, oneQueueTwo))
+        p2 = asyncio.create_task(oneProcessTwo(oneQueueTwo))
+        monitor = asyncio.create_task(statusMonitor(oneQueueOne, oneQueueTwo, totalItems))
 
-        await p0  # Wait for Process 0 to finish
-        await queueOne.join()
-        await queueOne.put(None)
+        await p0  
+        await oneQueueOne.join()
+        await oneQueueOne.put(None)
         
-        await queueTwo.join()
-        await queueTwo.put(None)
+        await oneQueueTwo.join()
+        await oneQueueTwo.put(None)
 
         await p1
         await p2
@@ -170,7 +169,6 @@ async def extractFromExcel(email, excelFileName, timeStamp, sendNotification):
 async def scrapeFromLinkedIn(email, searchUrl, timeStamp, sendNotification):
     try:
         timeStamp = str(timeStamp)
-        # await writeJson(THE_DATA_FILE,{})
         await writeJson('data/currentSession.json',{})
         await writeJson('data/output.json',{})
 
@@ -204,31 +202,49 @@ async def scrapeFromLinkedIn(email, searchUrl, timeStamp, sendNotification):
 
 
 async def companyFromLinkedIn(email, excelFileName, timeStamp, sendNotification):
-    # Make 2 processes, for this called twoProcess1 process0 will be same as the 
-    # try:
+    try:
         timeStamp = str(timeStamp)
-        # await writeJson(THE_DATA_FILE,{})
-        await writeJson('data/currentSession.json',{})
-        await writeJson('data/output.json',{})
+        
+        await writeJson('data/currentSession.json', {})
+        await writeJson('data/output.json', {})
+        print('sdddddddddddddddddddddddddddddddddddddddddddd')
 
         global thisChromeDriver
         thisChromeDriver = await prepareChromeAndSelenium()
 
         await changeQueueStatus(timeStamp, email)
-        queueOne = asyncio.Queue()
-        queueTwo = asyncio.Queue()
-        totalItems = len('jsonData')
-
-
-        # Start Process 0
-        p0 = asyncio.create_task(processZero(queueOne, excelFileName))
-        p1 = asyncio.create_task(oneProcessOne(queueOne))
-        monitor = asyncio.create_task(statusMonitor(queueOne, queueTwo, totalItems))
-
-        await p0  # Wait for Process 0 to finish
-        await queueOne.join()
-        await queueOne.put(None)
         
+        twoQueueOne = asyncio.Queue()
+        totalItems = len('smaplelen')
+        
+        p0 = asyncio.create_task(processZero(twoQueueOne, excelFileName))
+        p1 = asyncio.create_task(twoProcessOne(twoQueueOne))
+        monitor = asyncio.create_task(statusMonitor(twoQueueOne, None, totalItems))
+
+        await p0  
+        await twoQueueOne.join()  
+        await twoQueueOne.put(None)  
 
         await p1
         monitor.cancel()
+
+        fileLocation = await makeExcelForThisSession(timeStamp)
+        
+        currentQueue = await readJson(THE_DATA_FILE)
+        currentQueue[email][timeStamp]['status'] = 'finished'
+        currentQueue[email][timeStamp]['newLocation'] = fileLocation
+        await writeJson(THE_DATA_FILE, currentQueue)
+
+        await sendNotification(email, "Data scraping completed successfully!", 'notif')
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        
+        currentQueue = await readJson(THE_DATA_FILE)
+        currentQueue[email][timeStamp]['status'] = 'error'
+        await writeJson(THE_DATA_FILE, currentQueue)
+        await sendNotification(email, "An error occurred during data scraping.", 'notif')
+    
+    finally:
+        if thisChromeDriver:
+            await thisChromeDriver.quit()

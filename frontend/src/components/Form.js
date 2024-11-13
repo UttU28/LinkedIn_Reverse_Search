@@ -1,4 +1,3 @@
-// components/Form.js
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -11,6 +10,9 @@ import {
   VStack,
   useToast,
   useColorMode,
+  RadioGroup,
+  Radio,
+  Stack,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { AddToCaching, GetFromCaching } from './Caching';
@@ -19,7 +21,8 @@ function Form() {
   const [formData, setFormData] = useState({
     email: '',
     file: null,
-    url: '', // Added URL field
+    url: '',
+    fileType: 'linkedin', // Add default fileType state
   });
 
   const toast = useToast();
@@ -49,6 +52,13 @@ function Form() {
     }));
   };
 
+  const handleFileTypeChange = (value) => {
+    setFormData((prevData) => ({
+      ...prevData,
+      fileType: value,
+    }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const formDataObj = new FormData();
@@ -59,6 +69,7 @@ function Form() {
       // If file is provided, submit to /upload
       formDataObj.append('file', formData.file);
       formDataObj.append('email', formData.email);
+      formDataObj.append('fileType', formData.fileType); // Append file type for backend to process
 
       fetch('/upload', {
         method: 'POST',
@@ -139,6 +150,16 @@ function Form() {
             <FormControl mt={4}>
               <FormLabel>Upload File</FormLabel>
               <Input type="file" accept=".xlsx" onChange={handleFileChange} pt={1} />
+            </FormControl>
+
+            <FormControl mt={4}>
+              <FormLabel>File Type</FormLabel>
+              <RadioGroup onChange={handleFileTypeChange} value={formData.fileType}>
+                <Stack direction="row">
+                  <Radio value="linkedin">LinkedIn</Radio>
+                  <Radio value="company">Company</Radio>
+                </Stack>
+              </RadioGroup>
             </FormControl>
 
             <FormControl mt={4}>

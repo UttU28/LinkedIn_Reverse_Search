@@ -51,9 +51,9 @@ async def normalizeString(s):
     return ' '.join(s.lower().strip().split())
 
 async def findClosestMatch(inputString, data):
+    if inputString == None: return data[0]
     normalInput = await normalizeString(inputString)
     potential_matches = {}
-    
     for index, entry in enumerate(data):
         normalCompanyName = await normalizeString(entry['companyName'])
         input_components = normalInput.split()

@@ -60,9 +60,10 @@ async def getStartupData(emailRequest: EmailRequest):
     raise HTTPException(status_code=400, detail="Invalid email")
 
 @app.post("/upload")
-async def uploadFile(email: str = Form(...), file: UploadFile = File(...)):
+async def uploadFile(email: str = Form(...), fileType: str = Form(...), file: UploadFile = File(...)):
     if not allowedFile(file.filename):
         return JSONResponse(content={'message': 'File type not allowed'}, status_code=400)
+
     thisFileName = file.filename
     timeStamp = int(time.time())
     fileName = f"{timeStamp}.xlsx"
@@ -74,7 +75,10 @@ async def uploadFile(email: str = Form(...), file: UploadFile = File(...)):
     thisID = await addEntryToQueue(email, thisFileName, filePath, timeStamp)
     await sendNotification(email, "Data scraping started!", 'notif')
 
-    asyncio.create_task(findLinkedInFromCompany(email, filePath, thisID))
+    if fileType == 'linkedin':
+        asyncio.create_task(findLinkedInFromCompany(email, filePath, thisID))
+    elif fileType == 'company':
+        asyncio.create_task(findCompanyFromLinkedIn(email, filePath, thisID))
 
     return JSONResponse(content={'message': 'Your data is being processed. We will notify you when it is ready.'}, status_code=200)
 

@@ -74,6 +74,7 @@ async def scrapeDataFromLinkedIn(thisDriver, searchUrl):
                                     linkedInUser = thisABlock.text.split('View')[0].strip()
                                     allData[linkedInUrl] = {'fullName': linkedInUser}
                                 except: continue
+                                # WORK ON THIS CURRESNTSESSION JSON FILE
                             await appendToJsonFile('currentSession.json', allData)
                     except: continue
 

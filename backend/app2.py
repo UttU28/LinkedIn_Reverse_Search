@@ -34,12 +34,12 @@ async def processData(request: ProcessRequest):
     except Exception as e:
         logging.error(f"Error processing {request.searchUrl} for {request.email}: {str(e)}")
 
-# @app.post("/companyfromlinkedin")
-# async def processData(request: ProcessRequest):
-#     try:
-#         await companyFromLinkedIn(request.email, request.filePath, request.thisID, sendNotification)
-#     except Exception as e:
-#         logging.error(f"Error processing {request.searchUrl} for {request.email}: {str(e)}")
+@app.post("/companyfromlinkedin")
+async def processData(request: ProcessRequest):
+    try:
+        await companyFromLinkedIn(request.email, request.filePath, request.thisID, sendNotification)
+    except Exception as e:
+        logging.error(f"Error processing {request.searchUrl} for {request.email}: {str(e)}")
 
 async def sendNotification(email: str, message: str, statusMessage: str):
     async with httpx.AsyncClient() as client:
