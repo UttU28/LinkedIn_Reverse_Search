@@ -76,7 +76,8 @@ async def twoProcessOne(queueOne):
         try:
             for item in jsonData:
                 result = await companyScrapingLinkedIn(thisChromeDriver, item)
-                await writeDataToJson(result)
+                if result: await writeDataToJson(result)
+                await asyncio.sleep(1)
         except Exception as e:
             print(f"Error processing item {item}: {e}")
         finally:

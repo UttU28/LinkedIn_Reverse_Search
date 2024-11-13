@@ -2,6 +2,9 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side, PatternFill
 from utils.fileActions import readJson
+import asyncio
+from datetime import datetime
+
 
 async def writeToExcel(data, outputFile):
     wb = openpyxl.Workbook()
@@ -38,6 +41,7 @@ async def writeToExcel(data, outputFile):
         ws.cell(row=rowNum, column=9).font = Font(color="0000FF", underline="single") if entry['email1'] else Font()
         ws.cell(row=rowNum, column=10, value=entry['companyLocation'])
         ws.cell(row=rowNum, column=11, value=entry['phone'] or '')
+        ws.cell(row=rowNum, column=12, value=entry['company'] or '')
 
     # Column dimensions setup
     ws.column_dimensions[get_column_letter(1)].width = max(len(entry['fullName']) for entry in data) + 2
@@ -51,6 +55,7 @@ async def writeToExcel(data, outputFile):
     ws.column_dimensions[get_column_letter(9)].width = 15
     ws.column_dimensions[get_column_letter(10)].width = 45
     ws.column_dimensions[get_column_letter(11)].width = 15
+    ws.column_dimensions[get_column_letter(12)].width = 15
 
     # Adding borders
     thin = Side(border_style="thin", color="000000")
@@ -100,3 +105,11 @@ async def makeExcelForThisSession(timestamp):
     outputFile = f'downloads/{timestamp}.xlsx'
     await writeToExcel(formattedData, outputFile)
     return outputFile
+
+async def main():
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = await makeExcelForThisSession("Converted Data")
+    print(f"Excel file created: {output_file}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

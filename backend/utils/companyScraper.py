@@ -15,13 +15,13 @@ except: from getJson import getMeJsonData, findClosestMatch
 from aExcel2json import splitFullName
 
 async def companyScrapingLinkedIn(thisDriver, allItems):
-    currentUrl = allItems['currentUrl']
-    thisDriver.get(currentUrl)
-    WebDriverWait(thisDriver, 5).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "section.artdeco-card.pv-profile-card.break-words"))
-    )
-    htmlContent = thisDriver.page_source
     try:
+        currentUrl = allItems['currentUrl']
+        thisDriver.get(currentUrl)
+        WebDriverWait(thisDriver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "section.artdeco-card.pv-profile-card.break-words"))
+        )
+        htmlContent = thisDriver.page_source
         soup = BeautifulSoup(htmlContent, 'html.parser')
         mainHeader = soup.select_one("div.mt2.relative")
         fullName = mainHeader.select_one("h1.text-heading-xlarge").get_text().strip()
