@@ -9,3 +9,5 @@
 
 backend/**/*.json
 **.xlsx
+
+googleScraper/**/**.json

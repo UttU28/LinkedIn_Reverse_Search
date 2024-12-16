@@ -27,7 +27,7 @@ def splitFullName(fullName):
 
 def scrapeDataFromExcel(whichExcel):
     thisDataFrame = pd.read_excel(whichExcel)
-
+    print(thisDataFrame)
     data = []
     for index, row in thisDataFrame.iterrows():
         if not (row.get('Full Name') or row.get('Full_Name')):
@@ -40,13 +40,15 @@ def scrapeDataFromExcel(whichExcel):
             firstName = result['firstName']
             lastName = result['lastName']
         companyName = str(row.get('Company Name') or row.get('Company', ''))
+        positionName = str(row.get('Position Name') or row.get('Position', ''))
         linkedInUrl = str(row.get('Linkedin') or row.get('LinkedIn', ''))
-        if 'linkedin.com/in/' in linkedInUrl:
+        if 'linkedin.com/in/' not in linkedInUrl:
             entry = {
                 'fullName': fullName.strip(),
                 'firstName': firstName.strip(),
                 'lastName': lastName.strip(),
                 'company': companyName.strip(),
+                'position': positionName.strip(),
                 'currentUrl': linkedInUrl.strip(),
                 'hasViewed': False
             }
