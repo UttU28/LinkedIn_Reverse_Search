@@ -11,3 +11,4 @@ backend/**/*.json
 **.xlsx
 
 googleScraper/**/**.json
+proxyScraping/**/**.json
