@@ -38,6 +38,7 @@ import {
   TabsTrigger,
 } from "../components/ui/tabs";
 import Footer from "../components/Footer";
+import LinkedInIcon from "../assets/icons/LinkedInIcon";
 
 // Define interface for lead result
 interface LeadResult {
@@ -45,7 +46,7 @@ interface LeadResult {
   name: string;
   company: string;
   position: string;
-  linkedInUrl: string;
+  profileUrl: string;
   isExactMatch: boolean;
 }
 
@@ -68,7 +69,7 @@ const LeadGenerator: React.FC = () => {
       name: "Sarah Johnson",
       company: "TalentSphere Inc",
       position: "Senior Recruitment Manager",
-      linkedInUrl: "https://www.linkedin.com/in/sarah-johnson-12345",
+      profileUrl: "https://www.example.com/profile/sarah-johnson-12345",
       isExactMatch: true,
     },
     {
@@ -76,7 +77,7 @@ const LeadGenerator: React.FC = () => {
       name: "Michael Thompson",
       company: "TalentSphere Inc",
       position: "Talent Acquisition Specialist",
-      linkedInUrl: "https://www.linkedin.com/in/michael-thompson-67890",
+      profileUrl: "https://www.example.com/profile/michael-thompson-67890",
       isExactMatch: true,
     },
     {
@@ -84,7 +85,7 @@ const LeadGenerator: React.FC = () => {
       name: "Jennifer Richards",
       company: "TalentSphere Inc",
       position: "HR Director",
-      linkedInUrl: "https://www.linkedin.com/in/jennifer-richards-54321",
+      profileUrl: "https://www.example.com/profile/jennifer-richards-54321",
       isExactMatch: true,
     },
     {
@@ -92,7 +93,7 @@ const LeadGenerator: React.FC = () => {
       name: "David Clark",
       company: "Apex Recruiting",
       position: "Technical Recruiter",
-      linkedInUrl: "https://www.linkedin.com/in/david-clark-09876",
+      profileUrl: "https://www.example.com/profile/david-clark-09876",
       isExactMatch: false,
     },
     {
@@ -100,7 +101,7 @@ const LeadGenerator: React.FC = () => {
       name: "Amanda Lee",
       company: "Global Talent Solutions",
       position: "Recruitment Lead",
-      linkedInUrl: "https://www.linkedin.com/in/amanda-lee-24680",
+      profileUrl: "https://www.example.com/profile/amanda-lee-24680",
       isExactMatch: false,
     },
     {
@@ -108,7 +109,7 @@ const LeadGenerator: React.FC = () => {
       name: "Robert Wilson",
       company: "TalentSphere Inc",
       position: "VP of Talent Acquisition",
-      linkedInUrl: "https://www.linkedin.com/in/robert-wilson-13579",
+      profileUrl: "https://www.example.com/profile/robert-wilson-13579",
       isExactMatch: true,
     },
     {
@@ -116,7 +117,7 @@ const LeadGenerator: React.FC = () => {
       name: "Emily Davis",
       company: "NextGen Staffing",
       position: "Recruitment Consultant",
-      linkedInUrl: "https://www.linkedin.com/in/emily-davis-97531",
+      profileUrl: "https://www.example.com/profile/emily-davis-97531",
       isExactMatch: false,
     },
   ];
@@ -160,7 +161,7 @@ const LeadGenerator: React.FC = () => {
         setTimeout(() => setCopiedIndex(null), 2000);
         toast({
           title: "Link copied",
-          description: "LinkedIn profile link copied to clipboard",
+          description: "Professional profile link copied to clipboard",
           variant: "default",
         });
       },
@@ -251,7 +252,7 @@ const LeadGenerator: React.FC = () => {
           {/* Page Header */}
           <motion.div className="mb-8 text-center" variants={itemVariants}>
             <h1 className="text-3xl sm:text-4xl font-heading font-bold text-primary-text mb-4">
-              Your LinkedIn Lead Generator
+              Your Professional Lead Generator
             </h1>
             <p className="text-secondary-text max-w-2xl mx-auto">
               Find the perfect professional connections hiding like needles in a
@@ -392,6 +393,16 @@ const LeadGenerator: React.FC = () => {
             </Card>
           </motion.div>
 
+          {/* Legal Disclaimer */}
+          <motion.div className="mb-8" variants={itemVariants}>
+            <div className="bg-card/50 border border-border/50 rounded-lg p-4">
+              <p className="text-sm text-secondary-text text-center">
+                This tool identifies publicly accessible professional profiles based on user-provided inputs. 
+                Users are responsible for complying with all applicable laws and third-party platform terms.
+              </p>
+            </div>
+          </motion.div>
+
           {/* Results Section */}
           <AnimatePresence>
             {showResults && (
@@ -511,7 +522,7 @@ const LeadGenerator: React.FC = () => {
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-text">
                                     <div className="flex items-center space-x-2">
                                       <a
-                                        href={result.linkedInUrl}
+                                        href={result.profileUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-primary hover:text-primary-hover"
@@ -530,7 +541,7 @@ const LeadGenerator: React.FC = () => {
                                         className="text-primary hover:text-primary-hover hover:bg-primary/10"
                                         onClick={() =>
                                           handleCopyLink(
-                                            result.linkedInUrl,
+                                            result.profileUrl,
                                             index,
                                           )
                                         }
@@ -615,7 +626,7 @@ const LeadGenerator: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-text">
                                       <div className="flex items-center space-x-2">
                                         <a
-                                          href={result.linkedInUrl}
+                                          href={result.profileUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="text-primary hover:text-primary-hover"
@@ -634,7 +645,7 @@ const LeadGenerator: React.FC = () => {
                                           className="text-primary hover:text-primary-hover hover:bg-primary/10"
                                           onClick={() =>
                                             handleCopyLink(
-                                              result.linkedInUrl,
+                                              result.profileUrl,
                                               index,
                                             )
                                           }
@@ -722,7 +733,7 @@ const LeadGenerator: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-text">
                                       <div className="flex items-center space-x-2">
                                         <a
-                                          href={result.linkedInUrl}
+                                          href={result.profileUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="text-primary hover:text-primary-hover"
@@ -741,7 +752,7 @@ const LeadGenerator: React.FC = () => {
                                           className="text-primary hover:text-primary-hover hover:bg-primary/10"
                                           onClick={() =>
                                             handleCopyLink(
-                                              result.linkedInUrl,
+                                              result.profileUrl,
                                               index,
                                             )
                                           }

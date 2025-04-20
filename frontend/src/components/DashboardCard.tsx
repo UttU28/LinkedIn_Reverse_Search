@@ -28,7 +28,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
         <CardContent className="pt-4 sm:pt-5 md:pt-6 px-3 sm:px-4 md:px-6">
           <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
             <h3 className="text-sm sm:text-base md:text-lg font-medium text-secondary-text">{title}</h3>
-            <div className="text-accent">{icon}</div>
+            <div className="text-accent text-xl sm:text-2xl md:text-3xl">{icon}</div>
           </div>
           <p className="text-xl sm:text-2xl md:text-3xl font-heading font-semibold text-primary-text">
             {value}

@@ -50,8 +50,8 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between h-16">
           <div className="flex-shrink-0 flex items-center">
             <Link to="/" className="font-heading font-bold text-xl text-primary-text flex items-center">
-              <Link2 className="text-primary mr-2 h-5 w-5" />
-              <span className="hidden xs:inline">Link It Up</span>
+              <Link2 className="text-primary mr-2 h-6 w-6" />
+              <span>Link It Up</span>
             </Link>
           </div>
           
@@ -109,18 +109,18 @@ const Navbar: React.FC = () => {
                           <span className="mr-2 font-bold">Dashboard</span>
                         </Link>
                         <Link to="/profile" className="flex items-center px-4 py-2 text-sm text-secondary-text hover:bg-background hover:text-primary-text">
-                          <Briefcase className="mr-2 h-4 w-4" />
+                          <Briefcase className="mr-2 h-5 w-5" />
                           Your Profile
                         </Link>
                         <Link to="/pricing" className="flex items-center px-4 py-2 text-sm text-secondary-text hover:bg-background hover:text-primary-text">
-                          <CreditCard className="mr-2 h-4 w-4" />
+                          <CreditCard className="mr-2 h-5 w-5" />
                           Buy Credits
                         </Link>
                         <button 
                           onClick={handleLogout}
                           className="w-full text-left flex items-center px-4 py-2 text-sm text-destructive hover:bg-background"
                         >
-                          <LogOut className="mr-2 h-4 w-4" />
+                          <LogOut className="mr-2 h-5 w-5" />
                           Sign out
                         </button>
                       </div>
@@ -133,7 +133,7 @@ const Navbar: React.FC = () => {
             {/* Login button for non-authenticated users */}
             {!isAuthenticated && (
               <div className="ml-4">
-                <Link to="/login" className="bg-primary text-white px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors">
+                <Link to="/" className="bg-primary text-white px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors">
                   Log In
                 </Link>
               </div>
@@ -202,7 +202,7 @@ const Navbar: React.FC = () => {
                   <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
                     Pricing
                   </Link>
-                  <Link to="/login" className="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">
+                  <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">
                     Log In
                   </Link>
                 </>

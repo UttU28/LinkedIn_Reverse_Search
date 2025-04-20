@@ -63,43 +63,43 @@ const FAQ = () => {
     {
       id: 1,
       question: "What is Link It Up?",
-      answer: "Link It Up is an AI-powered platform designed to help professionals find accurate LinkedIn profiles based on name, company, and position information. Our advanced algorithms analyze multiple data points to match individuals with their LinkedIn profiles, saving you hours of manual searching.",
+      answer: "Link It Up is an AI-powered platform designed to help professionals discover public professional profiles based on name, company, and position information. Our advanced algorithms analyze multiple data points to match individuals with their public profiles, saving you hours of manual searching and research.",
       category: "general"
     },
     {
       id: 2,
       question: "How accurate is the profile matching?",
-      answer: "Our system achieves an average accuracy rate of 85-95%, depending on the quality and completeness of your input data. We use multiple matching factors including name variations, company information, job titles, and professional history to ensure the highest possible accuracy. Each match is also given a confidence score to help you prioritize.",
+      answer: "Our system achieves an average accuracy rate of 85-95%, depending on the quality and completeness of your input data. We use multiple matching factors including name variations, company information, job titles, and professional history to ensure the highest possible accuracy. Each match is also given a confidence score to help you prioritize your outreach efforts.",
       category: "features"
     },
     {
       id: 3,
       question: "Can I upload my own contact lists?",
-      answer: "Yes, you can upload contact lists in CSV or Excel format. Our system will automatically process the data and attempt to find the corresponding LinkedIn profiles. We support various column structures and our system will intelligently map them during import.",
+      answer: "Yes, you can upload contact lists in CSV or Excel format. Our system will automatically process the data and attempt to find the corresponding professional profiles from public sources. We support various column structures and our intelligent mapping system will organize your data during import for optimal results.",
       category: "features"
     },
     {
       id: 4,
       question: "How does the credit system work?",
-      answer: "Each LinkedIn profile search consumes one credit. Your available credits are displayed on your dashboard, and they reset monthly according to your subscription plan. You can also purchase additional credit packs if you need more searches before your next billing cycle.",
+      answer: "Each professional profile search consumes one credit from your account balance. Your available credits are displayed on your dashboard and can be purchased in packages. New accounts start with 50 free credits to help you experience the full value of our platform. Unlike subscription services, our credits never expire.",
       category: "billing"
     },
     {
       id: 5,
       question: "Do you offer a free trial?",
-      answer: "Yes, we offer a 7-day free trial that includes 25 profile searches. This allows you to test our platform's accuracy and features before committing to a subscription. No credit card is required to start the free trial.",
+      answer: "Yes! We provide 50 free credits to all new users upon signup. This allows you to thoroughly test our platform's accuracy and features before purchasing additional credits. No credit card is required to claim your free credits.",
       category: "billing"
     },
     {
       id: 6,
       question: "How do I create an account?",
-      answer: "Creating an account is simple. Click the 'Sign Up' button in the top right corner, enter your email address and create a password, or sign up with your Google account. Once registered, you'll have immediate access to your dashboard.",
+      answer: "Creating an account is simple. Click the 'Sign Up' button in the top right corner, enter your email address and create a password, or sign up with your Google account. Once registered, you'll have immediate access to your dashboard and 50 free credits to start searching.",
       category: "account"
     },
     {
       id: 7,
-      question: "Can I cancel my subscription at any time?",
-      answer: "Yes, you can cancel your subscription at any time from your account settings. Your access will continue until the end of your current billing period. We don't charge any cancellation fees, and you're welcome to rejoin at any time.",
+      question: "What is your pricing model?",
+      answer: "We offer a pay-as-you-go credit system rather than recurring subscriptions. You purchase credit packages based on your needs, starting at $10 for 100 credits. Larger packages include bonus credits, offering better value. Your credits never expire, so you only pay for what you use.",
       category: "billing"
     },
     {
@@ -117,43 +117,43 @@ const FAQ = () => {
     {
       id: 10,
       question: "How does the Lead Generator feature work?",
-      answer: "The Lead Generator allows you to search for professionals based on company and position criteria rather than specific names. Enter a target company and position category, and our system will find matching LinkedIn profiles of professionals in those roles. This is particularly useful for sales prospecting and recruitment.",
+      answer: "The Lead Generator allows you to search for professionals based on company and position criteria rather than specific names. Enter a target company and position category, and our AI-powered search will find matching professional profiles of individuals in those roles from publicly available sources. This is particularly useful for sales prospecting and recruitment.",
       category: "features"
     },
     {
       id: 11,
       question: "Can multiple team members use the same account?",
-      answer: "Individual plans are designed for single users. For team collaboration, we offer Team and Business plans that include multi-user access, shared workspaces, and administrative controls. These plans allow team members to share credits and search results.",
+      answer: "Individual plans are designed for single users. For team collaboration, we offer Team and Business plans that include multi-user access, shared workspaces, and administrative controls. These plans allow team members to share credits and search results while providing usage analytics for administrators.",
       category: "account"
     },
     {
       id: 12,
       question: "What happens if the system can't find a profile?",
-      answer: "If our system can't find a match with high confidence, we'll indicate this in the results. You won't be charged credits for searches that don't yield results. We're constantly improving our algorithms to increase match rates, and you can help by providing feedback on specific searches.",
+      answer: "If our system can't find a match with high confidence, we'll indicate this in the results. You won't be charged credits for searches that don't yield results. Our continuous improvement process means our match rates increase over time, and you can help by providing feedback on specific searches.",
       category: "technical"
     },
     {
       id: 14,
       question: "How do I export search results?",
-      answer: "You can export your search results in multiple formats including CSV, Excel, and JSON. The export includes all found profiles with their LinkedIn URLs and confidence scores. This makes it easy to import the data into your CRM or other business tools.",
+      answer: "You can export your search results in multiple formats including CSV, Excel, and JSON. The export includes all found profiles with their URLs and confidence scores. This makes it easy to import the data into your CRM or other business tools for seamless workflow integration.",
       category: "features"
     },
     {
       id: 15,
       question: "What support options are available?",
-      answer: "We offer multiple support channels depending on your plan. All users have access to our knowledge base and email support. Pro and Premium plans include priority support with faster response times. Business and Enterprise plans also include dedicated account managers and phone support.",
+      answer: "We offer multiple support channels depending on your needs. All users have access to our knowledge base and email support. Users with larger credit packages receive priority support with faster response times. Enterprise customers also receive dedicated account managers and personalized onboarding assistance.",
       category: "general"
     },
     {
       id: 16,
-      question: "Can I request a refund?",
-      answer: "We offer a 14-day money-back guarantee for new subscribers. If you're not satisfied with our service within this period, please contact our support team to request a refund. After this period, we generally don't provide refunds for subscription fees, but we're happy to help resolve any issues you're experiencing.",
+      question: "What is your refund policy?",
+      answer: "We stand behind the quality of our service. If you're not satisfied with the results within 14 days of your first credit purchase, please contact our support team to discuss refund options. After this period, we generally don't provide refunds for credit purchases, but we're always happy to help resolve any issues you're experiencing.",
       category: "billing"
     },
     {
       id: 17,
-      question: "How do you handle LinkedIn's terms of service?",
-      answer: "Link It Up operates in compliance with LinkedIn's terms of service. We don't scrape LinkedIn data or violate their policies. Our system uses publicly available information and sophisticated algorithms to match profiles, all while respecting LinkedIn's platform rules and user privacy.",
+      question: "How do you source the professional profiles?",
+      answer: "Link It Up uses AI-powered search technology to identify publicly available professional information. Our system respects all platform terms of service and privacy regulations. We only access public information through ethical means, never employing scraping, crawling, or other automated data collection methods that would violate terms of service of any platform.",
       category: "data"
     },
     {
@@ -161,6 +161,18 @@ const FAQ = () => {
       question: "What browsers and devices are supported?",
       answer: "Link It Up works on all modern browsers including Chrome, Firefox, Safari, and Edge. Our platform is fully responsive and works on desktop computers, laptops, tablets, and mobile devices. For the best experience, we recommend using the latest version of Chrome or Firefox on a desktop or laptop.",
       category: "technical"
+    },
+    {
+      id: 19,
+      question: "Is using Link It Up compliant with professional networking sites' terms?",
+      answer: "Yes. Link It Up is designed to be fully compliant with terms of service of professional networking platforms. We use legitimate search techniques to discover publicly available information rather than unauthorized access methods. Users are still responsible for how they use the information and should always comply with all applicable terms of service and laws.",
+      category: "legal"
+    },
+    {
+      id: 20,
+      question: "How is Link It Up different from manually searching for professionals?",
+      answer: "Link It Up automates and enhances what would otherwise be a manual, time-consuming process. Our AI algorithms construct sophisticated search queries and validate results with higher accuracy than manual searching. What might take you hours of research can be accomplished in seconds, with better results and confidence scoring to guide your outreach priorities.",
+      category: "general"
     }
   ];
 
@@ -194,7 +206,7 @@ const FAQ = () => {
             Frequently Asked <span className="text-primary">Questions</span>
           </h1>
           <p className="text-xl text-secondary-text max-w-3xl mx-auto mb-10">
-            Find answers to common questions about Link It Up and how it can help you find the right LinkedIn profiles.
+            Find answers to common questions about Link It Up and how it can help you find the right professional profiles.
           </p>
           
           <div className="max-w-2xl mx-auto relative">
@@ -301,6 +313,16 @@ const FAQ = () => {
                     </span>
                   </div>
                   
+                  {/* Legal Disclaimer */}
+                  <div className="bg-card/50 border border-border/50 rounded-lg p-4 mb-6">
+                    <div className="flex items-start">
+                      <ShieldCheck className="h-5 w-5 text-primary mt-0.5 mr-3" />
+                      <p className="text-sm text-secondary-text">
+                        This tool identifies publicly accessible professional profiles based on user-provided inputs. Users are responsible for complying with all applicable laws and third-party platform terms.
+                      </p>
+                    </div>
+                  </div>
+
                   <Accordion type="single" collapsible className="w-full space-y-4">
                     {filteredFaqs.map((item) => (
                       <AccordionItem 

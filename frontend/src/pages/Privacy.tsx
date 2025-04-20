@@ -3,7 +3,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, Clock, Shield, LockKeyhole, EyeOff, Eye, Network, Mail } from 'lucide-react';
+import { ArrowLeft, FileText, Clock, Shield, LockKeyhole, EyeOff, Eye, Network, Mail, AlertTriangle } from 'lucide-react';
 import { Link } from 'wouter';
 
 const Privacy = () => {
@@ -42,17 +42,17 @@ const Privacy = () => {
           <motion.div className="mb-8" variants={itemVariants}>
             <Link href="/">
               <Button variant="ghost" className="mb-4">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                <ArrowLeft className="mr-2 h-5 w-5" /> Back
               </Button>
             </Link>
             <div className="flex items-center mb-2">
-              <Shield className="h-6 w-6 text-primary mr-2" />
+              <Shield className="h-8 w-8 text-primary mr-2" />
               <h1 className="text-3xl md:text-4xl font-heading font-bold text-primary-text">
                 Privacy Policy
               </h1>
             </div>
             <div className="flex items-center text-sm text-secondary-text">
-              <Clock className="h-4 w-4 mr-1" />
+              <Clock className="h-5 w-5 mr-1" />
               <span>Last updated: April 1, 2025</span>
             </div>
           </motion.div>
@@ -68,9 +68,18 @@ const Privacy = () => {
           
           <Separator className="my-8" />
           
+          <motion.section className="mb-8 bg-accent/10 p-4 rounded-lg border border-accent/30" variants={itemVariants}>
+            <div className="flex items-start">
+              <AlertTriangle className="h-6 w-6 text-accent mt-0.5 mr-3 shrink-0" />
+              <p className="text-sm text-primary-text">
+                <strong>Important Notice:</strong> Link It Up is designed to help you find publicly accessible professional profiles using AI-powered search technology. We do not scrape, crawl, or otherwise extract data from third-party platforms in violation of their terms of service. All information provided through our service is sourced from public sources that are freely accessible on the internet.
+              </p>
+            </div>
+          </motion.section>
+          
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Eye className="h-5 w-5 text-primary mr-2" />
+              <Eye className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 1. Information We Collect
               </h2>
@@ -106,23 +115,26 @@ const Privacy = () => {
               </div>
               
               <div>
-                <h3 className="text-lg font-medium text-primary-text mb-2">1.3 Information From Third Parties</h3>
+                <h3 className="text-lg font-medium text-primary-text mb-2">1.3 Information From Public Sources</h3>
                 <p className="text-secondary-text">
-                  We may receive information about you from third-party sources, such as:
+                  Our service identifies publicly available professional information that already exists on the internet. This information may include:
                 </p>
                 <ul className="list-disc pl-5 mt-2 text-secondary-text space-y-2">
-                  <li>Business partners</li>
-                  <li>Identity verification services</li>
-                  <li>Public databases</li>
-                  <li>Social media platforms when you connect your account</li>
+                  <li>Public professional profiles</li>
+                  <li>Public business information</li>
+                  <li>Publicly available contact information</li>
+                  <li>Other information that individuals have made publicly accessible</li>
                 </ul>
+                <p className="text-secondary-text mt-2">
+                  We do not collect, store, or process non-public information from third-party platforms. Our service operates by directing you to information that is already publicly available.
+                </p>
               </div>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 2. How We Use Your Information
               </h2>
@@ -141,12 +153,15 @@ const Privacy = () => {
                 <li>Detect, prevent, and address technical issues and security breaches</li>
                 <li>Comply with legal obligations</li>
               </ul>
+              <p className="text-secondary-text mt-2">
+                We maintain records of your search history within your account to provide you with better service, but we do not share this history with other users or third parties (except as described in Section 3).
+              </p>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Network className="h-5 w-5 text-primary mr-2" />
+              <Network className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 3. How We Share Your Information
               </h2>
@@ -190,12 +205,19 @@ const Privacy = () => {
                   We may disclose your information when we believe in good faith that disclosure is necessary to protect our rights, protect your safety or the safety of others, investigate fraud, or respond to a government request.
                 </p>
               </div>
+              
+              <div>
+                <h3 className="text-lg font-medium text-primary-text mb-2">3.5 Third-Party Platform Information</h3>
+                <p className="text-secondary-text">
+                  Our service may direct you to publicly available profiles or information on third-party platforms. We do not control these third-party platforms or their privacy practices. When you interact with these platforms, their privacy policies will apply to their collection, use, and disclosure of your information. We encourage you to review the privacy policies of any third-party platforms you visit.
+                </p>
+              </div>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <LockKeyhole className="h-5 w-5 text-primary mr-2" />
+              <LockKeyhole className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 4. Data Security
               </h2>
@@ -215,12 +237,15 @@ const Privacy = () => {
                 <li>Regular security training for our team</li>
                 <li>Monitoring for suspicious activities</li>
               </ul>
+              <p className="text-secondary-text mt-2">
+                We retain your personal information only for as long as necessary to fulfill the purposes for which we collected it, including for the purposes of satisfying any legal, accounting, or reporting requirements.
+              </p>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <EyeOff className="h-5 w-5 text-primary mr-2" />
+              <EyeOff className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 5. Your Privacy Rights
               </h2>
@@ -241,12 +266,15 @@ const Privacy = () => {
               <p className="text-secondary-text">
                 To exercise any of these rights, please contact us using the information provided at the end of this policy.
               </p>
+              <p className="text-secondary-text mt-2">
+                For residents of California, the California Consumer Privacy Act (CCPA) provides additional rights. For residents of the European Economic Area (EEA), the General Data Protection Regulation (GDPR) applies.
+              </p>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 6. Cookies and Tracking Technologies
               </h2>
@@ -273,7 +301,7 @@ const Privacy = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 7. Children's Privacy
               </h2>
@@ -288,9 +316,33 @@ const Privacy = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
-                8. Changes to This Privacy Policy
+                8. Legal Basis for Processing (EEA Users)
+              </h2>
+            </div>
+            
+            <div className="pl-7 space-y-4">
+              <p className="text-secondary-text">
+                If you are in the European Economic Area (EEA), our legal basis for collecting and using your personal information depends on the specific information concerned and the context in which we collect it. We generally rely on the following legal bases for processing:
+              </p>
+              <ul className="list-disc pl-5 mt-2 text-secondary-text space-y-2">
+                <li><strong>Contractual Necessity:</strong> To perform our contractual obligations to you, including providing our services.</li>
+                <li><strong>Legitimate Interests:</strong> We may process your information where it is in our legitimate interests to do so, provided these interests are not overridden by your rights and interests.</li>
+                <li><strong>Consent:</strong> In some cases, we may process your information based on your specific consent.</li>
+                <li><strong>Legal Obligation:</strong> We may process your information to comply with a legal obligation.</li>
+              </ul>
+              <p className="text-secondary-text mt-2">
+                If you have questions about the legal basis for processing, please contact us using the information provided at the end of this policy.
+              </p>
+            </div>
+          </motion.section>
+          
+          <motion.section className="mb-12" variants={itemVariants}>
+            <div className="flex items-center mb-4">
+              <FileText className="h-7 w-7 text-primary mr-2" />
+              <h2 className="text-2xl font-heading font-semibold text-primary-text">
+                9. Changes to This Privacy Policy
               </h2>
             </div>
             
@@ -306,9 +358,9 @@ const Privacy = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Mail className="h-5 w-5 text-primary mr-2" />
+              <Mail className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
-                9. Contact Us
+                10. Contact Us
               </h2>
             </div>
             
@@ -327,9 +379,9 @@ const Privacy = () => {
             </div>
           </motion.section>
           
-          <motion.div className="text-center" variants={itemVariants}>
-            <p className="text-secondary-text">
-              By using our services, you acknowledge that you have read and understood this Privacy Policy.
+          <motion.div className="text-center bg-card/70 p-4 rounded-lg border border-border/50 mb-8" variants={itemVariants}>
+            <p className="text-secondary-text font-medium">
+              By using our services, you acknowledge that you have read and understood this Privacy Policy. You understand that our service helps you find publicly available professional profiles and information, and that you are responsible for your use of this information in compliance with all applicable laws and third-party terms of service.
             </p>
           </motion.div>
         </div>

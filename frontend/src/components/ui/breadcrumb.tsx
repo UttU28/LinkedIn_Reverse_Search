@@ -50,7 +50,10 @@ const BreadcrumbLink = React.forwardRef<
   return (
     <Comp
       ref={ref}
-      className={cn("transition-colors hover:text-foreground", className)}
+      className={cn(
+        "transition-colors hover:text-foreground data-[current=true]:cursor-default data-[current=true]:pointer-events-none data-[current=true]:text-foreground",
+        className
+      )}
       {...props}
     />
   )
@@ -66,7 +69,7 @@ const BreadcrumbPage = React.forwardRef<
     role="link"
     aria-disabled="true"
     aria-current="page"
-    className={cn("font-normal text-foreground", className)}
+    className={cn("max-w-[8rem] truncate font-normal text-foreground sm:max-w-[10rem] md:max-w-[12rem] lg:max-w-[16rem] xl:max-w-[20rem] 2xl:max-w-[24rem]", className)}
     {...props}
   />
 ))
@@ -80,7 +83,7 @@ const BreadcrumbSeparator = ({
   <li
     role="presentation"
     aria-hidden="true"
-    className={cn("[&>svg]:w-3.5 [&>svg]:h-3.5", className)}
+    className={cn("[&>svg]:w-4 [&>svg]:h-4", className)}
     {...props}
   >
     {children ?? <ChevronRight />}
@@ -98,11 +101,11 @@ const BreadcrumbEllipsis = ({
     className={cn("flex h-9 w-9 items-center justify-center", className)}
     {...props}
   >
-    <MoreHorizontal className="h-4 w-4" />
+    <MoreHorizontal className="h-5 w-5" />
     <span className="sr-only">More</span>
   </span>
 )
-BreadcrumbEllipsis.displayName = "BreadcrumbElipssis"
+BreadcrumbEllipsis.displayName = "BreadcrumbEllipsis"
 
 export {
   Breadcrumb,

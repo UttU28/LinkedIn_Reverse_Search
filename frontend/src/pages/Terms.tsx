@@ -42,17 +42,17 @@ const Terms = () => {
           <motion.div className="mb-8" variants={itemVariants}>
             <Link href="/">
               <Button variant="ghost" className="mb-4">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                <ArrowLeft className="mr-2 h-5 w-5" /> Back
               </Button>
             </Link>
             <div className="flex items-center mb-2">
-              <FileText className="h-6 w-6 text-primary mr-2" />
+              <FileText className="h-8 w-8 text-primary mr-2" />
               <h1 className="text-3xl md:text-4xl font-heading font-bold text-primary-text">
                 Terms of Service
               </h1>
             </div>
             <div className="flex items-center text-sm text-secondary-text">
-              <Clock className="h-4 w-4 mr-1" />
+              <Clock className="h-5 w-5 mr-1" />
               <span>Last updated: April 1, 2025</span>
             </div>
           </motion.div>
@@ -70,7 +70,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Eye className="h-5 w-5 text-primary mr-2" />
+              <Eye className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 1. Using Our Services
               </h2>
@@ -102,7 +102,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <ThumbsUp className="h-5 w-5 text-primary mr-2" />
+              <ThumbsUp className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 2. Acceptable Use
               </h2>
@@ -123,23 +123,31 @@ const Terms = () => {
               </div>
               
               <div>
-                <h3 className="text-lg font-medium text-primary-text mb-2">2.2 LinkedIn Platform Rules</h3>
+                <h3 className="text-lg font-medium text-primary-text mb-2">2.2 Third-Party Platform Compliance</h3>
                 <p className="text-secondary-text">
-                  You acknowledge and agree that our Services operate in compliance with LinkedIn's user agreement and platform policies. When using our Services, you agree to:
+                  When using our Services to find professional profiles, you acknowledge and agree that:
                 </p>
                 <ul className="list-disc pl-5 mt-2 text-secondary-text">
-                  <li>Use the information obtained through our Services only for legitimate business purposes</li>
-                  <li>Not engage in automated scraping or data harvesting of LinkedIn profiles</li>
-                  <li>Not use our Services to circumvent any limitations or restrictions imposed by LinkedIn</li>
-                  <li>Comply with all applicable LinkedIn terms and conditions when accessing LinkedIn profiles identified through our Services</li>
+                  <li>Our Services identify publicly accessible professional profiles using AI-powered search technology</li>
+                  <li>You are responsible for complying with all terms of service, platform policies, and applicable laws when accessing any third-party platforms or profiles discovered through our Services</li>
+                  <li>You will only use the information obtained through our Services for legitimate business purposes in compliance with applicable laws, regulations, and third-party platform terms</li>
+                  <li>You will not use our Services to engage in automated scraping, crawling, or data harvesting of any professional networking platforms</li>
+                  <li>You understand that our Services do not provide access to any data that is not already publicly available</li>
                 </ul>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium text-primary-text mb-2">2.3 Legal Responsibility</h3>
+                <p className="text-secondary-text">
+                  You are solely responsible for your compliance with all applicable laws, regulations, and third-party terms of service when using information obtained through our Services. We cannot and will not be liable for any misuse of the information provided by our Services or any violation of third-party platform terms.
+                </p>
               </div>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Scale className="h-5 w-5 text-primary mr-2" />
+              <Scale className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 3. Intellectual Property Rights
               </h2>
@@ -171,38 +179,38 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <CreditCard className="h-5 w-5 text-primary mr-2" />
+              <CreditCard className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
-                4. Subscription and Billing
+                4. Credits and Billing
               </h2>
             </div>
             
             <div className="pl-7 space-y-4">
               <div>
-                <h3 className="text-lg font-medium text-primary-text mb-2">4.1 Subscription Terms</h3>
+                <h3 className="text-lg font-medium text-primary-text mb-2">4.1 Credit-Based System</h3>
                 <p className="text-secondary-text">
-                  Some features of our Services require a paid subscription. By subscribing to our Services, you agree to pay the applicable subscription fees as they become due. Subscription fees are billed in advance and are non-refundable, except as expressly provided in these Terms.
+                  Our Services operate on a credit-based system. By purchasing credits, you agree to pay the applicable fees as they become due. Credit purchases are non-refundable, except as expressly provided in these Terms or as required by applicable law.
                 </p>
               </div>
               
               <div>
-                <h3 className="text-lg font-medium text-primary-text mb-2">4.2 Billing Cycle</h3>
+                <h3 className="text-lg font-medium text-primary-text mb-2">4.2 Credit Validity</h3>
                 <p className="text-secondary-text">
-                  When you subscribe to our Services, your subscription will automatically renew at the end of each billing cycle unless you cancel it prior to the renewal date. You may cancel your subscription at any time through your account settings or by contacting our support team.
+                  Once purchased, credits remain valid in your account indefinitely until used. Unused credits are not eligible for refund. Each professional profile search consumes one credit from your account balance.
                 </p>
               </div>
               
               <div>
                 <h3 className="text-lg font-medium text-primary-text mb-2">4.3 Price Changes</h3>
                 <p className="text-secondary-text">
-                  We may change the fees for our Services at any time. If we increase the fees for your subscription, we will provide notice of the change on our website or by email at least 30 days before the change is to take effect. Your continued use of the Services after the fee change becomes effective constitutes your agreement to pay the updated fees.
+                  We may change the fees for our Services at any time. Price changes will not affect credits that have already been purchased. Your continued use of the Services after price changes are posted constitutes your agreement to pay the updated fees for any future credit purchases.
                 </p>
               </div>
               
               <div>
-                <h3 className="text-lg font-medium text-primary-text mb-2">4.4 Credits</h3>
+                <h3 className="text-lg font-medium text-primary-text mb-2">4.4 Payment Processing</h3>
                 <p className="text-secondary-text">
-                  Our Services operate on a credit system for certain features. Credits are valid for the duration specified at the time of purchase or allocation and expire according to our credit policy. Unused credits are not refundable and cannot be transferred.
+                  We use third-party payment processors to handle all financial transactions. By making a purchase, you agree to comply with these processors' terms of service and provide accurate billing information.
                 </p>
               </div>
             </div>
@@ -210,7 +218,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Shield className="h-5 w-5 text-primary mr-2" />
+              <Shield className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 5. Privacy
               </h2>
@@ -220,12 +228,15 @@ const Terms = () => {
               <p className="text-secondary-text">
                 Your privacy is important to us. Our Privacy Policy describes how we collect, use, and share your personal information. By using our Services, you agree to the collection, use, and sharing of your information as described in our Privacy Policy.
               </p>
+              <p className="text-secondary-text mt-2">
+                It's important to understand that our Services only identify publicly accessible professional profiles. We do not provide access to any data that is not already publicly available, and we do not engage in unauthorized data collection practices.
+              </p>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Ban className="h-5 w-5 text-primary mr-2" />
+              <Ban className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 6. Disclaimers and Limitations of Liability
               </h2>
@@ -246,8 +257,15 @@ const Terms = () => {
                 </p>
               </div>
               
+              <div>
+                <h3 className="text-lg font-medium text-primary-text mb-2">6.3 Third-Party Platforms</h3>
+                <p className="text-secondary-text">
+                  WE ARE NOT RESPONSIBLE FOR ANY CONTENT OR PRACTICES OF THIRD-PARTY PLATFORMS WHOSE PROFILES MAY BE IDENTIFIED THROUGH OUR SERVICES. YOUR INTERACTIONS WITH SUCH PLATFORMS ARE GOVERNED BY THEIR RESPECTIVE TERMS OF SERVICE AND PRIVACY POLICIES. WE MAKE NO WARRANTIES OR REPRESENTATIONS REGARDING SUCH PLATFORMS AND EXPRESSLY DISCLAIM ANY LIABILITY ARISING FROM YOUR USE OF OR INTERACTIONS WITH THEM.
+                </p>
+              </div>
+              
               <div className="flex items-center bg-accent/10 p-4 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-accent shrink-0 mr-3" />
+                <AlertTriangle className="h-6 w-6 text-accent shrink-0 mr-3" />
                 <p className="text-primary-text text-sm">
                   <strong>Important:</strong> Some jurisdictions do not allow the exclusion of implied warranties or limitations on liability for certain types of damages, so some of the above limitations may not apply to you.
                 </p>
@@ -257,7 +275,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <Scale className="h-5 w-5 text-primary mr-2" />
+              <Scale className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 7. Indemnification
               </h2>
@@ -267,12 +285,15 @@ const Terms = () => {
               <p className="text-secondary-text">
                 You agree to defend, indemnify, and hold harmless Link It Up, its affiliates, licensors, and service providers, and its and their respective officers, directors, employees, contractors, agents, licensors, suppliers, successors, and assigns from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable attorneys' fees) arising out of or relating to your violation of these Terms or your use of the Services.
               </p>
+              <p className="text-secondary-text mt-2">
+                This includes, but is not limited to, any claims arising from your access to or use of third-party platforms or profiles identified through our Services, your violation of any third-party terms of service, or your violation of any applicable laws or regulations.
+              </p>
             </div>
           </motion.section>
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 8. Changes to These Terms
               </h2>
@@ -287,7 +308,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 9. Governing Law and Jurisdiction
               </h2>
@@ -302,7 +323,7 @@ const Terms = () => {
           
           <motion.section className="mb-12" variants={itemVariants}>
             <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-primary mr-2" />
+              <FileText className="h-7 w-7 text-primary mr-2" />
               <h2 className="text-2xl font-heading font-semibold text-primary-text">
                 10. Contact Us
               </h2>
@@ -323,9 +344,9 @@ const Terms = () => {
             </div>
           </motion.section>
           
-          <motion.div className="text-center" variants={itemVariants}>
-            <p className="text-secondary-text">
-              By using our Services, you acknowledge that you have read and understood these Terms and agree to be bound by them.
+          <motion.div className="text-center bg-card/70 p-4 rounded-lg border border-border/50 mb-8" variants={itemVariants}>
+            <p className="text-secondary-text font-medium">
+              By using our Services, you acknowledge that you have read and understood these Terms and agree to be bound by them. You are responsible for ensuring your use of our Services complies with all applicable laws and third-party platform terms.
             </p>
           </motion.div>
         </div>

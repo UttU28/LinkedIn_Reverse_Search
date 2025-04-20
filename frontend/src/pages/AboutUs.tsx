@@ -35,7 +35,7 @@ const AboutUs = () => {
     {
       name: "Alex Rodriguez",
       role: "Founder & CEO",
-      bio: "Former Google and LinkedIn engineer with 15+ years experience in AI and search technology.",
+      bio: "Former Google engineer with 15+ years experience in AI and search technology.",
       image: ""
     },
     {
@@ -116,7 +116,7 @@ const AboutUs = () => {
                     Link It Up was founded in 2024 by a team of engineers and data scientists who were frustrated with the time-consuming process of finding professional contacts and maintaining accurate network data.
                   </p>
                   <p>
-                    After years of manually searching for LinkedIn profiles and dealing with outdated contact information, we knew there had to be a better way. We built a prototype AI tool for our own use, and when colleagues started asking to use it too, we realized we had something special.
+                    After years of manually searching for professional profiles and dealing with outdated contact information, we knew there had to be a better way. We built a prototype AI tool for our own use, and when colleagues started asking to use it too, we realized we had something special.
                   </p>
                   <p>
                     Today, Link It Up has grown into a comprehensive platform that helps professionals, sales teams, recruiters, and marketers efficiently find and connect with the right people, saving them countless hours of manual searching and data entry.
