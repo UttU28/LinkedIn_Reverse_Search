@@ -1,0 +1,8 @@
+pandas
+tqdm
+colorama
+python-dotenv
+openai==0.28
+requests
+google-api-python-client
+openpyxl
