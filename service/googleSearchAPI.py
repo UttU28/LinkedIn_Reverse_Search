@@ -47,14 +47,16 @@ def extractEssentialData(results: Dict[str, Any]) -> List[Dict[str, str]]:
     ]
 
 def saveSearchResults(metadata: Dict[str, str], searchResults: List[Dict[str, str]], filename: str):
-    os.makedirs('searchResults', exist_ok=True)
+    # Get search results directory from environment variable
+    resultsDir = os.getenv('SEARCH_RESULTS_DIR', 'searchResults')
+    os.makedirs(resultsDir, exist_ok=True)
     
     combinedData = {
         'metadata': metadata,
         'search_results': searchResults
     }
     
-    filepath = os.path.join('searchResults', filename)
+    filepath = os.path.join(resultsDir, filename)
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(combinedData, f, indent=2, ensure_ascii=False)
         printStatus(f"\nResults have been saved to '{filepath}'", Fore.GREEN)

@@ -9,7 +9,7 @@ You are an AI assistant tasked with extracting LinkedIn profile links from a giv
 - The `"search_results"` key contains an array of search results, each having:
   - `title`: The title of the search result.
   - `link`: The LinkedIn profile URL.
-  - `snippet`: A brief description of the person’s experience and education.
+  - `snippet`: A brief description of the person's experience and education.
 
 ### **Task Requirements:**
 1. **Match the Full Name**: Look for an exact match (case-insensitive) of `fullName` within the `title` field.

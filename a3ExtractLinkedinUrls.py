@@ -5,14 +5,12 @@ import time
 from colorama import init, Fore, Style
 from tqdm import tqdm
 import openai
-from prompts import SYSTEM_PROMPT, USER_PROMPT
+from service.prompts import SYSTEM_PROMPT, USER_PROMPT
 from dotenv import load_dotenv
 
-# Initialize colorama and load environment variables
 init()
 load_dotenv()
 
-# Set OpenAI API key from environment variable
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
 if not openai.api_key:
@@ -32,8 +30,10 @@ def callOpenaiGpt(systemPrompt, userPrompt):
             presence_penalty=0
         )
 
-        os.makedirs('openai_responses', exist_ok=True)
-        outputFile = 'openai_responses/response.txt'
+        # Get OpenAI responses directory from environment variable
+        responsesDir = os.getenv('OPENAI_RESPONSES_DIR', 'openaiResponses')
+        os.makedirs(responsesDir, exist_ok=True)
+        outputFile = os.path.join(responsesDir, 'response.txt')
 
         with open(outputFile, 'w', encoding='utf-8') as f:
             f.write(f"System Prompt:\n{systemPrompt}\n\n")
@@ -75,7 +75,8 @@ def processEntry(entry):
 
 def readLinkedinResults():
     try:
-        directory = 'googleData'
+        # Get search results directory from environment variable
+        directory = os.getenv('SEARCH_RESULTS_DIR', 'searchResults')
         allFiles = [f for f in os.listdir(directory) if f.endswith('.json')]
 
         for file in allFiles:
