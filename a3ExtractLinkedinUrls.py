@@ -7,6 +7,7 @@ from tqdm import tqdm
 import openai
 from service.prompts import SYSTEM_PROMPT, USER_PROMPT
 from dotenv import load_dotenv
+from service.utils import printStatus, getEnvPath
 
 init()
 load_dotenv()
@@ -15,6 +16,12 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 if not openai.api_key:
     raise ValueError("OpenAI API key not found in environment variables")
+
+def ensureDirectoryExists(dirPath):
+    """Ensure the directory exists, creating it and all parent directories if needed."""
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath, exist_ok=True)
+        printStatus(f"Created directory: {dirPath}", Fore.GREEN)
 
 def callOpenaiGpt(systemPrompt, userPrompt):
     try:
@@ -31,8 +38,9 @@ def callOpenaiGpt(systemPrompt, userPrompt):
         )
 
         # Get OpenAI responses directory from environment variable
-        responsesDir = os.getenv('OPENAI_RESPONSES_DIR', 'openaiResponses')
-        os.makedirs(responsesDir, exist_ok=True)
+        responsesDir = getEnvPath('OPENAI_RESPONSES_DIR', 'data/openaiResponses')
+        ensureDirectoryExists(responsesDir)
+        
         outputFile = os.path.join(responsesDir, 'response.txt')
 
         with open(outputFile, 'w', encoding='utf-8') as f:
@@ -45,9 +53,6 @@ def callOpenaiGpt(systemPrompt, userPrompt):
     except Exception as e:
         printStatus(f"Error making OpenAI request: {str(e)}", Fore.RED)
         return None
-
-def printStatus(message: str, color: str = Fore.WHITE):
-    print(f"{color}{message}{Style.RESET_ALL}")
 
 def extractLinkedinUrl(text):
     pattern = r'https://(?:www\.)?linkedin\.com/in/[^"\s]+'
@@ -76,7 +81,9 @@ def processEntry(entry):
 def readLinkedinResults():
     try:
         # Get search results directory from environment variable
-        directory = os.getenv('SEARCH_RESULTS_DIR', 'searchResults')
+        directory = getEnvPath('SEARCH_RESULTS_DIR', 'data/searchResults')
+        ensureDirectoryExists(directory)
+        
         allFiles = [f for f in os.listdir(directory) if f.endswith('.json')]
 
         for file in allFiles:

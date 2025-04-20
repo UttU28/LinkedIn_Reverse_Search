@@ -3,12 +3,16 @@ import os
 from pathlib import Path
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
+from service.utils import printStatus, getEnvPath, saveJsonFile
 
 init()
 load_dotenv()
 
-def printStatus(message: str, color: str = Fore.WHITE):
-    print(f"{color}{message}{Style.RESET_ALL}")
+def ensureDirectoryExists(dirPath):
+    """Ensure the directory exists, creating it and all parent directories if needed."""
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath, exist_ok=True)
+        printStatus(f"Created directory: {dirPath}", Fore.GREEN)
 
 def processJsonFile(filePath):
     with open(filePath, 'r', encoding='utf-8') as f:
@@ -24,7 +28,9 @@ def processJsonFile(filePath):
 
 def main():
     # Get search results directory from environment variable
-    resultsDir = os.getenv('SEARCH_RESULTS_DIR', 'searchResults')
+    resultsDir = getEnvPath('SEARCH_RESULTS_DIR', 'data/searchResults')
+    ensureDirectoryExists(resultsDir)
+    
     searchResultsDir = Path(resultsDir)
     
     allEntries = []

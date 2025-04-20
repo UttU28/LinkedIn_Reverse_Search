@@ -16,6 +16,12 @@ from service.utils import printStatus, loadJsonFile, saveJsonFile, getEnvPath
 init()
 load_dotenv()
 
+def ensureDirectoryExists(dirPath):
+    """Ensure the directory exists, creating it and all parent directories if needed."""
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath, exist_ok=True)
+        printStatus(f"Created directory: {dirPath}", Fore.GREEN)
+
 def loadExistingResults(filepath: str) -> list:
     if os.path.exists(filepath):
         try:
@@ -26,13 +32,20 @@ def loadExistingResults(filepath: str) -> list:
     return []
 
 def saveResults(results: list, filepath: str):
+    # Ensure the directory exists
+    dirPath = os.path.dirname(filepath)
+    if dirPath:
+        ensureDirectoryExists(dirPath)
+    
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
 def processFile(unprocessedFile: str, statusFilepath: str) -> bool:
     try:
         # Get data directory from environment variable
-        dataDir = getEnvPath('DATA_SPLIT_DIR', 'linkedinData')
+        dataDir = getEnvPath('DATA_SPLIT_DIR', 'data/linkedinData')
+        ensureDirectoryExists(dataDir)
+        
         filepath = os.path.join(dataDir, unprocessedFile)
         df = pd.read_csv(filepath, encoding='utf-8')
         
@@ -71,8 +84,9 @@ def processFile(unprocessedFile: str, statusFilepath: str) -> bool:
             return False
 
         # Get search results directory from environment variable
-        resultsDir = getEnvPath('SEARCH_RESULTS_DIR', 'searchResults')
-        os.makedirs(resultsDir, exist_ok=True)
+        resultsDir = getEnvPath('SEARCH_RESULTS_DIR', 'data/searchResults')
+        ensureDirectoryExists(resultsDir)
+        
         outputFilename = f"linkedin_results_{os.path.splitext(unprocessedFile)[0]}.json"
         outputFilepath = os.path.join(resultsDir, outputFilename)
         
@@ -144,7 +158,9 @@ def processFile(unprocessedFile: str, statusFilepath: str) -> bool:
 def readProfileData():
     try:
         # Get data directory from environment variable
-        dataDir = getEnvPath('DATA_SPLIT_DIR', 'linkedinData')
+        dataDir = getEnvPath('DATA_SPLIT_DIR', 'data/linkedinData')
+        ensureDirectoryExists(dataDir)
+        
         statusFilepath = os.path.join(dataDir, 'processingStatus.json')
         if not os.path.exists(statusFilepath):
             printStatus("Error: processingStatus.json not found!", Fore.RED)

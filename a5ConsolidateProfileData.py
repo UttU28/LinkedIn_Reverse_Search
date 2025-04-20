@@ -3,13 +3,17 @@ import os
 from tqdm import tqdm
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
+from service.utils import printStatus, getEnvPath, saveJsonFile, loadJsonFile
 
 # Initialize colorama
 init()
 load_dotenv()
 
-def printStatus(message: str, color: str = Fore.WHITE):
-    print(f"{color}{message}{Style.RESET_ALL}")
+def ensureDirectoryExists(dirPath):
+    """Ensure the directory exists, creating it and all parent directories if needed."""
+    if not os.path.exists(dirPath):
+        os.makedirs(dirPath, exist_ok=True)
+        printStatus(f"Created directory: {dirPath}", Fore.GREEN)
 
 def processJsonFile(filepath):
     try:
@@ -38,7 +42,9 @@ def processJsonFile(filepath):
 def consolidateLinkedinData():
     try:
         # Get directory from environment variable
-        resultsDir = os.getenv('SEARCH_RESULTS_DIR', 'searchResults')
+        resultsDir = getEnvPath('SEARCH_RESULTS_DIR', 'data/searchResults')
+        ensureDirectoryExists(resultsDir)
+        
         jsonFiles = [f for f in os.listdir(resultsDir) if f.endswith('.json')]
         
         if not jsonFiles:
@@ -60,9 +66,13 @@ def consolidateLinkedinData():
             allEntries.extend(processedEntries)
             
         # Get output file name from environment variable
-        consolidatedFile = os.getenv('CONSOLIDATED_DATA_FILE', 'consolidatedLinkedinData.json')
-        with open(consolidatedFile, 'w', encoding='utf-8') as f:
-            json.dump(allEntries, f, indent=2, ensure_ascii=False)
+        consolidatedFile = getEnvPath('CONSOLIDATED_DATA_FILE', 'data/consolidatedLinkedinData.json')
+        # Ensure the output directory exists
+        outputDir = os.path.dirname(consolidatedFile)
+        if outputDir:
+            ensureDirectoryExists(outputDir)
+            
+        saveJsonFile(allEntries, consolidatedFile)
             
         printStatus(f"\nProcessing completed!", Fore.GREEN)
         printStatus(f"JSON data saved to: {consolidatedFile}", Fore.GREEN)
