@@ -1,0 +1,16 @@
+
+*/chromeData/*
+*/agamSir/*
+*/chromeDriver/*
+
+**/__pycache__/
+
+**/env/
+.env
+
+backend/**/*.json
+**.xlsx
+**.csv
+
+googleScraper/**/**.json
+proxyScraping/**/**.json
