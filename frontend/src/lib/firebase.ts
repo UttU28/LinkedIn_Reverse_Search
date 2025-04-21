@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, UserCredential, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, addDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 // Fallback to hardcoded values if environment variables aren't available
 const firebaseConfig = {
@@ -106,4 +106,4 @@ export interface UserData {
 }
 
 // Export all the Firebase functions needed
-export { auth, db, onAuthStateChanged, collection, addDoc, serverTimestamp, doc, setDoc };
+export { auth, db, onAuthStateChanged, collection, addDoc, serverTimestamp, doc, setDoc, updateDoc, getDoc, getDocs, query, orderBy, limit };

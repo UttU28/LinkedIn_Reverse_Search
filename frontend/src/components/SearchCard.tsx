@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useSearchStore } from '../store/searchStore';
 import { useToast } from '../hooks/use-toast';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -10,7 +9,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { findSingleContact, findBatchContacts } from '../services/apiService';
-import { db, collection, addDoc, doc, setDoc, serverTimestamp } from '../lib/firebase';
+import { db, collection, addDoc, doc, setDoc, serverTimestamp, updateDoc } from '../lib/firebase';
 
 interface CSVRow {
   Name?: string;
@@ -39,7 +38,6 @@ const safeFirestoreOperation = async (operation: () => Promise<any>, fallback: a
 
 const SearchCard: React.FC = () => {
   const { updateCreditUsage, userData } = useAuthStore();
-  const { addRecentSearch } = useSearchStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -250,15 +248,6 @@ const SearchCard: React.FC = () => {
       
       // Set search response
       setSearchResponse(result.data);
-      
-      // Add to recent searches
-      addRecentSearch({
-        name: result.data.searchName,
-        company: result.data.searchCompany,
-        position: result.data.searchPosition,
-        linkedinProfileUrl: result.data.linkedinProfileUrl,
-        status: result.data.foundData > 0 ? 'Found' : 'Not Found'
-      });
       
       toast({
         title: "Search successful",
@@ -580,54 +569,74 @@ const SearchCard: React.FC = () => {
         h.toLowerCase().includes('title')
       );
       
-      // Create a batch record in Firestore
-      const batchData = {
-        batchId,
-        userId: userID,
-        fileName: selectedFile.name,
-        recordCount: parsedData.length,
-        timestamp: serverTimestamp(),
-        status: 'processing',
-        contactIds: []
-      };
+      // STEP 1: Bulk create contacts and store their IDs
+      const contactIds: string[] = [];
       
-      // Save batch info in 'batches' collection
       await safeFirestoreOperation(async () => {
-        await setDoc(doc(db, 'batches', batchId), batchData);
-        console.log('Batch record created:', batchId);
+        for (const row of parsedData) {
+          // Create contact data
+          const contactData = {
+            name: nameField ? row[nameField] || "" : "",
+            company: companyField ? row[companyField] || "" : "",
+            position: positionField ? row[positionField] || "" : "",
+            createdAt: serverTimestamp()
+          };
+          
+          // Add to contacts collection
+          const contactRef = await addDoc(collection(db, 'contacts'), contactData);
+          contactIds.push(contactRef.id);
+        }
+        console.log(`Created ${contactIds.length} contacts in Firestore`);
       });
       
-      // Format contacts for batch processing and add to Firestore
-      const contactIds: string[] = [];
-      const contacts = await Promise.all(parsedData.map(async (row) => {
-        // Create contact record
-        const contactData = {
-          name: nameField ? row[nameField] || "" : "",
-          company: companyField ? row[companyField] || "" : "",
-          position: positionField ? row[positionField] || "" : "",
-          createdAt: serverTimestamp(),
-          batchId
+      // STEP 2: Create a document in the 'batches' collection
+      let batchDocId = '';
+      await safeFirestoreOperation(async () => {
+        const batchData = {
+          userID,
+          contactIds,
+          batchId,
+          fileName: selectedFile.name,
+          recordCount: parsedData.length,
+          status: 'pending', // Status options: pending, processing, completed, failed
+          createdAt: serverTimestamp()
         };
         
-        // Add to contacts collection
-        let contactId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-        await safeFirestoreOperation(async () => {
-          const contactRef = await addDoc(collection(db, 'contacts'), contactData);
-          contactId = contactRef.id;
-          contactIds.push(contactId);
-        });
-        
-        return {
-          searchName: nameField ? row[nameField] || "" : "",
-          searchCompany: companyField ? row[companyField] || "" : "",
-          searchPosition: positionField ? row[positionField] || "" : "",
-          contactId
+        const batchDocRef = await addDoc(collection(db, 'batches'), batchData);
+        batchDocId = batchDocRef.id;
+        console.log('Batch record created with ID:', batchDocId);
+      });
+      
+      // STEP 3: Create a document in users/{userID}/bulkSearch
+      let bulkSearchDocId = '';
+      await safeFirestoreOperation(async () => {
+        const bulkSearchData = {
+          batchId: batchDocId,
+          foundData: null, // Will be updated after API response
+          totalData: parsedData.length,
+          fileName: selectedFile.name,
+          timestamp: serverTimestamp(),
+          status: 'pending' // Status options: pending, processing, completed, failed
         };
+        
+        const bulkSearchRef = await addDoc(collection(db, 'users', userID, 'bulkSearch'), bulkSearchData);
+        bulkSearchDocId = bulkSearchRef.id;
+        console.log('Bulk search record created with ID:', bulkSearchDocId);
+      });
+      
+      // Format contacts for batch processing
+      const contacts = parsedData.map((row, index) => ({
+        searchName: nameField ? row[nameField] || "" : "",
+        searchCompany: companyField ? row[companyField] || "" : "",
+        searchPosition: positionField ? row[positionField] || "" : "",
+        contactId: contactIds[index] || `temp-${index}`
       }));
       
-      // Update batch with contact IDs
+      // Update batch status to processing
       await safeFirestoreOperation(async () => {
-        await setDoc(doc(db, 'batches', batchId), { contactIds }, { merge: true });
+        await updateDoc(doc(db, 'batches', batchDocId), { 
+          status: 'processing'
+        });
       });
       
       // Call the API service with additional info
@@ -648,29 +657,23 @@ const SearchCard: React.FC = () => {
       // Get found count
       const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
       
-      // Update batch status
+      // STEP 4: Update the bulkSearch document with the found count
       await safeFirestoreOperation(async () => {
-        await setDoc(doc(db, 'batches', batchId), { 
+        await updateDoc(doc(db, 'users', userID, 'bulkSearch', bulkSearchDocId), {
+          foundData: successCount,
+          status: 'completed',
+          completedAt: serverTimestamp()
+        });
+        console.log(`Updated bulkSearch record with foundData: ${successCount}`);
+      });
+      
+      // Update batch status to completed
+      await safeFirestoreOperation(async () => {
+        await updateDoc(doc(db, 'batches', batchDocId), { 
           status: 'completed', 
           successCount,
           completedAt: serverTimestamp()
-        }, { merge: true });
-      });
-      
-      // Add to user's search history
-      const searchData = {
-        batchId,
-        timestamp: serverTimestamp(),
-        fileName: selectedFile.name,
-        recordCount: parsedData.length,
-        successCount,
-        foundData: successCount
-      };
-      
-      // Add to users/{userID}/searches/batch_{batchId}
-      await safeFirestoreOperation(async () => {
-        await setDoc(doc(db, 'users', userID, 'searches', `batch_${batchId}`), searchData);
-        console.log('Batch search history updated for user:', userID);
+        });
       });
       
       // Update credits
@@ -680,18 +683,6 @@ const SearchCard: React.FC = () => {
         title: "Processing complete",
         description: `Successfully found ${successCount} out of ${recordCount} profiles. Batch ID: ${batchId}`,
         variant: "default"
-      });
-      
-      // Add batch results to recent searches
-      result.data.contacts.forEach((contact, index) => {
-        addRecentSearch({
-          name: contact.searchName,
-          company: contact.searchCompany,
-          position: contact.searchPosition,
-          linkedinProfileUrl: contact.linkedinProfileUrl,
-          status: contact.foundData > 0 ? 'Found' : 'Not Found',
-          batchId
-        });
       });
       
       // Reset form inputs but keep results displayed

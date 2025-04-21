@@ -101,6 +101,56 @@ app.post('/findBatchContact', (req, res) => {
   });
 });
 
+// Find targeted leads route
+app.post('/findTargetedLeads', (req, res) => {
+  const { userID, company, positionTitle } = req.body;
+  
+  console.log('========== TARGETED LEADS SEARCH REQUEST ==========');
+  console.log('User ID:', userID);
+  console.log('Company:', company);
+  console.log('Position Title:', positionTitle);
+  console.log('================================================');
+  
+  // Dummy lead data (same as used in frontend before)
+  const dummyLeadResults = [
+    { id: 1, name: 'Sarah Johnson', company: 'TechCorp', position: 'VP of Recruitment', exactMatch: true },
+    { id: 2, name: 'Michael Chen', company: 'TechCorp', position: 'Senior Recruitment Manager', exactMatch: true },
+    { id: 3, name: 'Emily Rodriguez', company: 'TechCorp', position: 'Talent Acquisition Lead', exactMatch: true },
+    { id: 4, name: 'James Wilson', company: 'GlobalHR', position: 'Recruitment Director', exactMatch: false },
+    { id: 5, name: 'Aisha Patel', company: 'TalentSphere', position: 'Head of Recruitment', exactMatch: false },
+    { id: 6, name: 'Robert Kim', company: 'TechCorp', position: 'Technical Recruiter', exactMatch: true },
+    { id: 7, name: 'Jessica Smith', company: 'JobMatch', position: 'Recruitment Specialist', exactMatch: false },
+  ];
+  
+  // Filter results based on position selection (similar to what was done on frontend)
+  let filteredResults = [...dummyLeadResults];
+  
+  if (positionTitle === 'recruitment') {
+    filteredResults = dummyLeadResults.filter(r => r.position.toLowerCase().includes('recruit'));
+  } else if (positionTitle === 'investment') {
+    // Replace with investment-related positions in a real app
+    filteredResults = dummyLeadResults.slice(0, 3);
+  } else if (positionTitle === 'c-level') {
+    // Replace with c-level positions in a real app
+    filteredResults = dummyLeadResults.slice(3, 6);
+  }
+  
+  // Add the company name from the search to the response
+  const responseData = {
+    company,
+    position: positionTitle === 'recruitment' ? 'Recruiter' : 
+              positionTitle === 'investment' ? 'Investor' : 'Executive',
+    results: filteredResults
+  };
+  
+  // Return the search results
+  res.json({
+    status: 'success',
+    message: 'Targeted leads search processed',
+    data: responseData
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -118,4 +168,5 @@ app.listen(PORT, () => {
   console.log(`- GET /`);
   console.log(`- POST /findSingleContact`);
   console.log(`- POST /findBatchContact`);
+  console.log(`- POST /findTargetedLeads`);
 }); 
