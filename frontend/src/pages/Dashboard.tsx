@@ -23,7 +23,8 @@ import {
   Filter as FilterIcon,
   Bookmark,
   ChevronDown,
-  Download
+  Download,
+  Link as LinkIcon
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -42,17 +43,20 @@ import { Input } from '../components/ui/input';
 import SearchCard from '../components/SearchCard';
 import SearchHistory from '../components/SearchHistory';
 import LeadSearchHistory from '../components/LeadSearchHistory';
+import TeamSearchHistory from '../components/TeamSearchHistory';
 import axios from 'axios';
 import { createPipeline, updatePipelineCompletion } from '../lib/leadFirebase';
 import LinkedInIcon from '../assets/icons/LinkedInIcon';
 import LeadSearchForm from '../components/LeadSearchForm';
 import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
+import TeamMembersForm from '../components/TeamMembersForm';
+import { Badge } from '../components/ui/badge';
 
 const Dashboard: React.FC = () => {
   const { user, userData } = useAuthStore();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch' | 'teamMembers'>('profile');
   
   // Lead search states
   const [leadResults, setLeadResults] = useState<LeadResult[]>([]);
@@ -62,9 +66,14 @@ const Dashboard: React.FC = () => {
     position: ''
   });
   
+  // Team members states
+  const [teamSearchResults, setTeamSearchResults] = useState<any>(null);
+  const [showTeamSearchResults, setShowTeamSearchResults] = useState(false);
+  
   // Refresh states for history components
   const [refreshLeadHistory, setRefreshLeadHistory] = useState(0);
   const [refreshProfileHistory, setRefreshProfileHistory] = useState(0);
+  const [refreshTeamHistory, setRefreshTeamHistory] = useState(0);
   
   const positionOptions = [
     { value: 'recruitment', label: 'Recruitment' },
@@ -107,7 +116,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleContentSwitch = (value: string) => {
-    setActiveTab(value as 'profile' | 'leadSearch');
+    setActiveTab(value as 'profile' | 'leadSearch' | 'teamMembers');
   };
   
   const handleLeadSearchComplete = (results: LeadResult[]) => {
@@ -126,6 +135,16 @@ const Dashboard: React.FC = () => {
       company: searchCompany,
       position: searchPosition
     });
+  };
+
+  const handleTeamSearchComplete = (results: any) => {
+    setTeamSearchResults(results);
+    setShowTeamSearchResults(true);
+    setRefreshTeamHistory(prev => prev + 1);
+  };
+  
+  const handleTeamSearchStart = () => {
+    // Any setup needed before team search
   };
   
   return (
@@ -148,14 +167,16 @@ const Dashboard: React.FC = () => {
               <p className="text-sm sm:text-base text-secondary-text mb-4">
                 {activeTab === 'profile'
                   ? "Ready to find some LinkedIn profiles today?"
-                  : "Find targeted professionals for your next opportunity."}
+                  : activeTab === 'leadSearch'
+                  ? "Find targeted professionals for your next opportunity."
+                  : "Discover team members from company pages."}
               </p>
             
             <Tabs 
               value={activeTab} 
               onValueChange={handleContentSwitch}
             >
-              <TabsList className="grid grid-cols-2 h-10 w-[300px]">
+              <TabsList className="grid grid-cols-3 h-10 w-[450px]">
                 <TabsTrigger 
                   value="profile" 
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
@@ -169,6 +190,13 @@ const Dashboard: React.FC = () => {
                 >
                   <Users className="mr-2 h-4 w-4" />
                   Lead Generator
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="teamMembers" 
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                >
+                  <LinkIcon className="mr-2 h-4 w-4" />
+                  Team Members
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -191,7 +219,7 @@ const Dashboard: React.FC = () => {
             >
               <SearchCard onSearchComplete={() => setRefreshProfileHistory(prev => prev + 1)} />
             </motion.section>
-          ) : (
+          ) : activeTab === 'leadSearch' ? (
             /* Lead Generator Search Card */
             <motion.section 
               key="lead-generator"
@@ -216,6 +244,31 @@ const Dashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </motion.section>
+          ) : (
+            /* Team Members Search Card */
+            <motion.section 
+              key="team-members"
+              className="mb-6 sm:mb-10 md:mb-16"
+              variants={itemVariants}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="bg-card border border-border/50 shadow-md overflow-hidden">
+                <CardContent className="p-6">
+                  <h2 className="text-xl font-heading font-semibold text-primary-text mb-6 flex items-center">
+                    <LinkIcon className="mr-2 h-5 w-5 text-primary" />
+                    Find Team Members
+                  </h2>
+                  
+                  <TeamMembersForm 
+                    onSearchComplete={handleTeamSearchComplete}
+                    onSearchStart={handleTeamSearchStart}
+                  />
+                </CardContent>
+              </Card>
+            </motion.section>
           )}
         </AnimatePresence>
         
@@ -229,13 +282,94 @@ const Dashboard: React.FC = () => {
               isVisible={showLeadResults}
             />
           )}
+          
+          {/* Team Members Results - Show submitted search */}
+          {activeTab === 'teamMembers' && showTeamSearchResults && (
+            <motion.div
+              className="mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="bg-card/70 border-border/50">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                      <LinkIcon className="h-8 w-8 text-primary/70" />
+                    </div>
+                    <h3 className="text-xl font-heading font-semibold text-primary-text">
+                      Team Members Search Submitted
+                    </h3>
+                    
+                    <div className="flex items-center justify-center">
+                      <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 ml-2">
+                        Processing
+                      </Badge>
+                    </div>
+                    
+                    <div className="max-w-lg">
+                      <p className="text-secondary-text mb-2">
+                        We're processing your request for:
+                      </p>
+                      <div className="bg-background/50 rounded-md p-3 text-primary-text font-mono text-sm break-all">
+                        {teamSearchResults?.originalUrl}
+                      </div>
+                      <p className="text-secondary-text mt-4 text-sm">
+                        Team member information will be available soon. We'll update you when it's ready.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </AnimatePresence>
         
         {/* Recent Searches */}
         {activeTab === 'profile' ? (
           <SearchHistory refresh={refreshProfileHistory} />
-        ) : (
+        ) : activeTab === 'leadSearch' ? (
           <LeadSearchHistory refresh={refreshLeadHistory} />
+        ) : (
+          showTeamSearchResults ? (
+            <TeamSearchHistory refresh={refreshTeamHistory} />
+          ) : (
+            // Fun message for Team Members section when no search has been performed
+            <motion.div
+              className="mt-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Card className="bg-card/70 border-border/50">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                      <LinkIcon className="h-8 w-8 text-primary/70" />
+                    </div>
+                    <h3 className="text-xl font-heading font-semibold text-primary-text">
+                      No Team Members Yet
+                    </h3>
+                    <p className="text-secondary-text max-w-md">
+                      Looks like this section is as empty as my coffee cup on Monday morning! Enter a company URL above to discover its team members.
+                    </p>
+                    {!showTeamSearchResults && (
+                      <div className="pt-2">
+                        <Button 
+                          variant="outline"
+                          onClick={() => document.getElementById('company-url')?.focus()}
+                          className="border-primary/30 text-primary hover:bg-primary/10"
+                        >
+                          Start Your First Search
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )
         )}
       </motion.main>
       

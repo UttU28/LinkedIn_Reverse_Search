@@ -151,6 +151,21 @@ app.post('/findTargetedLeads', (req, res) => {
   });
 });
 
+// Team Members route
+app.post('/teamMembers', (req, res) => {
+  const { userID, url } = req.body;
+  
+  // Log the received data
+  console.log('Team Members search request received:', { userID, url });
+  
+  // For now, just return the data as is
+  res.json({ 
+    status: 'success',
+    message: 'Team members search request received',
+    data: { userID, url } 
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -169,4 +184,5 @@ app.listen(PORT, () => {
   console.log(`- POST /findSingleContact`);
   console.log(`- POST /findBatchContact`);
   console.log(`- POST /findTargetedLeads`);
+  console.log(`- POST /teamMembers`);
 }); 
