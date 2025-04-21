@@ -171,35 +171,53 @@ const Dashboard: React.FC = () => {
                   ? "Find targeted professionals for your next opportunity."
                   : "Discover team members from company pages."}
               </p>
+            </div>
             
-            <Tabs 
-              value={activeTab} 
-              onValueChange={handleContentSwitch}
-            >
-              <TabsList className="grid grid-cols-3 h-10 w-[450px]">
-                <TabsTrigger 
-                  value="profile" 
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
-                >
-                  <Search className="mr-2 h-4 w-4" />
-                  Find Profiles
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="leadSearch" 
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  Lead Generator
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="teamMembers" 
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
-                >
-                  <LinkIcon className="mr-2 h-4 w-4" />
-                  Team Members
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="w-full mb-4">
+              <Tabs 
+                value={activeTab} 
+                onValueChange={handleContentSwitch}
+                className="w-full"
+              >
+                <TabsList className="grid grid-cols-3 h-auto min-h-12 w-full text-[10px] xxs:text-xs sm:text-sm">
+                  <TabsTrigger 
+                    value="profile" 
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2"
+                  >
+                    <div className="flex items-center justify-center">
+                      <Search className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="ml-1 sm:ml-2">
+                        <span className="xxs:hidden">Profiles</span>
+                        <span className="hidden xxs:inline">Find Profiles</span>
+                      </span>
+                    </div>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="leadSearch" 
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2"
+                  >
+                    <div className="flex items-center justify-center">
+                      <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="ml-1 sm:ml-2">
+                        <span className="xxs:hidden">Leads</span>
+                        <span className="hidden xxs:inline">Lead Generator</span>
+                      </span>
+                    </div>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="teamMembers" 
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2"
+                  >
+                    <div className="flex items-center justify-center">
+                      <LinkIcon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="ml-1 sm:ml-2">
+                        <span className="xxs:hidden">Team</span>
+                        <span className="hidden xxs:inline">Team Members</span>
+                      </span>
+                    </div>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           </div>
         </motion.section>
@@ -297,7 +315,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
                       <LinkIcon className="h-8 w-8 text-primary/70" />
-                    </div>
+                </div>
                     <h3 className="text-xl font-heading font-semibold text-primary-text">
                       Team Members Search Submitted
                     </h3>
@@ -306,7 +324,7 @@ const Dashboard: React.FC = () => {
                       <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 ml-2">
                         Processing
                       </Badge>
-                    </div>
+                          </div>
                     
                     <div className="max-w-lg">
                       <p className="text-secondary-text mb-2">
@@ -314,12 +332,12 @@ const Dashboard: React.FC = () => {
                       </p>
                       <div className="bg-background/50 rounded-md p-3 text-primary-text font-mono text-sm break-all">
                         {teamSearchResults?.originalUrl}
-                      </div>
+                          </div>
                       <p className="text-secondary-text mt-4 text-sm">
                         Team member information will be available soon. We'll update you when it's ready.
                       </p>
-                    </div>
-                  </div>
+                          </div>
+                          </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -332,44 +350,7 @@ const Dashboard: React.FC = () => {
         ) : activeTab === 'leadSearch' ? (
           <LeadSearchHistory refresh={refreshLeadHistory} />
         ) : (
-          showTeamSearchResults ? (
-            <TeamSearchHistory refresh={refreshTeamHistory} />
-          ) : (
-            // Fun message for Team Members section when no search has been performed
-            <motion.div
-              className="mt-8"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Card className="bg-card/70 border-border/50">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                      <LinkIcon className="h-8 w-8 text-primary/70" />
-                    </div>
-                    <h3 className="text-xl font-heading font-semibold text-primary-text">
-                      No Team Members Yet
-                    </h3>
-                    <p className="text-secondary-text max-w-md">
-                      Looks like this section is as empty as my coffee cup on Monday morning! Enter a company URL above to discover its team members.
-                    </p>
-                    {!showTeamSearchResults && (
-                      <div className="pt-2">
-                        <Button 
-                          variant="outline"
-                          onClick={() => document.getElementById('company-url')?.focus()}
-                          className="border-primary/30 text-primary hover:bg-primary/10"
-                        >
-                          Start Your First Search
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )
+          <TeamSearchHistory refresh={refreshTeamHistory} />
         )}
       </motion.main>
       

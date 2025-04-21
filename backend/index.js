@@ -103,12 +103,14 @@ app.post('/findBatchContact', (req, res) => {
 
 // Find targeted leads route
 app.post('/findTargetedLeads', (req, res) => {
-  const { userID, company, positionTitle } = req.body;
+  const { userID, company, positionTitle, pipelineId, leadDocId } = req.body;
   
   console.log('========== TARGETED LEADS SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('Company:', company);
   console.log('Position Title:', positionTitle);
+  console.log('Pipeline ID:', pipelineId);
+  console.log('Lead Doc ID:', leadDocId);
   console.log('================================================');
   
   // Dummy lead data (same as used in frontend before)
@@ -140,7 +142,9 @@ app.post('/findTargetedLeads', (req, res) => {
     company,
     position: positionTitle === 'recruitment' ? 'Recruiter' : 
               positionTitle === 'investment' ? 'Investor' : 'Executive',
-    results: filteredResults
+    results: filteredResults,
+    pipelineId,
+    leadDocId
   };
   
   // Return the search results
@@ -153,16 +157,21 @@ app.post('/findTargetedLeads', (req, res) => {
 
 // Team Members route
 app.post('/teamMembers', (req, res) => {
-  const { userID, url } = req.body;
+  const { userID, url, teamId, companySearchId } = req.body;
   
   // Log the received data
-  console.log('Team Members search request received:', { userID, url });
+  console.log('Team Members search request received:', { 
+    userID, 
+    url, 
+    teamId,
+    companySearchId 
+  });
   
   // For now, just return the data as is
   res.json({ 
     status: 'success',
     message: 'Team members search request received',
-    data: { userID, url } 
+    data: { userID, url, teamId, companySearchId } 
   });
 });
 

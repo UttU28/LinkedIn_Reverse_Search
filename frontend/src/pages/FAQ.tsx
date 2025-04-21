@@ -233,7 +233,7 @@ const FAQ = () => {
                 <h3 className="text-lg font-heading font-medium text-primary-text mb-4">Categories</h3>
                 <Tabs defaultValue="categories" className="w-full">
                   <TabsList className="hidden">
-                    <TabsTrigger value="categories">Categories</TabsTrigger>
+                    <TabsTrigger value="categories" className="text-xs sm:text-sm px-2 sm:px-4">Categories</TabsTrigger>
                   </TabsList>
                   <TabsContent value="categories">
                     <nav className="space-y-1">

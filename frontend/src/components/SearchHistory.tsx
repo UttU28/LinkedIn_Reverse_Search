@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Linkedin, Copy, ExternalLink, History, Calendar, FileText, Download } from 'lucide-react';
+import { Linkedin, Copy, ExternalLink, History, Calendar, FileText, Download, Upload, User } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { format } from 'date-fns';
@@ -128,14 +128,14 @@ const SearchHistory: React.FC<SearchHistoryProps> = ({ refresh = 0 }) => {
             Search History
           </h3>
           
-          <TabsList>
-            <TabsTrigger value="bulk" className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" />
-              Bulk Searches
+          <TabsList className="w-full max-w-[300px] text-xs sm:text-sm">
+            <TabsTrigger value="bulk" className="flex items-center px-2 sm:px-4">
+              <Upload className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Bulk Searches</span>
             </TabsTrigger>
-            <TabsTrigger value="single" className="flex items-center">
-              <Linkedin className="mr-2 h-4 w-4" />
-              Individual Searches
+            <TabsTrigger value="single" className="flex items-center px-2 sm:px-4">
+              <User className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Single Searches</span>
             </TabsTrigger>
           </TabsList>
         </div>

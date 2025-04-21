@@ -1,5 +1,5 @@
 import { db, serverTimestamp } from '../lib/firebase';
-import { collection, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, Timestamp, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
 export interface PipelineItem {
   id?: string;
@@ -18,6 +18,25 @@ export interface LeadSearchRecord {
   position: string;
 }
 
+// Interface for Pipeline record
+export interface Pipeline {
+  id?: string;
+  company: string;
+  position: string; 
+  userID: string;
+  timestamp: Timestamp;
+  status: 'pending' | 'completed' | 'failed';
+}
+
+// Interface for Lead record
+export interface LeadRecord {
+  id?: string;
+  pipelineId: string;
+  timestamp: Timestamp;
+  status: 'pending' | 'completed' | 'failed';
+  results?: any[];
+}
+
 // Create a new pipeline document in Firebase
 export const createPipeline = async (
   company: string,
@@ -25,33 +44,33 @@ export const createPipeline = async (
   userId: string
 ): Promise<{ pipelineId: string; leadDocId: string }> => {
   try {
-    // Create pipeline record
-    const pipelineData = {
-      name: company,
-      position: position,
-      time: serverTimestamp(),
+    // Create pipeline
+    const pipelineData: Omit<Pipeline, 'id'> = {
+      company,
+      position,
+      userID: userId,
+      timestamp: serverTimestamp() as Timestamp,
       status: 'pending'
     };
     
-    // Add to pipelines collection with auto-generated ID
     const pipelineRef = await addDoc(collection(db, 'pipelines'), pipelineData);
-    const pipelineId = pipelineRef.id;
     
-    // Create a lead record in the user document
-    const leadData = {
-      pipelineId: pipelineId,
-      time: serverTimestamp(),
-      cost: null, // Will update after backend response
-      company: company,
-      position: position
+    // Create lead search record
+    const leadData: Omit<LeadRecord, 'id'> = {
+      pipelineId: pipelineRef.id,
+      timestamp: serverTimestamp() as Timestamp,
+      status: 'pending'
     };
     
-    // Add to users/{userId}/lead collection with auto-generated ID
-    const leadCollectionRef = collection(db, 'users', userId, 'leadSearch');
-    const leadDocRef = await addDoc(leadCollectionRef, leadData);
-    const leadDocId = leadDocRef.id;
+    const leadRef = await addDoc(
+      collection(db, 'users', userId, 'leadSearch'),
+      leadData
+    );
     
-    return { pipelineId, leadDocId };
+    return { 
+      pipelineId: pipelineRef.id,
+      leadDocId: leadRef.id 
+    };
   } catch (error) {
     console.error('Error creating pipeline:', error);
     throw error;
@@ -62,24 +81,90 @@ export const createPipeline = async (
 export const updatePipelineCompletion = async (
   pipelineId: string,
   userId: string,
-  leadDocId: string
+  leadDocId: string,
+  results?: any[]
 ): Promise<void> => {
   try {
-    // Update pipeline status to completed
+    // Update pipeline status
     const pipelineRef = doc(db, 'pipelines', pipelineId);
     await updateDoc(pipelineRef, {
       status: 'completed',
-      cost: 1, // Cost is 1 credit for lead search
-      completedAt: serverTimestamp()
+      updatedAt: serverTimestamp()
     });
     
-    // Update lead record with cost
+    // Update lead search record
     const leadRef = doc(db, 'users', userId, 'leadSearch', leadDocId);
     await updateDoc(leadRef, {
-      cost: 1 // Update cost in user's lead record
+      status: 'completed',
+      results: results || [],
+      updatedAt: serverTimestamp()
     });
   } catch (error) {
     console.error('Error updating pipeline completion:', error);
+    throw error;
+  }
+};
+
+/**
+ * Updates the pipeline and lead search record as failed
+ * @param pipelineId Pipeline ID to update
+ * @param userID User ID
+ * @param leadDocId Lead search document ID
+ * @param reason Optional failure reason
+ */
+export const updatePipelineFailure = async (
+  pipelineId: string,
+  userID: string,
+  leadDocId: string,
+  reason?: string
+): Promise<void> => {
+  try {
+    // Update pipeline status
+    const pipelineRef = doc(db, 'pipelines', pipelineId);
+    await updateDoc(pipelineRef, {
+      status: 'failed',
+      failureReason: reason || 'Unknown error',
+      updatedAt: serverTimestamp()
+    });
+    
+    // Update lead search record
+    const leadRef = doc(db, 'users', userID, 'leadSearch', leadDocId);
+    await updateDoc(leadRef, {
+      status: 'failed',
+      failureReason: reason || 'Unknown error',
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating pipeline failure:', error);
+    throw error;
+  }
+};
+
+/**
+ * Gets recent lead searches for a user
+ * @param userID User ID
+ * @param limitCount Number of records to return
+ * @returns Array of lead search records
+ */
+export const getRecentLeadSearches = async (
+  userID: string,
+  limitCount: number = 10
+): Promise<LeadRecord[]> => {
+  try {
+    const leadSearchRef = collection(db, 'users', userID, 'leadSearch');
+    const leadSearchQuery = query(
+      leadSearchRef,
+      orderBy('timestamp', 'desc'),
+      limit(limitCount)
+    );
+    
+    const snapshot = await getDocs(leadSearchQuery);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as LeadRecord[];
+  } catch (error) {
+    console.error('Error getting recent lead searches:', error);
     throw error;
   }
 }; 

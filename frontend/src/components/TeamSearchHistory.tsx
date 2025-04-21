@@ -25,11 +25,22 @@ interface CompanySearch {
   teamId: string;
   timestamp: Timestamp;
   cost: number | null;
+  status: 'pending' | 'completed' | 'failed';
+}
+
+// Combined interface for displaying history
+interface CombinedSearchItem {
+  id: string;
+  url: string;
+  status: 'pending' | 'completed' | 'failed';
+  timestamp: Timestamp;
+  teamUrl: string | null;
+  companySearchId: string;
 }
 
 const TeamSearchHistory: React.FC<TeamSearchHistoryProps> = ({ refresh = 0 }) => {
   const { user } = useAuthStore();
-  const [searchHistory, setSearchHistory] = useState<TeamSearch[]>([]);
+  const [searchHistory, setSearchHistory] = useState<CombinedSearchItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,7 +50,7 @@ const TeamSearchHistory: React.FC<TeamSearchHistoryProps> = ({ refresh = 0 }) =>
       setIsLoading(true);
       try {
         // Get user's company search history
-        const companySearchRef = collection(db, 'users', user.uid, 'companySearch');
+        const companySearchRef = collection(db, 'users', user.uid, 'teamSearch');
         const companySearchQuery = query(
           companySearchRef,
           orderBy('timestamp', 'desc'),
@@ -69,19 +80,38 @@ const TeamSearchHistory: React.FC<TeamSearchHistoryProps> = ({ refresh = 0 }) =>
         );
         
         const teamsSnapshot = await getDocs(teamsQuery);
-        const teamSearches = teamsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as TeamSearch[];
+        const teamSearchMap = new Map<string, TeamSearch>();
+        
+        teamsSnapshot.docs.forEach(doc => {
+          teamSearchMap.set(doc.id, {
+            id: doc.id,
+            ...doc.data()
+          } as TeamSearch);
+        });
+        
+        // Combine the data
+        const combinedData: CombinedSearchItem[] = companySearches
+          .filter(cs => teamSearchMap.has(cs.teamId)) // Filter out any without team data
+          .map(cs => {
+            const teamSearch = teamSearchMap.get(cs.teamId)!;
+            return {
+              id: teamSearch.id,
+              url: teamSearch.url,
+              status: cs.status, // Use status from companySearch
+              timestamp: cs.timestamp || teamSearch.timestamp,
+              teamUrl: teamSearch.teamUrl,
+              companySearchId: cs.id
+            };
+          });
         
         // Sort by timestamp (descending)
-        teamSearches.sort((a, b) => {
+        combinedData.sort((a, b) => {
           const aTime = a.timestamp?.toMillis() || 0;
           const bTime = b.timestamp?.toMillis() || 0;
           return bTime - aTime;
         });
         
-        setSearchHistory(teamSearches);
+        setSearchHistory(combinedData);
       } catch (error) {
         console.error('Error fetching team search history:', error);
       } finally {

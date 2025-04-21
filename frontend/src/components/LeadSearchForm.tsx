@@ -74,17 +74,26 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
         userID
       );
       
+      console.log('Created pipeline:', pipelineId, 'leadDocId:', leadDocId);
+      
       // Call the backend API
       const response = await axios.post('http://localhost:3000/findTargetedLeads', {
         userID,
         company,
-        positionTitle
+        positionTitle,
+        pipelineId,
+        leadDocId
       });
       
       // Check if the response is successful
       if (response.data.status === 'success') {
         // Update the pipeline with completion status
-        await updatePipelineCompletion(pipelineId, userID, leadDocId);
+        await updatePipelineCompletion(
+          pipelineId, 
+          userID, 
+          leadDocId,
+          response.data.data.results
+        );
         
         // Update credit usage
         await useAuthStore.getState().updateCreditUsage(1, response.data.data.results.length);
@@ -93,6 +102,12 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
         if (onSearchComplete) {
           onSearchComplete(response.data.data.results);
         }
+        
+        toast({
+          title: "Search completed",
+          description: `Found ${response.data.data.results.length} leads for ${company}`,
+          variant: "default"
+        });
       } else {
         // Handle error
         console.error('Error fetching leads:', response.data.message);

@@ -1,188 +1,195 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { Users, Calendar, Clock, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { format } from 'date-fns';
-import { Users, Building, ExternalLink } from 'lucide-react';
-
-// Lead search record interface
-interface LeadSearchRecord {
-  id: string;
-  pipelineId: string;
-  time: Date;
-  cost: number | null;
-  company: string;
-  position: string;
-}
+import { LeadRecord, getRecentLeadSearches } from '../lib/leadFirebase';
+import { collection, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { Card, CardContent } from './ui/card';
+import { Badge } from './ui/badge';
 
 interface LeadSearchHistoryProps {
-  refresh?: number; // A value to trigger refreshes when changed
+  refresh?: number;
+}
+
+interface PipelineData {
+  id: string;
+  company: string;
+  position: string;
+  status: 'pending' | 'completed' | 'failed';
+  timestamp: Timestamp;
+}
+
+interface LeadSearchItem extends LeadRecord {
+  pipelineData?: PipelineData;
 }
 
 const LeadSearchHistory: React.FC<LeadSearchHistoryProps> = ({ refresh = 0 }) => {
   const { user } = useAuthStore();
-  const [leadSearches, setLeadSearches] = useState<LeadSearchRecord[]>([]);
+  const [searchHistory, setSearchHistory] = useState<LeadSearchItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch lead searches from Firestore
   useEffect(() => {
-    const fetchLeadSearches = async () => {
-      if (!user?.uid) return;
-
+    if (!user?.uid) return;
+    
+    const fetchSearchHistory = async () => {
       setIsLoading(true);
       try {
-        // Fetch lead searches
-        const leadRef = collection(db, 'users', user.uid, 'leadSearch');
-        const leadQuery = query(leadRef, orderBy('time', 'desc'), limit(10));
-        const leadSnapshot = await getDocs(leadQuery);
+        // Get user's lead search history
+        const leadSearches = await getRecentLeadSearches(user.uid);
         
-        const leadData = leadSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            pipelineId: data.pipelineId || '',
-            time: data.time?.toDate() || new Date(),
-            cost: data.cost,
-            company: data.company || '',
-            position: data.position || ''
-          };
-        });
+        // Get pipeline data for each lead search
+        const leadSearchWithPipelines: LeadSearchItem[] = [];
         
-        setLeadSearches(leadData);
+        for (const leadSearch of leadSearches) {
+          try {
+            // Get pipeline data
+            const pipelineRef = doc(db, 'pipelines', leadSearch.pipelineId);
+            const pipelineSnap = await getDoc(pipelineRef);
+            
+            if (pipelineSnap.exists()) {
+              const pipelineData = {
+                id: pipelineSnap.id,
+                ...pipelineSnap.data()
+              } as PipelineData;
+              
+              leadSearchWithPipelines.push({
+                ...leadSearch,
+                pipelineData
+              });
+            } else {
+              // Add with just the lead search data if pipeline not found
+              leadSearchWithPipelines.push(leadSearch);
+            }
+          } catch (error) {
+            console.error(`Error fetching pipeline ${leadSearch.pipelineId}:`, error);
+            leadSearchWithPipelines.push(leadSearch);
+          }
+        }
+        
+        setSearchHistory(leadSearchWithPipelines);
       } catch (error) {
         console.error('Error fetching lead search history:', error);
       } finally {
         setIsLoading(false);
       }
     };
+    
+    fetchSearchHistory();
+  }, [user?.uid, refresh]);
 
-    fetchLeadSearches();
-  }, [user?.uid, refresh]); // Re-fetch when refresh changes
+  if (isLoading) {
+    return (
+      <div className="animate-pulse mt-8">
+        <div className="h-6 bg-card/70 rounded w-48 mb-4"></div>
+        <div className="h-24 bg-card/70 rounded-lg w-full"></div>
+      </div>
+    );
+  }
 
-  // Variants for animations
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.3 },
-    },
-  };
+  if (searchHistory.length === 0) {
+    return (
+      <motion.div 
+        className="mt-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h3 className="text-lg font-heading font-semibold text-primary-text mb-4 flex items-center">
+          <Users className="mr-2 h-5 w-5 text-primary/70" />
+          Recent Lead Searches
+        </h3>
+        <Card className="bg-card/70 border-border/50">
+          <CardContent className="p-6 text-center">
+            <p className="text-secondary-text">
+              No lead searches yet. Try searching for some leads!
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
 
   return (
-    <motion.section 
-      className="bg-card rounded-xl border border-border/50 p-3 sm:p-4 md:p-6 mb-6 md:mb-12"
-      variants={itemVariants}
+    <motion.div
+      className="mt-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center justify-between mb-4 md:mb-6">
-        <h3 className="text-lg sm:text-xl font-heading font-medium text-primary-text">
-          Recent Lead Results
-        </h3>
-        <button className="text-secondary-text hover:text-accent text-xs sm:text-sm flex items-center">
-          View All <ExternalLink className="ml-1" size={14} />
-        </button>
-      </div>
+      <h3 className="text-lg font-heading font-semibold text-primary-text mb-4 flex items-center">
+        <Users className="mr-2 h-5 w-5 text-primary/70" />
+        Recent Lead Searches
+      </h3>
       
-      <div className="overflow-x-auto custom-scrollbar">
-        <div className="min-w-full inline-block align-middle">
-          <div className="overflow-hidden">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-background/30">
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                    Company / Position
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-card divide-y divide-border">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-secondary-text">
-                      <div className="py-4">
-                        <svg
-                          className="animate-spin h-8 w-8 mx-auto mb-3 text-primary"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <p>Loading lead search history...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : leadSearches.length > 0 ? (
-                  leadSearches.map((search) => (
-                    <tr key={`lead-${search.id}`} className="hover:bg-background/30 transition-colors duration-150">
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-background flex items-center justify-center">
-                            <Building className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="ml-3">
-                            <div className="text-sm font-medium text-primary-text">{search.company}</div>
-                            <div className="text-xs text-secondary-text">{search.position}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-secondary-text">{format(search.time, 'MMM dd, yyyy')}</div>
-                      </td>
-                      <td className="px-3 py-3 align-middle text-center">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${search.cost !== null ? 'bg-success/20 text-success' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                          {search.cost !== null ? 'Completed' : 'Pending'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={3} className="px-3 py-6 text-center text-secondary-text">
-                      <div className="py-4">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <Users className="text-secondary-text h-6 w-6" />
-                        </div>
-                        <p>No lead searches yet. Try searching for some leads!</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="space-y-3">
+        {searchHistory.map((search) => (
+          <motion.div
+            key={search.id}
+            className="bg-card/70 border border-border/50 rounded-lg p-3 sm:p-4"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="font-medium text-primary-text mb-1">
+                  {search.pipelineData ? (
+                    <>
+                      <span className="font-bold">{search.pipelineData.company}</span> / {search.pipelineData.position}
+                    </>
+                  ) : (
+                    `Pipeline ID: ${search.pipelineId}`
+                  )}
+                </div>
+                <div className="flex items-center text-xs text-secondary-text space-x-3">
+                  <div className="flex items-center">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    <span>
+                      {search.timestamp?.toDate().toLocaleDateString() || 'Unknown date'}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <Clock className="h-3 w-3 mr-1" />
+                    <span>
+                      {search.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || 'Unknown time'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <StatusBadge status={search.status} />
+            </div>
+          </motion.div>
+        ))}
       </div>
-    </motion.section>
+    </motion.div>
   );
+};
+
+// Helper component to display status badge
+const StatusBadge = ({ status }: { status: string }) => {
+  switch (status) {
+    case 'completed':
+      return (
+        <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
+          Completed
+        </Badge>
+      );
+    case 'failed':
+      return (
+        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+          Failed
+        </Badge>
+      );
+    case 'pending':
+    default:
+      return (
+        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
+          Processing
+        </Badge>
+      );
+  }
 };
 
 export default LeadSearchHistory; 

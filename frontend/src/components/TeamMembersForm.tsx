@@ -9,7 +9,7 @@ import axios from 'axios';
 import { createTeamSearch, createCompanySearchRecord } from '../lib/teamFirebase';
 
 interface TeamMembersFormProps {
-  onSearchComplete?: (results: any[]) => void;
+  onSearchComplete?: (results: any) => void;
   onSearchStart?: () => void;
   className?: string;
   showLabels?: boolean;
@@ -66,24 +66,26 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
       const teamId = await createTeamSearch(url);
       
       // Create company search record for the user
-      await createCompanySearchRecord(userID, teamId);
+      const companySearchId = await createCompanySearchRecord(userID, teamId);
 
       // Call the backend API
       const response = await axios.post('http://localhost:3000/teamMembers', {
         userID,
         url,
-        teamId // Pass the teamId to the backend
+        teamId, // Pass the teamId to the backend
+        companySearchId // Also pass the companySearchId
       });
       
       // Check if the response is successful
       if (response.data) {
         // Call the onSearchComplete callback with the results
         if (onSearchComplete) {
-          // Include the original URL and teamId in the results
+          // Include the original URL, teamId and companySearchId in the results
           const results = {
             ...response.data,
             originalUrl: url,
-            teamId
+            teamId,
+            companySearchId
           };
           onSearchComplete(results);
         }
