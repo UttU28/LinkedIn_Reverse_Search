@@ -8,6 +8,7 @@ export interface SearchResult {
   linkedinProfileUrl?: string;
   status: 'Found' | 'Not Found';
   timestamp: number;
+  batchId?: string;
 }
 
 interface SearchState {

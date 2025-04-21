@@ -10,6 +10,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { findSingleContact, findBatchContacts } from '../services/apiService';
+import { db, collection, addDoc, doc, setDoc, serverTimestamp } from '../lib/firebase';
 
 interface CSVRow {
   Name?: string;
@@ -25,6 +26,16 @@ interface ColumnValidation {
   position: boolean;
   isValid: boolean;
 }
+
+// Firestore helper function with error handling for development
+const safeFirestoreOperation = async (operation: () => Promise<any>, fallback: any = null) => {
+  try {
+    return await operation();
+  } catch (error) {
+    console.warn('Firestore operation failed (continuing anyway):', error);
+    return fallback;
+  }
+};
 
 const SearchCard: React.FC = () => {
   const { updateCreditUsage, userData } = useAuthStore();
@@ -176,9 +187,25 @@ const SearchCard: React.FC = () => {
     // Process search
     setIsProcessingSingle(true);
     
+    // Get user ID from auth store
+    const userID = useAuthStore.getState().user?.uid || 'unknown';
+    
     try {
-      // Get user ID from auth store
-      const userID = useAuthStore.getState().user?.uid || 'unknown';
+      // First, add contact to Firestore
+      const contactData = {
+        name: searchForm.name,
+        company: searchForm.company,
+        position: searchForm.position,
+        createdAt: serverTimestamp()
+      };
+      
+      // Add to contacts collection and get auto-generated ID
+      let contactID = 'temp-' + Date.now();
+      await safeFirestoreOperation(async () => {
+        const contactRef = await addDoc(collection(db, 'contacts'), contactData);
+        contactID = contactRef.id;
+        console.log('Contact saved with ID:', contactID);
+      });
       
       // Use the API service to find contact
       const result = await findSingleContact({
@@ -186,6 +213,27 @@ const SearchCard: React.FC = () => {
         searchName: searchForm.name,
         searchCompany: searchForm.company,
         searchPosition: searchForm.position
+      });
+      
+      // Update user's search history in Firestore
+      const searchData = {
+        contactID,
+        timestamp: serverTimestamp(),
+        searchName: searchForm.name,
+        searchCompany: searchForm.company,
+        searchPosition: searchForm.position,
+        linkedinProfileUrl: result.data.foundData > 0 ? result.data.linkedinProfileUrl : null,
+        foundData: result.data.foundData || 0
+      };
+      
+      // Add to users/{userID}/singleSearch with auto-generated document ID
+      await safeFirestoreOperation(async () => {
+        // Create a reference to the singleSearch collection
+        const singleSearchCollectionRef = collection(db, 'users', userID, 'singleSearch');
+        
+        // Add document with auto-generated ID
+        const searchDocRef = await addDoc(singleSearchCollectionRef, searchData);
+        console.log('Search history added for user with ID:', searchDocRef.id);
       });
       
       // Update credits only if profiles were found
@@ -457,6 +505,16 @@ const SearchCard: React.FC = () => {
     }
   }, [parsedData, toast]);
 
+  // Generate a unique 9-digit batch ID using timestamp and userID
+  const generateBatchId = (userId: string) => {
+    const currentTime = Date.now().toString();
+    const userPart = userId ? userId.slice(0, 4).replace(/\W/g, '') : 'user';
+    const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const combinedId = (userPart + currentTime.slice(-4) + randomPart).slice(0, 9);
+    
+    return combinedId;
+  };
+
   const handleCSVSubmit = async () => {
     if (!selectedFile) return;
     
@@ -487,6 +545,9 @@ const SearchCard: React.FC = () => {
     try {
       // Get user ID from auth store
       const userID = useAuthStore.getState().user?.uid || 'unknown';
+      
+      // Generate a unique batch ID
+      const batchId = generateBatchId(userID);
       
       // Find the actual column names that matched our patterns
       const headers = Object.keys(parsedData[0]);
@@ -519,18 +580,62 @@ const SearchCard: React.FC = () => {
         h.toLowerCase().includes('title')
       );
       
-      // Format contacts for batch processing
-      const contacts = parsedData.map(row => ({
-        searchName: nameField ? row[nameField] || "" : "",
-        searchCompany: companyField ? row[companyField] || "" : "",
-        searchPosition: positionField ? row[positionField] || "" : ""
+      // Create a batch record in Firestore
+      const batchData = {
+        batchId,
+        userId: userID,
+        fileName: selectedFile.name,
+        recordCount: parsedData.length,
+        timestamp: serverTimestamp(),
+        status: 'processing',
+        contactIds: []
+      };
+      
+      // Save batch info in 'batches' collection
+      await safeFirestoreOperation(async () => {
+        await setDoc(doc(db, 'batches', batchId), batchData);
+        console.log('Batch record created:', batchId);
+      });
+      
+      // Format contacts for batch processing and add to Firestore
+      const contactIds: string[] = [];
+      const contacts = await Promise.all(parsedData.map(async (row) => {
+        // Create contact record
+        const contactData = {
+          name: nameField ? row[nameField] || "" : "",
+          company: companyField ? row[companyField] || "" : "",
+          position: positionField ? row[positionField] || "" : "",
+          createdAt: serverTimestamp(),
+          batchId
+        };
+        
+        // Add to contacts collection
+        let contactId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        await safeFirestoreOperation(async () => {
+          const contactRef = await addDoc(collection(db, 'contacts'), contactData);
+          contactId = contactRef.id;
+          contactIds.push(contactId);
+        });
+        
+        return {
+          searchName: nameField ? row[nameField] || "" : "",
+          searchCompany: companyField ? row[companyField] || "" : "",
+          searchPosition: positionField ? row[positionField] || "" : "",
+          contactId
+        };
       }));
+      
+      // Update batch with contact IDs
+      await safeFirestoreOperation(async () => {
+        await setDoc(doc(db, 'batches', batchId), { contactIds }, { merge: true });
+      });
       
       // Call the API service with additional info
       const result = await findBatchContacts({
         userID,
         fileName: selectedFile.name,
         timestamp: Date.now(),
+        batchId,
         contacts
       });
       
@@ -543,23 +648,49 @@ const SearchCard: React.FC = () => {
       // Get found count
       const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
       
+      // Update batch status
+      await safeFirestoreOperation(async () => {
+        await setDoc(doc(db, 'batches', batchId), { 
+          status: 'completed', 
+          successCount,
+          completedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      
+      // Add to user's search history
+      const searchData = {
+        batchId,
+        timestamp: serverTimestamp(),
+        fileName: selectedFile.name,
+        recordCount: parsedData.length,
+        successCount,
+        foundData: successCount
+      };
+      
+      // Add to users/{userID}/searches/batch_{batchId}
+      await safeFirestoreOperation(async () => {
+        await setDoc(doc(db, 'users', userID, 'searches', `batch_${batchId}`), searchData);
+        console.log('Batch search history updated for user:', userID);
+      });
+      
       // Update credits
       await updateCreditUsage(recordCount, successCount);
       
       toast({
         title: "Processing complete",
-        description: `Successfully found ${successCount} out of ${recordCount} profiles`,
+        description: `Successfully found ${successCount} out of ${recordCount} profiles. Batch ID: ${batchId}`,
         variant: "default"
       });
       
       // Add batch results to recent searches
-      result.data.contacts.forEach(contact => {
+      result.data.contacts.forEach((contact, index) => {
         addRecentSearch({
           name: contact.searchName,
           company: contact.searchCompany,
           position: contact.searchPosition,
           linkedinProfileUrl: contact.linkedinProfileUrl,
-          status: contact.foundData > 0 ? 'Found' : 'Not Found'
+          status: contact.foundData > 0 ? 'Found' : 'Not Found',
+          batchId
         });
       });
       
@@ -878,43 +1009,43 @@ const SearchCard: React.FC = () => {
       </AnimatePresence>
     
       {/* Main Search Form Card */}
-      <motion.div 
-        className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+    <motion.div 
+      className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Heading */}
+      <motion.h3 
+        className="text-xl font-heading font-medium text-primary-text mb-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
       >
-        {/* Heading */}
-        <motion.h3 
-          className="text-xl font-heading font-medium text-primary-text mb-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        Find LinkedIn Profiles
+      </motion.h3>
+      
+      <form onSubmit={handleSearch} className="space-y-6">
+        {/* Single Search Section */}
+        <motion.div 
+          className="space-y-4"
+          variants={containerAnimation}
+          initial="hidden"
+          animate="show"
         >
-          Find LinkedIn Profiles
-        </motion.h3>
-        
-        <form onSubmit={handleSearch} className="space-y-6">
-          {/* Single Search Section */}
-          <motion.div 
-            className="space-y-4"
-            variants={containerAnimation}
-            initial="hidden"
-            animate="show"
-          >
             <motion.div variants={itemAnimation} className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${isBulkSearchActive ? 'hidden' : 'block'}`}>
-              <div className="space-y-2">
-                <Label htmlFor="search-name" className="text-sm">
-                  Full Name <span className="text-destructive">*</span>
-                </Label>
+            <div className="space-y-2">
+              <Label htmlFor="search-name" className="text-sm">
+                Full Name <span className="text-destructive">*</span>
+              </Label>
                 <div className="relative">
-                  <Input
-                    id="search-name"
-                    placeholder="John Smith"
-                    value={searchForm.name}
-                    onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
-                    className={validationErrors.name ? 'border-destructive' : ''}
-                  />
+              <Input
+                id="search-name"
+                placeholder="John Smith"
+                value={searchForm.name}
+                onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
+                className={validationErrors.name ? 'border-destructive' : ''}
+              />
                   {searchForm.name && (
                     <button 
                       type="button"
@@ -926,23 +1057,23 @@ const SearchCard: React.FC = () => {
                     </button>
                   )}
                 </div>
-                {validationErrors.name && (
-                  <p className="text-xs text-destructive">{validationErrors.name}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="search-company" className="text-sm">
-                  Company Name <span className="text-destructive">*</span>
-                </Label>
+              {validationErrors.name && (
+                <p className="text-xs text-destructive">{validationErrors.name}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="search-company" className="text-sm">
+                Company Name <span className="text-destructive">*</span>
+              </Label>
                 <div className="relative">
-                  <Input
-                    id="search-company"
-                    placeholder="Acme Inc"
-                    value={searchForm.company}
-                    onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
-                    className={validationErrors.company ? 'border-destructive' : ''}
-                  />
+              <Input
+                id="search-company"
+                placeholder="Acme Inc"
+                value={searchForm.company}
+                onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
+                className={validationErrors.company ? 'border-destructive' : ''}
+              />
                   {searchForm.company && (
                     <button 
                       type="button"
@@ -954,30 +1085,30 @@ const SearchCard: React.FC = () => {
                     </button>
                   )}
                 </div>
-                {validationErrors.company && (
-                  <p className="text-xs text-destructive">{validationErrors.company}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="search-position" className="text-sm">
-                  Job Title / Position <span className="text-destructive">*</span>
-                </Label>
+              {validationErrors.company && (
+                <p className="text-xs text-destructive">{validationErrors.company}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="search-position" className="text-sm">
+                Job Title / Position <span className="text-destructive">*</span>
+              </Label>
                 <div className="relative">
-                  <Input
-                    id="search-position"
-                    placeholder="Marketing Director, Software Engineer, etc."
-                    value={searchForm.position}
-                    onChange={(e) => {
-                      setSearchForm({
-                        ...searchForm, 
-                        position: e.target.value,
-                        // Set title same as position since they're equivalent
-                        title: e.target.value
-                      });
-                    }}
-                    className={validationErrors.position ? 'border-destructive' : ''}
-                  />
+              <Input
+                id="search-position"
+                placeholder="Marketing Director, Software Engineer, etc."
+                value={searchForm.position}
+                onChange={(e) => {
+                  setSearchForm({
+                    ...searchForm, 
+                    position: e.target.value,
+                    // Set title same as position since they're equivalent
+                    title: e.target.value
+                  });
+                }}
+                className={validationErrors.position ? 'border-destructive' : ''}
+              />
                   {searchForm.position && (
                     <button 
                       type="button"
@@ -989,253 +1120,253 @@ const SearchCard: React.FC = () => {
                     </button>
                   )}
                 </div>
-                {validationErrors.position && (
-                  <p className="text-xs text-destructive">{validationErrors.position}</p>
-                )}
-              </div>
-            </motion.div>
-            
-            {/* OR Divider */}
-            {showCSVUpload && !isBulkSearchActive && (
-              <motion.div variants={itemAnimation} className="relative flex items-center py-4">
-                <div className="flex-grow border-t border-border"></div>
-                <span className="flex-shrink-0 mx-4 text-secondary-text font-medium px-4 py-1 rounded-full bg-background/50">OR</span>
-                <div className="flex-grow border-t border-border"></div>
-              </motion.div>
-            )}
-            
-            {/* Bulk Upload Section */}
-            {showCSVUpload && (
-              <motion.div variants={itemAnimation} className={isBulkSearchActive ? 'block' : 'block'}>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  id="csv-file-input"
-                  className="hidden"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileSelect}
-                />
-                
-                {!selectedFile ? (
-                  <div className="space-y-4">
-                    <div 
-                      className="border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
-                        <Upload className="text-accent" size={20} />
-                      </div>
-                      <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file with multiple profiles</p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          fileInputRef.current?.click();
-                        }}
-                      >
-                        <FileUp className="mr-2 h-4 w-4" />
-                        Browse Files
-                      </Button>
-                    </div>
-                    
-                    <div className="bg-primary/10 rounded-lg p-3 text-sm">
-                      <p className="font-medium text-secondary-text mb-2">Your file should include these columns:</p>
-                      <ul className="text-secondary-text list-disc pl-5 space-y-1 text-sm">
-                        <li>Name (required)</li>
-                        <li>Company (required)</li>
-                        <li>Position (required) - Job title/position at the company</li>
-                      </ul>
-                      <p className="text-secondary-text mt-2 text-xs">Note: Position and Title are treated as the same field. Each row will use 1 credit.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-background/70 rounded-lg p-4">
-                      <div className="flex items-center mb-3">
-                        <File className="text-accent mr-3 shrink-0" size={24} />
-                        <div className="flex-grow">
-                          <p className="text-primary-text font-medium">{selectedFile.name}</p>
-                          <p className="text-secondary-text text-sm">{formatFileSize(selectedFile.size)}</p>
-                        </div>
-                        <button 
-                          type="button"
-                          className="text-secondary-text hover:text-destructive"
-                          onClick={handleRemoveFile}
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                      
-                      {parsedData.length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 pt-4 pb-2 border-t border-border">
-                          <div className="flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                              ${columnValidation.name 
-                                ? 'bg-primary/20 border border-primary/60' 
-                                : 'bg-destructive/20 border border-destructive/60'}`}>
-                              {columnValidation.name ? (
-                                <Check size={18} className="text-primary" />
-                              ) : (
-                                <X size={18} className="text-destructive" />
-                              )}
-                            </div>
-                            <span className={`text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
-                              Full Name
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                              ${columnValidation.company 
-                                ? 'bg-primary/20 border border-primary/60' 
-                                : 'bg-destructive/20 border border-destructive/60'}`}>
-                              {columnValidation.company ? (
-                                <Check size={18} className="text-primary" />
-                              ) : (
-                                <X size={18} className="text-destructive" />
-                              )}
-                            </div>
-                            <span className={`text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
-                              Company
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                              ${columnValidation.position 
-                                ? 'bg-primary/20 border border-primary/60' 
-                                : 'bg-destructive/20 border border-destructive/60'}`}>
-                              {columnValidation.position ? (
-                                <Check size={18} className="text-primary" />
-                              ) : (
-                                <X size={18} className="text-destructive" />
-                              )}
-                            </div>
-                            <span className={`text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
-                              Position/Title
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {parsedData.length > 0 && !columnValidation.isValid && (
-                        <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
-                          <AlertCircle size={16} className="text-destructive shrink-0 mr-2 mt-0.5" />
-                          <span className="text-xs sm:text-sm text-destructive">
-                            Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {parsedData.length > 0 && (
-                      <div className="bg-background/50 rounded-lg overflow-hidden">
-                        <div className="p-3 border-b border-border">
-                          <p className="text-sm text-primary-text font-medium">
-                            Preview: {parsedData.length} records detected
-                          </p>
-                        </div>
-                        
-                        <div className="p-2 overflow-x-auto max-h-48 custom-scrollbar">
-                          <div className="w-full inline-block align-middle">
-                            <div className="min-w-full overflow-hidden">
-                              <table className="min-w-full table-fixed divide-y divide-border text-sm">
-                                <thead className="bg-background/70">
-                                  <tr>
-                                    {Object.keys(parsedData[0] || {}).map((header, index) => {
-                                      // Calculate width dynamically based on column type
-                                      let colWidth = "200px"; // Default width
-                                      if (header.toLowerCase().includes('url')) {
-                                        colWidth = "180px"; // URLs can be longer
-                                      } else if (header.toLowerCase().includes('name')) {
-                                        colWidth = "150px"; // Names
-                                      } else if (header.toLowerCase().includes('position') || header.toLowerCase().includes('title')) {
-                                        colWidth = "200px"; // Position/Title can be longer
-                                      } else if (header.toLowerCase().includes('company')) {
-                                        colWidth = "140px"; // Company names
-                                      }
-                                      
-                                      return (
-                                        <th 
-                                          key={index} 
-                                          className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
-                                          style={{ width: colWidth, minWidth: "120px" }}
-                                        >
-                                          {header}
-                                        </th>
-                                      );
-                                    })}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {parsedData.slice(0, 5).map((row, rowIndex) => (
-                                    <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-background/30' : 'bg-background/10'}>
-                                      {Object.entries(row).map(([key, value], cellIndex) => {
-                                        // Determine if this is a URL column
-                                        const isUrl = key.toLowerCase().includes('url');
-                                        
-                                        return (
-                                          <td 
-                                            key={cellIndex} 
-                                            className="px-3 py-2 text-primary-text overflow-hidden text-ellipsis"
-                                            style={{ maxWidth: "1px" }} // This forces text-ellipsis to work with table layout
-                                          >
-                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                              {value as string || '-'}
-                                            </div>
-                                          </td>
-                                        );
-                                      })}
-                                    </tr>
-                                  ))}
-                                  {parsedData.length > 5 && (
-                                    <tr>
-                                      <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-3 py-2 text-center text-secondary-text italic">
-                                        + {parsedData.length - 5} more records
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {parsedData.length > 0 && columnValidation.isValid && (
-                      <div className="bg-success/10 rounded-lg p-3 border border-success/20">
-                        <div className="flex items-start">
-                          <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
-                          <p className="text-xs sm:text-sm text-secondary-text">
-                            Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
-                            This will use <span className="text-primary font-medium">{parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </motion.div>
-            )}
+              {validationErrors.position && (
+                <p className="text-xs text-destructive">{validationErrors.position}</p>
+              )}
+            </div>
           </motion.div>
           
-          {/* Search Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
+          {/* OR Divider */}
+            {showCSVUpload && !isBulkSearchActive && (
+          <motion.div variants={itemAnimation} className="relative flex items-center py-4">
+            <div className="flex-grow border-t border-border"></div>
+            <span className="flex-shrink-0 mx-4 text-secondary-text font-medium px-4 py-1 rounded-full bg-background/50">OR</span>
+            <div className="flex-grow border-t border-border"></div>
+          </motion.div>
+            )}
+          
+          {/* Bulk Upload Section */}
+            {showCSVUpload && (
+              <motion.div variants={itemAnimation} className={isBulkSearchActive ? 'block' : 'block'}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              id="csv-file-input"
+              className="hidden"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileSelect}
+            />
+            
+            {!selectedFile ? (
+              <div className="space-y-4">
+                <div 
+                  className="border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
+                    <Upload className="text-accent" size={20} />
+                  </div>
+                  <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file with multiple profiles</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <FileUp className="mr-2 h-4 w-4" />
+                    Browse Files
+                  </Button>
+                </div>
+                
+                <div className="bg-primary/10 rounded-lg p-3 text-sm">
+                  <p className="font-medium text-secondary-text mb-2">Your file should include these columns:</p>
+                  <ul className="text-secondary-text list-disc pl-5 space-y-1 text-sm">
+                    <li>Name (required)</li>
+                    <li>Company (required)</li>
+                    <li>Position (required) - Job title/position at the company</li>
+                  </ul>
+                  <p className="text-secondary-text mt-2 text-xs">Note: Position and Title are treated as the same field. Each row will use 1 credit.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-background/70 rounded-lg p-4">
+                  <div className="flex items-center mb-3">
+                    <File className="text-accent mr-3 shrink-0" size={24} />
+                    <div className="flex-grow">
+                      <p className="text-primary-text font-medium">{selectedFile.name}</p>
+                      <p className="text-secondary-text text-sm">{formatFileSize(selectedFile.size)}</p>
+                    </div>
+                    <button 
+                      type="button"
+                      className="text-secondary-text hover:text-destructive"
+                      onClick={handleRemoveFile}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  {parsedData.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 pt-4 pb-2 border-t border-border">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                          ${columnValidation.name 
+                            ? 'bg-primary/20 border border-primary/60' 
+                            : 'bg-destructive/20 border border-destructive/60'}`}>
+                          {columnValidation.name ? (
+                            <Check size={18} className="text-primary" />
+                          ) : (
+                            <X size={18} className="text-destructive" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
+                          Full Name
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center">
+                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                          ${columnValidation.company 
+                            ? 'bg-primary/20 border border-primary/60' 
+                            : 'bg-destructive/20 border border-destructive/60'}`}>
+                          {columnValidation.company ? (
+                            <Check size={18} className="text-primary" />
+                          ) : (
+                            <X size={18} className="text-destructive" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
+                          Company
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center">
+                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                          ${columnValidation.position 
+                            ? 'bg-primary/20 border border-primary/60' 
+                            : 'bg-destructive/20 border border-destructive/60'}`}>
+                          {columnValidation.position ? (
+                            <Check size={18} className="text-primary" />
+                          ) : (
+                            <X size={18} className="text-destructive" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
+                          Position/Title
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {parsedData.length > 0 && !columnValidation.isValid && (
+                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
+                      <AlertCircle size={16} className="text-destructive shrink-0 mr-2 mt-0.5" />
+                      <span className="text-xs sm:text-sm text-destructive">
+                        Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {parsedData.length > 0 && (
+                  <div className="bg-background/50 rounded-lg overflow-hidden">
+                    <div className="p-3 border-b border-border">
+                      <p className="text-sm text-primary-text font-medium">
+                        Preview: {parsedData.length} records detected
+                      </p>
+                    </div>
+                    
+                    <div className="p-2 overflow-x-auto max-h-48 custom-scrollbar">
+                      <div className="w-full inline-block align-middle">
+                        <div className="min-w-full overflow-hidden">
+                          <table className="min-w-full table-fixed divide-y divide-border text-sm">
+                            <thead className="bg-background/70">
+                              <tr>
+                                {Object.keys(parsedData[0] || {}).map((header, index) => {
+                                  // Calculate width dynamically based on column type
+                                  let colWidth = "200px"; // Default width
+                                  if (header.toLowerCase().includes('url')) {
+                                    colWidth = "180px"; // URLs can be longer
+                                  } else if (header.toLowerCase().includes('name')) {
+                                    colWidth = "150px"; // Names
+                                  } else if (header.toLowerCase().includes('position') || header.toLowerCase().includes('title')) {
+                                    colWidth = "200px"; // Position/Title can be longer
+                                  } else if (header.toLowerCase().includes('company')) {
+                                    colWidth = "140px"; // Company names
+                                  }
+                                  
+                                  return (
+                                    <th 
+                                      key={index} 
+                                      className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
+                                      style={{ width: colWidth, minWidth: "120px" }}
+                                    >
+                                      {header}
+                                    </th>
+                                  );
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {parsedData.slice(0, 5).map((row, rowIndex) => (
+                                <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-background/30' : 'bg-background/10'}>
+                                  {Object.entries(row).map(([key, value], cellIndex) => {
+                                    // Determine if this is a URL column
+                                    const isUrl = key.toLowerCase().includes('url');
+                                    
+                                    return (
+                                      <td 
+                                        key={cellIndex} 
+                                        className="px-3 py-2 text-primary-text overflow-hidden text-ellipsis"
+                                        style={{ maxWidth: "1px" }} // This forces text-ellipsis to work with table layout
+                                      >
+                                        <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                          {value as string || '-'}
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                              {parsedData.length > 5 && (
+                                <tr>
+                                  <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-3 py-2 text-center text-secondary-text italic">
+                                    + {parsedData.length - 5} more records
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {parsedData.length > 0 && columnValidation.isValid && (
+                  <div className="bg-success/10 rounded-lg p-3 border border-success/20">
+                    <div className="flex items-start">
+                      <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
+                      <p className="text-xs sm:text-sm text-secondary-text">
+                        Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
+                        This will use <span className="text-primary font-medium">{parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+            )}
+        </motion.div>
+        
+        {/* Search Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
             className="flex items-center gap-2"
+        >
+          <Button
+            type="submit"
+            className="bg-primary hover:bg-accent-hover w-full"
+            disabled={isSearchButtonDisabled()}
           >
-            <Button
-              type="submit"
-              className="bg-primary hover:bg-accent-hover w-full"
-              disabled={isSearchButtonDisabled()}
-            >
-              {getButtonText()}
-            </Button>
+            {getButtonText()}
+          </Button>
             
             {isSingleSearchActive && (
               <Button
@@ -1248,9 +1379,9 @@ const SearchCard: React.FC = () => {
                 <X className="h-4 w-4" />
               </Button>
             )}
-          </motion.div>
-        </form>
-      </motion.div>
+        </motion.div>
+      </form>
+    </motion.div>
     </div>
   );
 };

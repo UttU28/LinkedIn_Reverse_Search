@@ -52,12 +52,13 @@ app.post('/findSingleContact', (req, res) => {
 
 // Find batch contacts route
 app.post('/findBatchContact', (req, res) => {
-  const { userID, fileName, timestamp, contacts } = req.body;
+  const { userID, fileName, timestamp, batchId, contacts } = req.body;
   
   console.log('========== BATCH CONTACT SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('File Name:', fileName);
   console.log('Timestamp:', new Date(timestamp).toLocaleString());
+  console.log('Batch ID:', batchId);
   console.log('Number of contacts:', contacts?.length || 0);
   console.log('================================================');
   
@@ -65,19 +66,16 @@ app.post('/findBatchContact', (req, res) => {
   const processedContacts = contacts.map(contact => {
     const {searchName, searchCompany, searchPosition} = contact;
     
-    // Log each contact being processed
     console.log(`Processing contact: ${searchName} - ${searchCompany} - ${searchPosition}`);
     
-    // Generate LinkedIn URL (simplified for demo)
     const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
     
-    // Simulate finding profiles (in a real app, this would call an actual search service)
-    // For demo purposes, we'll randomly determine if a profile is found
     const foundData = Math.random() > 0.3 ? 1 : 0;
     
     console.log(`Result for ${searchName}: ${foundData > 0 ? 'Found' : 'Not Found'}`);
     
     return {
+      batchId,
       searchName,
       searchCompany,
       searchPosition,

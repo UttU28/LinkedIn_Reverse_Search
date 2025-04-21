@@ -24,6 +24,7 @@ interface BatchContactsParams {
   userID: string;
   fileName: string;
   timestamp: number;
+  batchId: string;
   contacts: Array<{
     searchName: string;
     searchCompany: string;
@@ -38,6 +39,7 @@ interface BatchResponse {
     userID: string;
     contactsCount: number;
     contacts: Array<{
+      batchId: string;
       searchName: string;
       searchCompany: string; 
       searchPosition: string;
