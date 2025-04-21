@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useSearchStore } from '../store/searchStore';
 import { useToast } from '../hooks/use-toast';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Info, Search, Upload, FileUp, File, X, Check, AlertCircle } from 'lucide-react';
+import { Info, Search, Upload, FileUp, File, X, Check, AlertCircle, ExternalLink, Copy, Linkedin } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { findSingleContact, findBatchContacts } from '../services/apiService';
 
 interface CSVRow {
   Name?: string;
@@ -26,6 +28,7 @@ interface ColumnValidation {
 
 const SearchCard: React.FC = () => {
   const { updateCreditUsage, userData } = useAuthStore();
+  const { addRecentSearch } = useSearchStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -36,6 +39,18 @@ const SearchCard: React.FC = () => {
     position: '',
     title: ''
   });
+  
+  // Single search response state
+  const [searchResponse, setSearchResponse] = useState<{
+    linkedinProfileUrl?: string;
+    searchName?: string;
+    searchCompany?: string;
+    searchPosition?: string;
+    foundData?: number;
+  } | null>(null);
+  
+  // UI visibility states
+  const [showCSVUpload, setShowCSVUpload] = useState(true);
   
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isProcessingSingle, setIsProcessingSingle] = useState(false);
@@ -51,6 +66,15 @@ const SearchCard: React.FC = () => {
     isValid: false
   });
   
+  // Bulk search response state
+  const [bulkSearchResults, setBulkSearchResults] = useState<Array<{
+    searchName: string;
+    searchCompany: string;
+    searchPosition: string;
+    linkedinProfileUrl?: string;
+    foundData: number;
+  }> | null>(null);
+  
   // Calculate if either the single search or file upload is active
   const isSingleSearchActive = 
     searchForm.name.trim() !== '' || 
@@ -59,11 +83,60 @@ const SearchCard: React.FC = () => {
   
   const isBulkSearchActive = selectedFile !== null;
   
+  // Effect to control CSV upload visibility based on single search form state
+  useEffect(() => {
+    if (isSingleSearchActive) {
+      setShowCSVUpload(false);
+    } else {
+      setShowCSVUpload(true);
+    }
+  }, [isSingleSearchActive]);
+  
+  // Function to clear the single search form without clearing results
+  const clearSearchFormOnly = () => {
+    setSearchForm({
+      name: '',
+      company: '',
+      position: '',
+      title: ''
+    });
+    setValidationErrors({});
+  };
+
+  // Function to clear file upload without clearing results
+  const resetFileUploadOnly = () => {
+    setSelectedFile(null);
+    setParsedData([]);
+    // Reset column validation
+    setColumnValidation({
+      name: false,
+      company: false,
+      position: false,
+      isValid: false
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    // Show the single search form again when CSV is removed
+    setShowCSVUpload(true);
+  };
+
+  // Complete reset function that clears everything including results
+  const clearSearchForm = () => {
+    clearSearchFormOnly();
+    setSearchResponse(null);
+  };
+  
+  const handleRemoveFile = () => {
+    resetFileUploadOnly();
+    setBulkSearchResults(null);
+  };
+  
   // Single search handlers
   const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Reset validation errors
+    // Reset validation errors and search response
     setValidationErrors({});
     
     // Validate form
@@ -104,25 +177,45 @@ const SearchCard: React.FC = () => {
     setIsProcessingSingle(true);
     
     try {
-      // In a real app, this would call an API endpoint
-      // For now we'll simulate a successful search after a delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Get user ID from auth store
+      const userID = useAuthStore.getState().user?.uid || 'unknown';
       
-      // Update credits
-      await updateCreditUsage(1, 1);
+      // Use the API service to find contact
+      const result = await findSingleContact({
+        userID,
+        searchName: searchForm.name,
+        searchCompany: searchForm.company,
+        searchPosition: searchForm.position
+      });
+      
+      // Update credits only if profiles were found
+      if (result.data.foundData > 0) {
+        // Deduct credits equal to foundData value
+        await updateCreditUsage(result.data.foundData, result.data.foundData);
+        
+        // Clear form inputs but keep results displayed
+        clearSearchFormOnly();
+      }
+      
+      // Clear bulk search results when setting new single search response
+      setBulkSearchResults(null);
+      
+      // Set search response
+      setSearchResponse(result.data);
+      
+      // Add to recent searches
+      addRecentSearch({
+        name: result.data.searchName,
+        company: result.data.searchCompany,
+        position: result.data.searchPosition,
+        linkedinProfileUrl: result.data.linkedinProfileUrl,
+        status: result.data.foundData > 0 ? 'Found' : 'Not Found'
+      });
       
       toast({
         title: "Search successful",
-        description: "We found a matching profile!",
+        description: result.data.foundData === 1 ? "We found a matching profile!" : "No exact match found. No credits were used.",
         variant: "default"
-      });
-      
-      // Reset form
-      setSearchForm({
-        name: '',
-        company: '',
-        position: '',
-        title: ''
       });
       
     } catch (error) {
@@ -134,13 +227,35 @@ const SearchCard: React.FC = () => {
       });
     } finally {
       setIsProcessingSingle(false);
+      // Show both forms again after search is complete
+      setShowCSVUpload(true);
     }
+  };
+  
+  // Function to copy LinkedIn URL to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied to clipboard",
+        description: "LinkedIn URL has been copied to your clipboard",
+        variant: "default"
+      });
+    }, (err) => {
+      toast({
+        title: "Copy failed",
+        description: "Could not copy text to clipboard",
+        variant: "destructive"
+      });
+    });
   };
   
   // CSV upload handlers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Clear previous search results when uploading a new file
+      setSearchResponse(null);
+      
       if (file.type !== 'text/csv' && !file.name.endsWith('.csv') && 
           file.type !== 'application/vnd.ms-excel' && 
           file.type !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
@@ -248,21 +363,6 @@ const SearchCard: React.FC = () => {
     }
   };
   
-  const handleRemoveFile = () => {
-    setSelectedFile(null);
-    setParsedData([]);
-    // Reset column validation
-    setColumnValidation({
-      name: false,
-      company: false,
-      position: false,
-      isValid: false
-    });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-  
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
@@ -312,6 +412,47 @@ const SearchCard: React.FC = () => {
           description: "Your file must include columns for Name, Company, and Position/Title.",
           variant: "destructive"
         });
+      } else {
+        // Find the actual column names that matched our patterns
+        const headers = Object.keys(parsedData[0]);
+        const nameField = headers.find(h => 
+          h.toLowerCase() === 'name' || 
+          h.toLowerCase() === 'fullname' || 
+          h.toLowerCase() === 'full name' || 
+          h.toLowerCase() === 'full_name' || 
+          h.toLowerCase().includes('name')
+        );
+        
+        const companyField = headers.find(h => 
+          h.toLowerCase() === 'company' || 
+          h.toLowerCase() === 'companyname' || 
+          h.toLowerCase() === 'company name' || 
+          h.toLowerCase() === 'company_name' || 
+          h.toLowerCase().includes('company')
+        );
+        
+        const positionField = headers.find(h => 
+          h.toLowerCase() === 'position' || 
+          h.toLowerCase() === 'title' || 
+          h.toLowerCase() === 'jobtitle' || 
+          h.toLowerCase() === 'job title' || 
+          h.toLowerCase() === 'job_title' || 
+          h.toLowerCase() === 'currentposition' || 
+          h.toLowerCase() === 'current position' || 
+          h.toLowerCase() === 'current_title' || 
+          h.toLowerCase().includes('position') || 
+          h.toLowerCase().includes('title')
+        );
+        
+        // Log the content when all three fields are found
+        console.log("CSV/Excel Upload - Found all required fields:");
+        parsedData.forEach((row, index) => {
+          console.log(`Record ${index + 1}:`, {
+            "Full Name": nameField ? row[nameField] || "" : "",
+            "Company": companyField ? row[companyField] || "" : "",
+            "Position": positionField ? row[positionField] || "" : ""
+          });
+        });
       }
     }
   }, [parsedData, toast]);
@@ -344,12 +485,63 @@ const SearchCard: React.FC = () => {
     setIsProcessingCSV(true);
     
     try {
-      // In a real app, this would call an API endpoint
-      // For now we'll simulate processing after a delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Get user ID from auth store
+      const userID = useAuthStore.getState().user?.uid || 'unknown';
       
-      // Assume 80% success rate
-      const successCount = Math.floor(recordCount * 0.8);
+      // Find the actual column names that matched our patterns
+      const headers = Object.keys(parsedData[0]);
+      const nameField = headers.find(h => 
+        h.toLowerCase() === 'name' || 
+        h.toLowerCase() === 'fullname' || 
+        h.toLowerCase() === 'full name' || 
+        h.toLowerCase() === 'full_name' || 
+        h.toLowerCase().includes('name')
+      );
+      
+      const companyField = headers.find(h => 
+        h.toLowerCase() === 'company' || 
+        h.toLowerCase() === 'companyname' || 
+        h.toLowerCase() === 'company name' || 
+        h.toLowerCase() === 'company_name' || 
+        h.toLowerCase().includes('company')
+      );
+      
+      const positionField = headers.find(h => 
+        h.toLowerCase() === 'position' || 
+        h.toLowerCase() === 'title' || 
+        h.toLowerCase() === 'jobtitle' || 
+        h.toLowerCase() === 'job title' || 
+        h.toLowerCase() === 'job_title' || 
+        h.toLowerCase() === 'currentposition' || 
+        h.toLowerCase() === 'current position' || 
+        h.toLowerCase() === 'current_title' || 
+        h.toLowerCase().includes('position') || 
+        h.toLowerCase().includes('title')
+      );
+      
+      // Format contacts for batch processing
+      const contacts = parsedData.map(row => ({
+        searchName: nameField ? row[nameField] || "" : "",
+        searchCompany: companyField ? row[companyField] || "" : "",
+        searchPosition: positionField ? row[positionField] || "" : ""
+      }));
+      
+      // Call the API service with additional info
+      const result = await findBatchContacts({
+        userID,
+        fileName: selectedFile.name,
+        timestamp: Date.now(),
+        contacts
+      });
+      
+      // Clear single search response when setting new bulk results
+      setSearchResponse(null);
+      
+      // Store bulk search results
+      setBulkSearchResults(result.data.contacts);
+      
+      // Get found count
+      const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
       
       // Update credits
       await updateCreditUsage(recordCount, successCount);
@@ -360,8 +552,22 @@ const SearchCard: React.FC = () => {
         variant: "default"
       });
       
-      // Reset form
-      handleRemoveFile();
+      // Add batch results to recent searches
+      result.data.contacts.forEach(contact => {
+        addRecentSearch({
+          name: contact.searchName,
+          company: contact.searchCompany,
+          position: contact.searchPosition,
+          linkedinProfileUrl: contact.linkedinProfileUrl,
+          status: contact.foundData > 0 ? 'Found' : 'Not Found'
+        });
+      });
+      
+      // Reset form inputs but keep results displayed
+      resetFileUploadOnly();
+      
+      // Show both forms again after processing is complete
+      setShowCSVUpload(true);
       
     } catch (error) {
       console.error('CSV processing error:', error);
@@ -460,326 +666,592 @@ const SearchCard: React.FC = () => {
   };
 
   return (
-    <motion.div 
-      className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      {/* Heading */}
-      <motion.h3 
-        className="text-xl font-heading font-medium text-primary-text mb-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        Find LinkedIn Profiles
-      </motion.h3>
-      
-      <form onSubmit={handleSearch} className="space-y-6">
-        {/* Single Search Section */}
-        <motion.div 
-          className="space-y-4"
-          variants={containerAnimation}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.div variants={itemAnimation} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search-name" className="text-sm">
-                Full Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="search-name"
-                placeholder="John Smith"
-                value={searchForm.name}
-                onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
-                className={validationErrors.name ? 'border-destructive' : ''}
-              />
-              {validationErrors.name && (
-                <p className="text-xs text-destructive">{validationErrors.name}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="search-company" className="text-sm">
-                Company Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="search-company"
-                placeholder="Acme Inc"
-                value={searchForm.company}
-                onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
-                className={validationErrors.company ? 'border-destructive' : ''}
-              />
-              {validationErrors.company && (
-                <p className="text-xs text-destructive">{validationErrors.company}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="search-position" className="text-sm">
-                Job Title / Position <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="search-position"
-                placeholder="Marketing Director, Software Engineer, etc."
-                value={searchForm.position}
-                onChange={(e) => {
-                  setSearchForm({
-                    ...searchForm, 
-                    position: e.target.value,
-                    // Set title same as position since they're equivalent
-                    title: e.target.value
-                  });
-                }}
-                className={validationErrors.position ? 'border-destructive' : ''}
-              />
-              {validationErrors.position && (
-                <p className="text-xs text-destructive">{validationErrors.position}</p>
-              )}
-            </div>
-          </motion.div>
-          
-          {/* OR Divider */}
-          <motion.div variants={itemAnimation} className="relative flex items-center py-4">
-            <div className="flex-grow border-t border-border"></div>
-            <span className="flex-shrink-0 mx-4 text-secondary-text font-medium px-4 py-1 rounded-full bg-background/50">OR</span>
-            <div className="flex-grow border-t border-border"></div>
-          </motion.div>
-          
-          {/* Bulk Upload Section */}
-          <motion.div variants={itemAnimation}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              id="csv-file-input"
-              className="hidden"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFileSelect}
-            />
-            
-            {!selectedFile ? (
-              <div className="space-y-4">
-                <div 
-                  className="border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
-                    <Upload className="text-accent" size={20} />
-                  </div>
-                  <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file with multiple profiles</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Browse Files
-                  </Button>
-                </div>
-                
-                <div className="bg-primary/10 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-secondary-text mb-2">Your file should include these columns:</p>
-                  <ul className="text-secondary-text list-disc pl-5 space-y-1 text-sm">
-                    <li>Name (required)</li>
-                    <li>Company (required)</li>
-                    <li>Position (required) - Job title/position at the company</li>
-                  </ul>
-                  <p className="text-secondary-text mt-2 text-xs">Note: Position and Title are treated as the same field. Each row will use 1 credit.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-background/70 rounded-lg p-4">
-                  <div className="flex items-center mb-3">
-                    <File className="text-accent mr-3 shrink-0" size={24} />
-                    <div className="flex-grow">
-                      <p className="text-primary-text font-medium">{selectedFile.name}</p>
-                      <p className="text-secondary-text text-sm">{formatFileSize(selectedFile.size)}</p>
-                    </div>
-                    <button 
-                      type="button"
-                      className="text-secondary-text hover:text-destructive"
-                      onClick={handleRemoveFile}
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                  
-                  {parsedData.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 pt-4 pb-2 border-t border-border">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.name 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.name ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Full Name
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.company 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.company ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Company
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.position 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.position ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Position/Title
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {parsedData.length > 0 && !columnValidation.isValid && (
-                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
-                      <AlertCircle size={16} className="text-destructive shrink-0 mr-2 mt-0.5" />
-                      <span className="text-xs sm:text-sm text-destructive">
-                        Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                {parsedData.length > 0 && (
-                  <div className="bg-background/50 rounded-lg overflow-hidden">
-                    <div className="p-3 border-b border-border">
-                      <p className="text-sm text-primary-text font-medium">
-                        Preview: {parsedData.length} records detected
-                      </p>
-                    </div>
-                    
-                    <div className="p-2 overflow-x-auto max-h-48 custom-scrollbar">
-                      <div className="w-full inline-block align-middle">
-                        <div className="min-w-full overflow-hidden">
-                          <table className="min-w-full table-fixed divide-y divide-border text-sm">
-                            <thead className="bg-background/70">
-                              <tr>
-                                {Object.keys(parsedData[0] || {}).map((header, index) => {
-                                  // Calculate width dynamically based on column type
-                                  let colWidth = "200px"; // Default width
-                                  if (header.toLowerCase().includes('url')) {
-                                    colWidth = "180px"; // URLs can be longer
-                                  } else if (header.toLowerCase().includes('name')) {
-                                    colWidth = "150px"; // Names
-                                  } else if (header.toLowerCase().includes('position') || header.toLowerCase().includes('title')) {
-                                    colWidth = "200px"; // Position/Title can be longer
-                                  } else if (header.toLowerCase().includes('company')) {
-                                    colWidth = "140px"; // Company names
-                                  }
-                                  
-                                  return (
-                                    <th 
-                                      key={index} 
-                                      className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
-                                      style={{ width: colWidth, minWidth: "120px" }}
-                                    >
-                                      {header}
-                                    </th>
-                                  );
-                                })}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {parsedData.slice(0, 5).map((row, rowIndex) => (
-                                <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-background/30' : 'bg-background/10'}>
-                                  {Object.entries(row).map(([key, value], cellIndex) => {
-                                    // Determine if this is a URL column
-                                    const isUrl = key.toLowerCase().includes('url');
-                                    
-                                    return (
-                                      <td 
-                                        key={cellIndex} 
-                                        className="px-3 py-2 text-primary-text overflow-hidden text-ellipsis"
-                                        style={{ maxWidth: "1px" }} // This forces text-ellipsis to work with table layout
-                                      >
-                                        <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                          {value as string || '-'}
-                                        </div>
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                              {parsedData.length > 5 && (
-                                <tr>
-                                  <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-3 py-2 text-center text-secondary-text italic">
-                                    + {parsedData.length - 5} more records
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+    <div className="space-y-6">
+      {/* Combined Results Card - Positioned above the search form */}
+      <AnimatePresence>
+        {(searchResponse || (bulkSearchResults && bulkSearchResults.length > 0)) && (
+          <motion.div 
+            className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-heading font-medium text-primary-text">
+                Search Results
+              </h3>
+              <div className="flex items-center gap-3">
+                {searchResponse && (
+                  <span className={`px-3 py-1 text-xs rounded-full ${(searchResponse.foundData ?? 0) > 0 ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+                    {(searchResponse.foundData ?? 0) > 0 ? '1 Profile Found' : 'No Match Found'}
+                  </span>
                 )}
-                
-                {parsedData.length > 0 && columnValidation.isValid && (
-                  <div className="bg-success/10 rounded-lg p-3 border border-success/20">
-                    <div className="flex items-start">
-                      <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
-                      <p className="text-xs sm:text-sm text-secondary-text">
-                        Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
-                        This will use <span className="text-primary font-medium">{parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
-                      </p>
+                {bulkSearchResults && bulkSearchResults.length > 0 && (
+                  <span className="bg-primary/20 text-primary text-xs px-3 py-1 rounded-full">
+                    {bulkSearchResults.filter(r => r.foundData > 0).length} of {bulkSearchResults.length} Found
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-secondary-text hover:text-destructive border-secondary-text hover:border-destructive"
+                  onClick={() => {
+                    setSearchResponse(null);
+                    setBulkSearchResults(null);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Single Search Result */}
+            {searchResponse && (
+              <div className="mb-4">
+                {(searchResponse.foundData ?? 0) > 0 ? (
+                  <div className="border border-border/30 rounded-lg overflow-hidden bg-card">
+                    <div className="p-4 pt-2">
+                      {/* Single result row */}
+                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                          <a 
+                            href={searchResponse.linkedinProfileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[#0077b5] hover:text-[#0077b5]/80"
+                          >
+                            <Linkedin className="h-5 w-5" />
+                          </a>
+                          <a 
+                            href={searchResponse.linkedinProfileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline font-medium truncate"
+                          >
+                            {searchResponse.searchName}
+                          </a>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{searchResponse.searchCompany}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{searchResponse.searchPosition}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 flex items-center justify-end space-x-2">
+                          {searchResponse.linkedinProfileUrl && (
+                            <>
+                              <a 
+                                href={searchResponse.linkedinProfileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80 text-sm truncate"
+                              >
+                                {searchResponse.linkedinProfileUrl.split('.com/in/')[1].replace(/\/$/, '')}
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-secondary-text hover:text-primary-text flex-shrink-0 h-6 w-6"
+                                onClick={() => copyToClipboard(searchResponse.linkedinProfileUrl || '')}
+                                title="Copy to clipboard"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-secondary-text mt-4 pb-1">
+                        <p>
+                          This search used {(searchResponse.foundData ?? 0)} credit{(searchResponse.foundData ?? 0) !== 1 ? 's' : ''} from your account.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-border/30 rounded-lg overflow-hidden bg-card/90 bg-opacity-80">
+                    <div className="p-4 pt-2">
+                      {/* No match result row */}
+                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                          <span className="text-secondary-text/70 h-5 w-5">
+                            <Linkedin className="h-5 w-5 opacity-50" />
+                          </span>
+                          <span className="text-secondary-text truncate">
+                            {searchResponse.searchName}
+                          </span>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{searchResponse.searchCompany}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{searchResponse.searchPosition}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 flex items-center justify-end">
+                          <span className="text-destructive text-sm">Not Found</span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-secondary-text mt-4 pb-1">
+                        <p>0 credits used from your account.</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             )}
+            
+            {/* Bulk Search Results */}
+            {bulkSearchResults && bulkSearchResults.length > 0 && (
+              <div className="border border-border/30 rounded-lg overflow-hidden bg-card">
+                <div className="border-t border-border/30 max-h-96 overflow-y-auto">
+                  {bulkSearchResults.map((result, index) => (
+                    <div 
+                      key={index} 
+                      className={`p-4 ${index !== bulkSearchResults.length - 1 ? 'border-b border-border/30' : ''} ${result.foundData > 0 ? '' : 'bg-destructive/5'}`}
+                    >
+                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                          <a 
+                            href={result.linkedinProfileUrl || "#"} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className={`h-6 w-6 rounded-full ${result.foundData > 0 ? 'bg-primary/20' : 'bg-destructive/20'} mr-2 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200 ${!result.linkedinProfileUrl && 'pointer-events-none opacity-50'}`}
+                            onClick={(e) => {
+                              if (!result.linkedinProfileUrl) {
+                                e.preventDefault();
+                                return;
+                              }
+                            }}
+                          >
+                            <Linkedin className={`h-3 w-3 ${result.foundData > 0 ? 'text-primary' : 'text-destructive'}`} />
+                          </a>
+                          <a 
+                            href={result.linkedinProfileUrl || "#"} 
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`hover:text-primary transition-colors duration-200 ${!result.linkedinProfileUrl && 'pointer-events-none text-secondary-text'}`}
+                            onClick={(e) => {
+                              if (!result.linkedinProfileUrl) {
+                                e.preventDefault();
+                                return;
+                              }
+                            }}
+                          >
+                            {result.searchName}
+                          </a>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{result.searchCompany}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 truncate">
+                          <span className="text-secondary-text">{result.searchPosition}</span>
+                        </div>
+                        <div className="w-full md:w-1/4 flex items-center justify-end">
+                          {result.foundData > 0 ? (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/20 text-success">
+                              Found
+                            </span>
+                          ) : (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-destructive/20 text-destructive">
+                              Not Found
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="px-4 py-3 border-t border-border/30 bg-background/20">
+                  <p className="text-xs text-secondary-text">
+                    This search used {bulkSearchResults.filter(r => r.foundData > 0).length} credit{bulkSearchResults.filter(r => r.foundData > 0).length !== 1 ? 's' : ''} from your account.
+                  </p>
+                </div>
+              </div>
+            )}
           </motion.div>
-        </motion.div>
-        
-        {/* Search Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
+        )}
+      </AnimatePresence>
+    
+      {/* Main Search Form Card */}
+      <motion.div 
+        className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Heading */}
+        <motion.h3 
+          className="text-xl font-heading font-medium text-primary-text mb-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
         >
-          <Button
-            type="submit"
-            className="bg-primary hover:bg-accent-hover w-full"
-            disabled={isSearchButtonDisabled()}
+          Find LinkedIn Profiles
+        </motion.h3>
+        
+        <form onSubmit={handleSearch} className="space-y-6">
+          {/* Single Search Section */}
+          <motion.div 
+            className="space-y-4"
+            variants={containerAnimation}
+            initial="hidden"
+            animate="show"
           >
-            {getButtonText()}
-          </Button>
-        </motion.div>
-      </form>
-    </motion.div>
+            <motion.div variants={itemAnimation} className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${isBulkSearchActive ? 'hidden' : 'block'}`}>
+              <div className="space-y-2">
+                <Label htmlFor="search-name" className="text-sm">
+                  Full Name <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="search-name"
+                    placeholder="John Smith"
+                    value={searchForm.name}
+                    onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
+                    className={validationErrors.name ? 'border-destructive' : ''}
+                  />
+                  {searchForm.name && (
+                    <button 
+                      type="button"
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                      onClick={() => setSearchForm({...searchForm, name: ''})}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {validationErrors.name && (
+                  <p className="text-xs text-destructive">{validationErrors.name}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="search-company" className="text-sm">
+                  Company Name <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="search-company"
+                    placeholder="Acme Inc"
+                    value={searchForm.company}
+                    onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
+                    className={validationErrors.company ? 'border-destructive' : ''}
+                  />
+                  {searchForm.company && (
+                    <button 
+                      type="button"
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                      onClick={() => setSearchForm({...searchForm, company: ''})}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {validationErrors.company && (
+                  <p className="text-xs text-destructive">{validationErrors.company}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="search-position" className="text-sm">
+                  Job Title / Position <span className="text-destructive">*</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="search-position"
+                    placeholder="Marketing Director, Software Engineer, etc."
+                    value={searchForm.position}
+                    onChange={(e) => {
+                      setSearchForm({
+                        ...searchForm, 
+                        position: e.target.value,
+                        // Set title same as position since they're equivalent
+                        title: e.target.value
+                      });
+                    }}
+                    className={validationErrors.position ? 'border-destructive' : ''}
+                  />
+                  {searchForm.position && (
+                    <button 
+                      type="button"
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                      onClick={() => setSearchForm({...searchForm, position: '', title: ''})}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {validationErrors.position && (
+                  <p className="text-xs text-destructive">{validationErrors.position}</p>
+                )}
+              </div>
+            </motion.div>
+            
+            {/* OR Divider */}
+            {showCSVUpload && !isBulkSearchActive && (
+              <motion.div variants={itemAnimation} className="relative flex items-center py-4">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink-0 mx-4 text-secondary-text font-medium px-4 py-1 rounded-full bg-background/50">OR</span>
+                <div className="flex-grow border-t border-border"></div>
+              </motion.div>
+            )}
+            
+            {/* Bulk Upload Section */}
+            {showCSVUpload && (
+              <motion.div variants={itemAnimation} className={isBulkSearchActive ? 'block' : 'block'}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  id="csv-file-input"
+                  className="hidden"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileSelect}
+                />
+                
+                {!selectedFile ? (
+                  <div className="space-y-4">
+                    <div 
+                      className="border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
+                        <Upload className="text-accent" size={20} />
+                      </div>
+                      <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file with multiple profiles</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <FileUp className="mr-2 h-4 w-4" />
+                        Browse Files
+                      </Button>
+                    </div>
+                    
+                    <div className="bg-primary/10 rounded-lg p-3 text-sm">
+                      <p className="font-medium text-secondary-text mb-2">Your file should include these columns:</p>
+                      <ul className="text-secondary-text list-disc pl-5 space-y-1 text-sm">
+                        <li>Name (required)</li>
+                        <li>Company (required)</li>
+                        <li>Position (required) - Job title/position at the company</li>
+                      </ul>
+                      <p className="text-secondary-text mt-2 text-xs">Note: Position and Title are treated as the same field. Each row will use 1 credit.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-background/70 rounded-lg p-4">
+                      <div className="flex items-center mb-3">
+                        <File className="text-accent mr-3 shrink-0" size={24} />
+                        <div className="flex-grow">
+                          <p className="text-primary-text font-medium">{selectedFile.name}</p>
+                          <p className="text-secondary-text text-sm">{formatFileSize(selectedFile.size)}</p>
+                        </div>
+                        <button 
+                          type="button"
+                          className="text-secondary-text hover:text-destructive"
+                          onClick={handleRemoveFile}
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                      
+                      {parsedData.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 pt-4 pb-2 border-t border-border">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                              ${columnValidation.name 
+                                ? 'bg-primary/20 border border-primary/60' 
+                                : 'bg-destructive/20 border border-destructive/60'}`}>
+                              {columnValidation.name ? (
+                                <Check size={18} className="text-primary" />
+                              ) : (
+                                <X size={18} className="text-destructive" />
+                              )}
+                            </div>
+                            <span className={`text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
+                              Full Name
+                            </span>
+                          </div>
+                          
+                          <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                              ${columnValidation.company 
+                                ? 'bg-primary/20 border border-primary/60' 
+                                : 'bg-destructive/20 border border-destructive/60'}`}>
+                              {columnValidation.company ? (
+                                <Check size={18} className="text-primary" />
+                              ) : (
+                                <X size={18} className="text-destructive" />
+                              )}
+                            </div>
+                            <span className={`text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
+                              Company
+                            </span>
+                          </div>
+                          
+                          <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
+                              ${columnValidation.position 
+                                ? 'bg-primary/20 border border-primary/60' 
+                                : 'bg-destructive/20 border border-destructive/60'}`}>
+                              {columnValidation.position ? (
+                                <Check size={18} className="text-primary" />
+                              ) : (
+                                <X size={18} className="text-destructive" />
+                              )}
+                            </div>
+                            <span className={`text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
+                              Position/Title
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {parsedData.length > 0 && !columnValidation.isValid && (
+                        <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
+                          <AlertCircle size={16} className="text-destructive shrink-0 mr-2 mt-0.5" />
+                          <span className="text-xs sm:text-sm text-destructive">
+                            Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {parsedData.length > 0 && (
+                      <div className="bg-background/50 rounded-lg overflow-hidden">
+                        <div className="p-3 border-b border-border">
+                          <p className="text-sm text-primary-text font-medium">
+                            Preview: {parsedData.length} records detected
+                          </p>
+                        </div>
+                        
+                        <div className="p-2 overflow-x-auto max-h-48 custom-scrollbar">
+                          <div className="w-full inline-block align-middle">
+                            <div className="min-w-full overflow-hidden">
+                              <table className="min-w-full table-fixed divide-y divide-border text-sm">
+                                <thead className="bg-background/70">
+                                  <tr>
+                                    {Object.keys(parsedData[0] || {}).map((header, index) => {
+                                      // Calculate width dynamically based on column type
+                                      let colWidth = "200px"; // Default width
+                                      if (header.toLowerCase().includes('url')) {
+                                        colWidth = "180px"; // URLs can be longer
+                                      } else if (header.toLowerCase().includes('name')) {
+                                        colWidth = "150px"; // Names
+                                      } else if (header.toLowerCase().includes('position') || header.toLowerCase().includes('title')) {
+                                        colWidth = "200px"; // Position/Title can be longer
+                                      } else if (header.toLowerCase().includes('company')) {
+                                        colWidth = "140px"; // Company names
+                                      }
+                                      
+                                      return (
+                                        <th 
+                                          key={index} 
+                                          className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
+                                          style={{ width: colWidth, minWidth: "120px" }}
+                                        >
+                                          {header}
+                                        </th>
+                                      );
+                                    })}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {parsedData.slice(0, 5).map((row, rowIndex) => (
+                                    <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-background/30' : 'bg-background/10'}>
+                                      {Object.entries(row).map(([key, value], cellIndex) => {
+                                        // Determine if this is a URL column
+                                        const isUrl = key.toLowerCase().includes('url');
+                                        
+                                        return (
+                                          <td 
+                                            key={cellIndex} 
+                                            className="px-3 py-2 text-primary-text overflow-hidden text-ellipsis"
+                                            style={{ maxWidth: "1px" }} // This forces text-ellipsis to work with table layout
+                                          >
+                                            <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                              {value as string || '-'}
+                                            </div>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                  {parsedData.length > 5 && (
+                                    <tr>
+                                      <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-3 py-2 text-center text-secondary-text italic">
+                                        + {parsedData.length - 5} more records
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {parsedData.length > 0 && columnValidation.isValid && (
+                      <div className="bg-success/10 rounded-lg p-3 border border-success/20">
+                        <div className="flex items-start">
+                          <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
+                          <p className="text-xs sm:text-sm text-secondary-text">
+                            Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
+                            This will use <span className="text-primary font-medium">{parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </motion.div>
+          
+          {/* Search Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="flex items-center gap-2"
+          >
+            <Button
+              type="submit"
+              className="bg-primary hover:bg-accent-hover w-full"
+              disabled={isSearchButtonDisabled()}
+            >
+              {getButtonText()}
+            </Button>
+            
+            {isSingleSearchActive && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-shrink-0"
+                onClick={clearSearchFormOnly}
+                title="Clear form"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </motion.div>
+        </form>
+      </motion.div>
+    </div>
   );
 };
 

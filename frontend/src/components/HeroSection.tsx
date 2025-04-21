@@ -126,6 +126,22 @@ const HeroSection: React.FC = () => {
                   </div>
                 </div>
               </div>
+              
+              <motion.div 
+                className="pt-6 flex flex-col sm:flex-row gap-4 justify-center"
+                variants={itemVariants}
+              >
+                <Link href="/pricing">
+                  <Button className="px-6 py-5 text-base bg-primary hover:bg-accent-hover">
+                    View Pricing
+                  </Button>
+                </Link>
+                <Link href="/demo">
+                  <Button variant="outline" className="px-6 py-5 text-base border-primary/30 hover:bg-primary/10 text-primary">
+                    View Demo
+                  </Button>
+                </Link>
+              </motion.div>
             </motion.div>
           </div>
 

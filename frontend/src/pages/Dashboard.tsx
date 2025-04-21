@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useModalStore } from '../store/modalStore';
+import { useSearchStore } from '../store/searchStore';
 import Navbar from '../components/Navbar';
 import DashboardCard from '../components/DashboardCard';
 import SearchCard from '../components/SearchCard';
@@ -48,6 +49,7 @@ const dummyLeadResults = [
 const Dashboard: React.FC = () => {
   const { userData, fetchUserData } = useAuthStore();
   const { openModal } = useModalStore();
+  const { recentSearches } = useSearchStore();
   const [activeTab, setActiveTab] = useState<'profile' | 'lead'>('profile');
   
   // State for lead generator
@@ -462,12 +464,13 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
           
-          {userData?.totalSearched === 0 && activeTab === 'profile' ? (
+          {userData?.totalSearched === 0 && recentSearches.length === 0 && activeTab === 'profile' ? (
             <div className="py-6 md:py-8 text-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
                 <History className="text-secondary-text" size={20} />
               </div>
-              <p className="text-secondary-text text-sm">No recent searches yet. Start your first search!</p>
+              <p className="text-secondary-text text-sm mb-1">Your search history is looking pretty empty.</p>
+              <p className="text-primary font-medium text-sm">Find some LinkedIn profiles to light this section up!</p>
             </div>
           ) : (
             <div className="overflow-x-auto custom-scrollbar">
@@ -476,11 +479,10 @@ const Dashboard: React.FC = () => {
                   <table className="min-w-full table-fixed divide-y divide-border">
                     <thead className="bg-background/30">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider w-[100px] sm:w-[120px]">Name</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider w-[100px] sm:w-[120px]">Company</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider w-[130px] sm:w-[160px]">Position</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider w-[70px]">Status</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider w-[90px]">Date</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider w-1/4">Name</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider w-1/4">Company</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider w-1/4">Position</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider w-1/4">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border bg-background/10">
@@ -490,7 +492,7 @@ const Dashboard: React.FC = () => {
                         leadResults.slice(0, 3).map((result) => (
                           <tr key={`recent-${result.id}`} className="hover:bg-background/30 transition-colors duration-150">
                             <td className="px-3 py-3 text-sm text-primary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap flex items-center">
+                              <div className="overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center">
                                 <a 
                                   href="https://linkedin.com/in/example" 
                                   target="_blank" 
@@ -518,7 +520,7 @@ const Dashboard: React.FC = () => {
                                 </a>
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
+                            <td className="px-3 py-3 text-sm text-secondary-text align-middle text-center">
                               <div className="overflow-hidden text-ellipsis whitespace-nowrap">
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-primary-text mr-1">
                                   Search: {leadSearchCriteria?.company || 'TechCorp'}
@@ -526,7 +528,7 @@ const Dashboard: React.FC = () => {
                                 {result.company}
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
+                            <td className="px-3 py-3 text-sm text-secondary-text align-middle text-center">
                               <div className="overflow-hidden text-ellipsis whitespace-nowrap">
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-primary-text mr-1">
                                   Search: {leadSearchCriteria?.position || 'Recruiter'}
@@ -534,122 +536,83 @@ const Dashboard: React.FC = () => {
                                 {result.position}
                               </div>
                             </td>
-                            <td className="px-3 py-3 align-middle">
+                            <td className="px-3 py-3 align-middle text-center">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${result.exactMatch ? 'bg-success/20 text-success' : 'bg-accent/20 text-accent'}`}>
                                 {result.exactMatch ? 'Exact' : 'Related'}
                               </span>
                             </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {new Date().toLocaleDateString()}
+                          </tr>
+                        ))
+                      ) : activeTab === 'profile' && recentSearches.length > 0 ? (
+                        // Real recent searches history from store
+                        recentSearches.map((result) => (
+                          <tr key={result.id} className="hover:bg-background/30 transition-colors duration-150">
+                            <td className="px-3 py-3 text-sm text-primary-text align-middle">
+                              <div className="overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center">
+                                <a 
+                                  href={result.linkedinProfileUrl || "#"} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className={`h-6 w-6 rounded-full ${result.status === 'Found' ? 'bg-primary/20' : 'bg-destructive/20'} mr-2 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200 ${!result.linkedinProfileUrl && 'pointer-events-none opacity-50'}`}
+                                  onClick={(e) => {
+                                    if (!result.linkedinProfileUrl) {
+                                      e.preventDefault();
+                                      return;
+                                    }
+                                  }}
+                                >
+                                  <LinkedInIcon className={`h-3 w-3 ${result.status === 'Found' ? 'text-primary' : 'text-destructive'}`} />
+                                </a>
+                                <a 
+                                  href={result.linkedinProfileUrl || "#"} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`hover:text-primary transition-colors duration-200 ${!result.linkedinProfileUrl && 'pointer-events-none text-secondary-text'}`}
+                                  onClick={(e) => {
+                                    if (!result.linkedinProfileUrl) {
+                                      e.preventDefault();
+                                      return;
+                                    }
+                                  }}
+                                >
+                                  {result.name}
+                                </a>
                               </div>
+                            </td>
+                            <td className="px-3 py-3 text-sm text-secondary-text align-middle text-center">
+                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                {result.company}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-sm text-secondary-text align-middle text-center">
+                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                {result.position}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-middle text-center">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${result.status === 'Found' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+                                {result.status}
+                              </span>
                             </td>
                           </tr>
                         ))
                       ) : activeTab === 'profile' ? (
-                        // Default profile search history
-                        <>
-                          <tr className="hover:bg-background/30 transition-colors duration-150">
-                            <td className="px-3 py-3 text-sm text-primary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap flex items-center">
-                                <a 
-                                  href="https://linkedin.com/in/example" 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="h-6 w-6 rounded-full bg-primary/20 mr-2 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open("https://linkedin.com/in/john-smith", '_blank');
-                                  }}
-                                >
-                                  <LinkedInIcon className="h-3 w-3 text-primary" />
-                                </a>
-                                <a 
-                                  href="https://linkedin.com/in/john-smith" 
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:text-primary cursor-pointer transition-colors duration-200"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    window.open("https://linkedin.com/in/john-smith", '_blank');
-                                  }}
-                                >
-                                  John Smith
-                                </a>
+                        // Empty state when no recent searches but active on profile tab
+                        <tr>
+                          <td colSpan={4} className="px-3 py-6 text-center text-secondary-text">
+                            <div className="py-4">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Search className="text-primary h-6 w-6" />
                               </div>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                Acme Inc
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                Marketing Director
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 align-middle">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/20 text-success">Found</span>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {new Date().toLocaleDateString()}
-                              </div>
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-background/30 transition-colors duration-150">
-                            <td className="px-3 py-3 text-sm text-primary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap flex items-center">
-                                <a 
-                                  href="https://linkedin.com/in/example" 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="h-6 w-6 rounded-full bg-primary/20 mr-2 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open("https://linkedin.com/in/sarah-johnson", '_blank');
-                                  }}
-                                >
-                                  <LinkedInIcon className="h-3 w-3 text-primary" />
-                                </a>
-                                <a 
-                                  href="https://linkedin.com/in/sarah-johnson" 
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:text-primary cursor-pointer transition-colors duration-200"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    window.open("https://linkedin.com/in/sarah-johnson", '_blank');
-                                  }}
-                                >
-                                  Sarah Johnson
-                                </a>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                TechCorp
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                Software Engineer
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 align-middle">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/20 text-success">Found</span>
-                            </td>
-                            <td className="px-3 py-3 text-sm text-secondary-text align-middle">
-                              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {new Date().toLocaleDateString()}
-                              </div>
-                            </td>
-                          </tr>
-                        </>
+                              <p className="text-primary-text font-medium mb-1">No searches yet!</p>
+                              <p className="text-secondary-text">Unlock your networking potential - start searching.</p>
+                            </div>
+                          </td>
+                        </tr>
                       ) : (
                         // Default view for lead tab when no search has been performed
                         <tr>
-                          <td colSpan={5} className="px-3 py-6 text-center text-secondary-text">
+                          <td colSpan={4} className="px-3 py-6 text-center text-secondary-text">
                             <div className="py-4">
                               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <Users className="text-secondary-text h-6 w-6" />

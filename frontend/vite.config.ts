@@ -24,7 +24,7 @@ export default defineConfig({
     'import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
   },
   server: {
-    port: 3000,
+    port: 5173,
     open: true
   }
 });

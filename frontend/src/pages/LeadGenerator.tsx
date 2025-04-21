@@ -393,15 +393,6 @@ const LeadGenerator: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* Legal Disclaimer */}
-          <motion.div className="mb-8" variants={itemVariants}>
-            <div className="bg-card/50 border border-border/50 rounded-lg p-4">
-              <p className="text-sm text-secondary-text text-center">
-                This tool identifies publicly accessible professional profiles based on user-provided inputs. 
-                Users are responsible for complying with all applicable laws and third-party platform terms.
-              </p>
-            </div>
-          </motion.div>
 
           {/* Results Section */}
           <AnimatePresence>
