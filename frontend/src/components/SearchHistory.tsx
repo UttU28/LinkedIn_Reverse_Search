@@ -1,31 +1,21 @@
 import { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, limit, DocumentData } from 'firebase/firestore';
-import { useAuthStore } from '../store/authStore';
-import { motion } from 'framer-motion';
-import { Linkedin, Copy, ExternalLink, History, Calendar, FileText } from 'lucide-react';
+import { Linkedin, Copy, ExternalLink, History, Calendar, FileText, Download } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { format } from 'date-fns';
+import { useToast } from '../hooks/use-toast';
+import { useAuthStore } from '../store/authStore';
+import { 
+  fetchSearchHistory, 
+  fetchBatchData, 
+  fetchContactsData,
+  SingleSearchResult,
+  BulkSearchResult
+} from '../lib/searchService';
+import { motion } from 'framer-motion';
 
-interface SingleSearchResult {
-  id: string;
-  searchName: string;
-  searchCompany: string;
-  searchPosition: string;
-  linkedinProfileUrl: string | null;
-  foundData: number;
-  timestamp: Date;
-}
-
-interface BulkSearchResult {
-  id: string;
-  batchId: string;
-  fileName: string;
-  totalData: number;
-  foundData: number;
-  timestamp: Date;
-  status: string;
+interface SearchHistoryProps {
+  refresh?: number; // A value to trigger refreshes when changed
 }
 
 // Helper for consistent date formatting
@@ -33,8 +23,9 @@ const formatShortDate = (date: Date) => {
   return format(date, 'MMM d');
 };
 
-const SearchHistory = () => {
+const SearchHistory: React.FC<SearchHistoryProps> = ({ refresh = 0 }) => {
   const { user } = useAuthStore();
+  const { toast } = useToast();
   const [singleSearches, setSingleSearches] = useState<SingleSearchResult[]>([]);
   const [bulkSearches, setBulkSearches] = useState<BulkSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,43 +35,76 @@ const SearchHistory = () => {
     navigator.clipboard.writeText(text);
   };
 
-  // Fetch search history from Firestore
+  // Fetch search history from service
   useEffect(() => {
-    const fetchSearchHistory = async () => {
+    const loadSearchHistory = async () => {
       if (!user?.uid) return;
 
       setIsLoading(true);
       try {
-        // Fetch single searches
-        const singleSearchRef = collection(db, 'users', user.uid, 'singleSearch');
-        const singleSearchQuery = query(singleSearchRef, orderBy('timestamp', 'desc'), limit(10));
-        const singleSearchSnapshot = await getDocs(singleSearchQuery);
-        const singleSearchData = singleSearchSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate() || new Date(),
-        })) as SingleSearchResult[];
-        setSingleSearches(singleSearchData);
-
-        // Fetch bulk searches
-        const bulkSearchRef = collection(db, 'users', user.uid, 'bulkSearch');
-        const bulkSearchQuery = query(bulkSearchRef, orderBy('timestamp', 'desc'), limit(10));
-        const bulkSearchSnapshot = await getDocs(bulkSearchQuery);
-        const bulkSearchData = bulkSearchSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate() || new Date(),
-        })) as BulkSearchResult[];
-        setBulkSearches(bulkSearchData);
+        const result = await fetchSearchHistory(user.uid);
+        setSingleSearches(result.singleSearches);
+        setBulkSearches(result.bulkSearches);
       } catch (error) {
         console.error('Error fetching search history:', error);
+        toast({
+          title: "Failed to load search history",
+          description: "There was a problem retrieving your search history",
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSearchHistory();
-  }, [user?.uid]);
+    loadSearchHistory();
+  }, [user?.uid, refresh, toast]);
+
+  // Handler for download button click
+  const handleDownloadClick = async (batchId: string) => {
+    try {
+      console.log('Batch ID document reference:', batchId);
+      
+      // Fetch batch data
+      const batchData = await fetchBatchData(batchId);
+      
+      if (batchData) {
+        // Log batch details
+        console.log('Batch data retrieved:');
+        console.log('Batch ID:', batchData.batchId);
+        console.log('Status:', batchData.status);
+        console.log('Contact IDs:', batchData.contactIds);
+        console.log('Total Records:', batchData.recordCount);
+        console.log('Success Count:', batchData.successCount || 0);
+        
+        if (batchData.contactIds && batchData.contactIds.length > 0) {
+          console.log(`Found ${batchData.contactIds.length} contact IDs in this batch`);
+          
+          // Fetch and display contact data
+          console.log('Retrieving contact details...');
+          const contactsData = await fetchContactsData(batchData.contactIds);
+          
+          console.log('All contact data:');
+          console.table(contactsData);
+        } else {
+          console.log('No contact IDs found in this batch');
+        }
+      } else {
+        toast({
+          title: "Batch not found",
+          description: `Could not find batch with ID: ${batchId}`,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error processing download:', error);
+      toast({
+        title: "Error retrieving data",
+        description: "There was a problem accessing the batch information",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -174,17 +198,31 @@ const SearchHistory = () => {
                         )}
                       </td>
                       <td className="px-3 py-3 align-middle text-center">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          search.status === 'completed' 
-                            ? 'bg-success/20 text-success' 
-                            : search.status === 'pending' 
+                        {search.status === 'failed' ? (
+                          <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-destructive/20 text-destructive">
+                            FAILED
+                          </span>
+                        ) : search.status === 'completed' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="px-2 py-1 h-auto text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10"
+                            onClick={() => handleDownloadClick(search.batchId)}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        ) : (
+                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            search.status === 'pending' 
                               ? 'bg-warning/20 text-warning' 
                               : search.status === 'processing'
                                 ? 'bg-primary/20 text-primary'
                                 : 'bg-destructive/20 text-destructive'
-                        }`}>
-                          {search.status.charAt(0).toUpperCase() + search.status.slice(1)}
-                        </span>
+                          }`}>
+                            {search.status.charAt(0).toUpperCase() + search.status.slice(1)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -26,6 +26,11 @@ interface ColumnValidation {
   isValid: boolean;
 }
 
+// At the top of the file, add an interface for the props
+interface SearchCardProps {
+  onSearchComplete?: () => void;
+}
+
 // Firestore helper function with error handling for development
 const safeFirestoreOperation = async (operation: () => Promise<any>, fallback: any = null) => {
   try {
@@ -36,7 +41,7 @@ const safeFirestoreOperation = async (operation: () => Promise<any>, fallback: a
   }
 };
 
-const SearchCard: React.FC = () => {
+const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   const { updateCreditUsage, userData } = useAuthStore();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -232,6 +237,11 @@ const SearchCard: React.FC = () => {
         // Add document with auto-generated ID
         const searchDocRef = await addDoc(singleSearchCollectionRef, searchData);
         console.log('Search history added for user with ID:', searchDocRef.id);
+        
+        // Call the callback after the search is complete
+        if (onSearchComplete) {
+          onSearchComplete();
+        }
       });
       
       // Update credits only if profiles were found
@@ -665,6 +675,11 @@ const SearchCard: React.FC = () => {
           completedAt: serverTimestamp()
         });
         console.log(`Updated bulkSearch record with foundData: ${successCount}`);
+        
+        // Call the callback after bulk search completes
+        if (onSearchComplete) {
+          onSearchComplete();
+        }
       });
       
       // Update batch status to completed

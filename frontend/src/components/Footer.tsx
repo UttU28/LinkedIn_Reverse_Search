@@ -147,18 +147,6 @@ const Footer: React.FC = () => {
                     Terms of Service
                   </Link>
                 </li>
-                <li>
-                  <Link 
-                    href="/cookies" 
-                    className={`transition-colors duration-200 ${
-                      isActiveLink('/cookies') 
-                        ? 'text-primary font-medium' 
-                        : 'text-secondary-text hover:text-accent'
-                    }`}
-                  >
-                    Cookie Policy
-                  </Link>
-                </li>
               </ul>
             </div>
           </div>

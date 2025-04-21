@@ -1,68 +1,80 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { useModalStore } from '../store/modalStore';
+import { useAuth } from '../hooks/useAuth';
+import { Link } from 'wouter';
+import { useToast } from '../hooks/use-toast';
+import {
+  Home,
+  Search,
+  CreditCard,
+  Users,
+  Bell,
+  ChevronRight,
+  User,
+  Building,
+  Briefcase,
+  Filter,
+  ExternalLink,
+  UserCheck,
+  Clock,
+  Calendar,
+  ArrowUp,
+  Filter as FilterIcon,
+  Bookmark,
+  ChevronDown,
+  Download
+} from 'lucide-react';
 import Navbar from '../components/Navbar';
-import DashboardCard from '../components/DashboardCard';
-import SearchCard from '../components/SearchCard';
 import Footer from '../components/Footer';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { 
   Select, 
   SelectContent, 
   SelectItem, 
   SelectTrigger, 
-  SelectValue 
+  SelectValue,
 } from '../components/ui/select';
-import { 
-  Coins, 
-  Search, 
-  Percent, 
-  History, 
-  ExternalLink, 
-  ArrowRight,
-  Check,
-  Users,
-  Filter,
-  DollarSign,
-  Briefcase,
-  Building,
-  User,
-  Linkedin
-} from 'lucide-react';
-import LinkedInIcon from '../assets/icons/LinkedInIcon';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import SearchCard from '../components/SearchCard';
 import SearchHistory from '../components/SearchHistory';
+import LeadSearchHistory from '../components/LeadSearchHistory';
 import axios from 'axios';
+import { createPipeline, updatePipelineCompletion } from '../lib/leadFirebase';
+import LinkedInIcon from '../assets/icons/LinkedInIcon';
+import LeadSearchForm from '../components/LeadSearchForm';
+import LeadResultsTable from '../components/LeadResultsTable';
+import { LeadResult } from '../components/LeadSearchForm';
 
 const Dashboard: React.FC = () => {
-  const { userData, fetchUserData } = useAuthStore();
-  const { openModal } = useModalStore();
-  const [activeTab, setActiveTab] = useState<'profile' | 'lead'>('profile');
+  const { user, userData } = useAuthStore();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch'>('profile');
   
-  // State for lead generator
-  const [company, setCompany] = useState('');
-  const [positionTitle, setPositionTitle] = useState('recruitment');
-  const [isLoading, setIsLoading] = useState(false);
+  // Lead search states
+  const [leadResults, setLeadResults] = useState<LeadResult[]>([]);
   const [showLeadResults, setShowLeadResults] = useState(false);
-  const [leadResults, setLeadResults] = useState([]);
-  const [leadSearchCriteria, setLeadSearchCriteria] = useState<{company: string, position: string}>({
-    company: 'TechCorp',
-    position: 'Recruiter'
+  const [leadSearchCriteria, setLeadSearchCriteria] = useState({
+    company: '',
+    position: ''
   });
+  
+  // Refresh states for history components
+  const [refreshLeadHistory, setRefreshLeadHistory] = useState(0);
+  const [refreshProfileHistory, setRefreshProfileHistory] = useState(0);
   
   const positionOptions = [
     { value: 'recruitment', label: 'Recruitment' },
     { value: 'investment', label: 'Investment' },
-    { value: 'c-level', label: 'C-Level' }
+    { value: 'c-level', label: 'C-Level Executives' }
   ];
   
   useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
+    // Empty effect to replace removed fetchUserData call
+  }, []);
   
   // Calculate success rate
   const getSuccessRate = (): string => {
@@ -95,47 +107,25 @@ const Dashboard: React.FC = () => {
   };
 
   const handleContentSwitch = (value: string) => {
-    setActiveTab(value as 'profile' | 'lead');
+    setActiveTab(value as 'profile' | 'leadSearch');
   };
   
-  const handleLeadSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!company || !positionTitle) return;
+  const handleLeadSearchComplete = (results: LeadResult[]) => {
+    setLeadResults(results);
+    setShowLeadResults(true);
+    setRefreshLeadHistory(prev => prev + 1);
+  };
+  
+  const handleLeadSearchStart = () => {
+    // Update this to capture the current search criteria
+    // This information will be displayed in the results table header
+    const searchPosition = document.querySelector('#position-title')?.textContent || '';
+    const searchCompany = (document.querySelector('#company-name') as HTMLInputElement)?.value || '';
     
-    setIsLoading(true);
-    
-    // Get user ID from auth store
-    const userID = useAuthStore.getState().user?.uid || 'unknown';
-    
-    // Update the search criteria for UI purposes
     setLeadSearchCriteria({
-      company: company,
-      position: positionTitle === 'recruitment' ? 'Recruiter' : 
-                positionTitle === 'investment' ? 'Investor' : 'Executive'
+      company: searchCompany,
+      position: searchPosition
     });
-    
-    try {
-      // Call the backend API
-      const response = await axios.post('http://localhost:3000/findTargetedLeads', {
-        userID,
-        company,
-        positionTitle
-      });
-      
-      // Check if the response is successful
-      if (response.data.status === 'success') {
-        // Update the results from the response
-        setLeadResults(response.data.data.results);
-        setShowLeadResults(true);
-      } else {
-        // Handle error
-        console.error('Error fetching leads:', response.data.message);
-      }
-    } catch (error) {
-      console.error('Error fetching leads:', error);
-    } finally {
-      setIsLoading(false);
-    }
   };
   
   return (
@@ -160,28 +150,28 @@ const Dashboard: React.FC = () => {
                   ? "Ready to find some LinkedIn profiles today?"
                   : "Find targeted professionals for your next opportunity."}
               </p>
-              
-              <Tabs 
-                value={activeTab} 
-                onValueChange={handleContentSwitch}
-              >
-                <TabsList className="grid grid-cols-2 h-10 w-[300px]">
-                  <TabsTrigger 
-                    value="profile" 
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
-                  >
-                    <Search className="mr-2 h-4 w-4" />
-                    Find Profiles
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="lead" 
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
-                  >
-                    <Users className="mr-2 h-4 w-4" />
-                    Lead Generator
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            
+            <Tabs 
+              value={activeTab} 
+              onValueChange={handleContentSwitch}
+            >
+              <TabsList className="grid grid-cols-2 h-10 w-[300px]">
+                <TabsTrigger 
+                  value="profile" 
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  Find Profiles
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="leadSearch" 
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Lead Generator
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
             </div>
           </div>
         </motion.section>
@@ -199,7 +189,7 @@ const Dashboard: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <SearchCard />
+              <SearchCard onSearchComplete={() => setRefreshProfileHistory(prev => prev + 1)} />
             </motion.section>
           ) : (
             /* Lead Generator Search Card */
@@ -219,68 +209,10 @@ const Dashboard: React.FC = () => {
                     Find Targeted Leads
                   </h2>
                   
-                  <form onSubmit={handleLeadSearch} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="company-name" className="flex items-center">
-                          <Building className="mr-2 h-4 w-4 text-primary/70" />
-                          Company Name <span className="text-destructive ml-1">*</span>
-                        </Label>
-                        <Input
-                          id="company-name"
-                          placeholder="Enter target company name"
-                          value={company}
-                          onChange={(e) => setCompany(e.target.value)}
-                          required
-                          className="bg-background/50"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="position-title" className="flex items-center">
-                          <Briefcase className="mr-2 h-4 w-4 text-primary/70" />
-                          Position Title <span className="text-destructive ml-1">*</span>
-                        </Label>
-                        <Select 
-                          value={positionTitle} 
-                          onValueChange={setPositionTitle}
-                          required
-                        >
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select position category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {positionOptions.map(option => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-primary hover:bg-accent-hover"
-                      disabled={isLoading || !company || !positionTitle}
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Searching...
-                        </div>
-                      ) : (
-                        <div className="flex items-center">
-                          <Search className="mr-2 h-4 w-4" />
-                          Find People
-                        </div>
-                      )}
-                    </Button>
-                  </form>
+                  <LeadSearchForm 
+                    onSearchComplete={handleLeadSearchComplete}
+                    onSearchStart={handleLeadSearchStart}
+                  />
                 </CardContent>
               </Card>
             </motion.section>
@@ -290,241 +222,20 @@ const Dashboard: React.FC = () => {
         {/* Results Sections */}
         <AnimatePresence>
           {/* Lead Generator Results */}
-          {activeTab === 'lead' && showLeadResults && (
-            <motion.section 
-              key="lead-results"
-              className="mb-6 sm:mb-10 md:mb-16"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-heading font-semibold text-primary-text flex items-center">
-                  <Users className="mr-2 h-5 w-5 text-primary" />
-                  Lead Results
-                </h2>
-                <div className="text-sm text-secondary-text">
-                  <span className="text-primary font-medium">{leadResults.length}</span> leads found
-                </div>
-              </div>
-              
-              <div className="overflow-x-auto custom-scrollbar rounded-xl border border-border/50 bg-card/70 mb-10">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-background/30">
-                    <tr>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                        Company
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                        Position
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-background/10 divide-y divide-border">
-                    {/* Exact matches first */}
-                    {leadResults.filter(result => result.exactMatch).map((result) => (
-                      <motion.tr 
-                        key={result.id}
-                        className="hover:bg-background/30 transition-colors duration-150"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <td className="px-4 py-4 whitespace-nowrap align-middle">
-                          <div className="flex items-center">
-                            <a 
-                              href="https://linkedin.com/in/example" 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="h-8 w-8 rounded-full bg-primary/20 mr-3 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // In a real app, would use actual LinkedIn URL from API response
-                                window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
-                              }}
-                            >
-                              <LinkedInIcon className="h-4 w-4 text-primary" />
-                            </a>
-                            <a
-                              href="https://linkedin.com/in/example" 
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium text-primary-text hover:text-primary cursor-pointer transition-colors duration-200"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // In a real app, would use actual LinkedIn URL
-                                window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
-                              }}
-                            >
-                              {result.name}
-                            </a>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap align-middle">
-                          <div className="text-sm text-secondary-text">
-                            {result.company}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-sm text-secondary-text max-w-[200px] truncate">
-                            {result.position}
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                    
-                    {/* Separator for related results */}
-                    {leadResults.some(result => !result.exactMatch) && (
-                      <tr className="bg-background/30">
-                        <td colSpan={3} className="px-4 py-2">
-                          <div className="text-xs font-medium text-secondary-text uppercase tracking-wider flex items-center">
-                            <span className="mr-2">Additional Results Found For You</span>
-                            <div className="h-px flex-grow bg-border"></div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    
-                    {/* Related matches second */}
-                    {leadResults.filter(result => !result.exactMatch).map((result) => (
-                      <motion.tr 
-                        key={result.id}
-                        className="hover:bg-background/30 transition-colors duration-150"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <td className="px-4 py-4 whitespace-nowrap align-middle">
-                          <div className="flex items-center">
-                            <a 
-                              href="https://linkedin.com/in/example" 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="h-8 w-8 rounded-full bg-accent/20 mr-3 flex items-center justify-center hover:bg-accent/40 transition-colors duration-200"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // In a real app, would use actual LinkedIn URL
-                                window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
-                              }}
-                            >
-                              <LinkedInIcon className="h-4 w-4 text-accent" />
-                            </a>
-                            <a
-                              href="https://linkedin.com/in/example" 
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium text-primary-text hover:text-primary cursor-pointer transition-colors duration-200"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // In a real app, would use actual LinkedIn URL
-                                window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
-                              }}
-                            >
-                              {result.name}
-                            </a>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap align-middle">
-                          <div className="text-sm text-secondary-text">
-                            {result.company}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <div className="text-sm text-secondary-text max-w-[200px] truncate">
-                            {result.position}
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </motion.section>
+          {activeTab === 'leadSearch' && (
+            <LeadResultsTable 
+              results={leadResults}
+              searchCriteria={leadSearchCriteria}
+              isVisible={showLeadResults}
+            />
           )}
         </AnimatePresence>
         
         {/* Recent Searches */}
         {activeTab === 'profile' ? (
-          <SearchHistory />
+          <SearchHistory refresh={refreshProfileHistory} />
         ) : (
-          <motion.section 
-            className="bg-card rounded-xl border border-border/50 p-3 sm:p-4 md:p-6 mb-6 md:mb-12"
-            variants={itemVariants}
-          >
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h3 className="text-lg sm:text-xl font-heading font-medium text-primary-text">
-                Recent Lead Results
-              </h3>
-              <button className="text-secondary-text hover:text-accent text-xs sm:text-sm flex items-center">
-                View All <ExternalLink className="ml-1" size={14} />
-              </button>
-            </div>
-            
-            <div className="overflow-x-auto custom-scrollbar">
-              <div className="min-w-full inline-block align-middle">
-                <div className="overflow-hidden">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead className="bg-background/30">
-                      <tr>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                          Name / Company
-                        </th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-secondary-text uppercase tracking-wider">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-card divide-y divide-border">
-                      {leadResults.length > 0 ? (
-                        leadResults.slice(0, 3).map((result) => (
-                          <tr key={`recent-${result.id}`} className="hover:bg-background/30 transition-colors duration-150">
-                            <td className="px-3 py-3 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-background flex items-center justify-center">
-                                  <User className="h-4 w-4 text-primary" />
-                                </div>
-                                <div className="ml-3">
-                                  <div className="text-sm font-medium text-primary-text">{result.name}</div>
-                                  <div className="text-xs text-secondary-text">{result.company}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 whitespace-nowrap">
-                              <div className="text-sm text-secondary-text">Today</div>
-                            </td>
-                            <td className="px-3 py-3 align-middle text-center">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${result.exactMatch ? 'bg-success/20 text-success' : 'bg-accent/20 text-accent'}`}>
-                                {result.exactMatch ? 'Exact' : 'Related'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        // Default view for lead tab when no search has been performed
-                        <tr>
-                          <td colSpan={4} className="px-3 py-6 text-center text-secondary-text">
-                            <div className="py-4">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <Users className="text-secondary-text h-6 w-6" />
-                              </div>
-                              <p>No lead searches yet. Try searching for some leads!</p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </motion.section>
+          <LeadSearchHistory refresh={refreshLeadHistory} />
         )}
       </motion.main>
       
