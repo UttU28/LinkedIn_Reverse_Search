@@ -44,15 +44,15 @@ export const registerUser = async (
     try {
       const userRef = doc(db, "users", userCredential.user.uid);
       await setDoc(userRef, {
-        name: fullName,
-        username: username,
-        email: email,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-        linkCredits: 50,
-        totalSearched: 0,
-        totalFound: 0
-      });
+      name: fullName,
+      username: username,
+      email: email,
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+      linkCredits: 50,
+      totalSearched: 0,
+      totalFound: 0
+    });
       console.log("Dev mode: Created user document in Firestore");
     } catch (firestoreError) {
       console.warn("Could not create user document in Firestore directly. This is expected in production:", firestoreError);
@@ -112,8 +112,8 @@ export const loginUser = async (
       } else {
         // Otherwise just update the last login
         await updateDoc(userRef, {
-          lastLogin: serverTimestamp()
-        });
+      lastLogin: serverTimestamp()
+    });
         console.log("Dev mode: Updated last login in Firestore");
       }
     } catch (firestoreError) {

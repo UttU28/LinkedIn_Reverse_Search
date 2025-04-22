@@ -48,6 +48,7 @@ import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
 import TeamMembersForm from '../components/TeamMembersForm';
 import { Badge } from '../components/ui/badge';
+import RecentSearches from '../components/RecentSearches';
 
 const Dashboard: React.FC = () => {
   const { user, userData } = useAuthStore();
@@ -328,6 +329,23 @@ const Dashboard: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Recent Searches Section */}
+        <motion.section
+          className="mb-6"
+          variants={itemVariants}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <h2 className="text-xl font-heading font-semibold text-primary-text mb-4 flex items-center">
+            <Clock className="mr-2 h-5 w-5 text-primary" />
+            Dashboard Overview
+          </h2>
+          <div className="w-full">
+            <RecentSearches />
+          </div>
+        </motion.section>
       </motion.main>
       
       <Footer />
