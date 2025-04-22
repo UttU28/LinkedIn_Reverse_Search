@@ -65,8 +65,7 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
         return;
       }
 
-      // No longer creating pipeline in Firestore
-      // Just generate IDs to send to backend for reference
+      // Generate IDs for tracking
       const pipelineId = `pipeline-${Date.now()}`;
       const leadDocId = `lead-${Date.now()}`;
       
@@ -83,8 +82,6 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
       
       // Check if the response is successful
       if (response.data.status === 'success') {
-        // No longer updating any pipeline in Firestore
-        
         // Update credit usage
         await useAuthStore.getState().updateCreditUsage(1, response.data.data.results.length);
         

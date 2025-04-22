@@ -1,83 +1,137 @@
-const { db } = require('../config/firebase');
+const { db, firebaseInitialized } = require('../config/firebase');
 
 /**
- * Create a new user in Firestore
+ * Creates a new user in the database
+ * @param {string} uid - User ID
+ * @param {string} email - User email
+ * @param {string} fullName - User's full name
+ * @param {string} username - User's selected username
+ * @returns {Promise} - Promise resolving to the user data
  */
-async function createUser(userData) {
+const createUser = async (uid, email, fullName, username) => {
   try {
-    const { uid, email, fullName, username } = userData;
-    
-    const userRef = db.collection('users').doc(uid);
-    
-    await userRef.set({
-      name: fullName,
-      username: username,
-      email: email,
-      createdAt: new Date(),
-      lastLogin: new Date(),
-      linkCredits: 50,
-      totalSearched: 0,
-      totalFound: 0
-    });
-    
-    return { success: true };
+    // If Firebase is not available, log and return minimal user data
+    if (!db || !firebaseInitialized) {
+      console.log('Skipping user creation - Firebase not available');
+      return { uid, email, fullName, username };
+    }
+
+    // Set up user data
+    const userData = {
+      uid,
+      email,
+      fullName,
+      username,
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      creditsUsed: 0,
+      totalSearches: 0,
+      // Default credit values
+      credits: {
+        total: 100, // Starting credits
+        used: 0,
+        remaining: 100
+      }
+    };
+
+    // Create user document
+    await db.collection('users').doc(uid).set(userData);
+    console.log(`User created: ${uid}`);
+    return userData;
   } catch (error) {
-    console.error('Error creating user in Firestore:', error);
+    console.error('Error creating user:', error);
     throw error;
   }
-}
+};
 
 /**
- * Update user's last login timestamp
+ * Updates the last login timestamp for a user
+ * @param {string} uid - User ID
+ * @returns {Promise} - Promise resolving when update is complete
  */
-async function updateLastLogin(uid) {
+const updateLastLogin = async (uid) => {
   try {
-    const userRef = db.collection('users').doc(uid);
+    // If Firebase is not available, just log and return
+    if (!db || !firebaseInitialized) {
+      console.log('Skipping last login update - Firebase not available');
+      return;
+    }
+
+    const lastLogin = new Date().toISOString();
     
-    await userRef.update({
-      lastLogin: new Date()
+    // Update user document
+    await db.collection('users').doc(uid).update({
+      lastLogin
     });
     
-    return { success: true };
+    console.log(`Updated last login for user: ${uid}`);
   } catch (error) {
     console.error('Error updating last login:', error);
-    throw error;
+    // Don't throw the error to avoid disrupting auth flow
+    // Just log it and continue
   }
-}
+};
 
 /**
- * Update user's credit usage
+ * Updates credit usage for a user
+ * @param {string} uid - User ID
+ * @param {number} creditsUsed - Number of credits used in this operation
+ * @returns {Promise} - Promise resolving to updated credit information
  */
-async function updateCreditUsage(uid, creditsUsed, resultsFound) {
+const updateCreditUsage = async (uid, creditsUsed = 1) => {
   try {
-    const userRef = db.collection('users').doc(uid);
-    
+    // If Firebase is not available, just log and return mock data
+    if (!db || !firebaseInitialized) {
+      console.log('Skipping credit update - Firebase not available');
+      return {
+        creditsUpdated: false,
+        creditsRemaining: 100,
+        creditsUsed: 0
+      };
+    }
+
     // Get current user data
-    const userDoc = await userRef.get();
+    const userDoc = await db.collection('users').doc(uid).get();
+    
     if (!userDoc.exists) {
-      throw new Error('User not found');
+      console.log(`User ${uid} not found for credit update`);
+      return {
+        creditsUpdated: false,
+        error: 'User not found'
+      };
     }
     
     const userData = userDoc.data();
     
-    // Update credits and stats
-    await userRef.update({
-      linkCredits: userData.linkCredits - creditsUsed,
-      totalSearched: userData.totalSearched + creditsUsed,
-      totalFound: userData.totalFound + resultsFound
+    // Calculate new credit values
+    const currentCredits = userData.credits || { total: 100, used: 0, remaining: 100 };
+    const newUsed = (currentCredits.used || 0) + creditsUsed;
+    const newRemaining = Math.max(0, (currentCredits.total || 100) - newUsed);
+    const totalSearches = (userData.totalSearches || 0) + 1;
+    
+    // Update user document
+    await db.collection('users').doc(uid).update({
+      'credits.used': newUsed,
+      'credits.remaining': newRemaining,
+      creditsUsed: newUsed,
+      totalSearches
     });
     
-    return { 
-      success: true,
-      linkCredits: userData.linkCredits - creditsUsed,
-      totalSearched: userData.totalSearched + creditsUsed,
-      totalFound: userData.totalFound + resultsFound
+    console.log(`Updated credits for user ${uid}: remaining=${newRemaining}, used=${newUsed}`);
+    
+    return {
+      creditsUpdated: true,
+      creditsRemaining: newRemaining,
+      creditsUsed: newUsed
     };
   } catch (error) {
     console.error('Error updating credit usage:', error);
-    throw error;
+    return {
+      creditsUpdated: false,
+      error: error.message
+    };
   }
-}
+};
 
 module.exports = {
   createUser,

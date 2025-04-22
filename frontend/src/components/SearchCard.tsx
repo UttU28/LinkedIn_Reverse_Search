@@ -9,7 +9,6 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { findSingleContact, findBatchContacts } from '../services/apiService';
-import { db, collection, addDoc, doc, setDoc, serverTimestamp, updateDoc } from '../lib/firebase';
 
 interface CSVRow {
   Name?: string;
@@ -30,16 +29,6 @@ interface ColumnValidation {
 interface SearchCardProps {
   onSearchComplete?: () => void;
 }
-
-// Firestore helper function with error handling for development
-const safeFirestoreOperation = async (operation: () => Promise<any>, fallback: any = null) => {
-  try {
-    return await operation();
-  } catch (error) {
-    console.warn('Firestore operation failed (continuing anyway):', error);
-    return fallback;
-  }
-};
 
 const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   const { updateCreditUsage, userData } = useAuthStore();
@@ -183,8 +172,6 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     const userID = useAuthStore.getState().user?.uid || 'unknown';
     
     try {
-      // No longer saving to Firestore - just call the API directly
-      
       // Use the API service to find contact
       const result = await findSingleContact({
         userID,
@@ -192,8 +179,6 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         searchCompany: searchForm.company,
         searchPosition: searchForm.position
       });
-      
-      // No longer saving search history to Firestore
       
       // Update credits only if profiles were found
       if (result.data.foundData > 0) {
@@ -501,7 +486,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       // Get user ID from auth store
       const userID = useAuthStore.getState().user?.uid || 'unknown';
       
-      // Generate a unique batch ID - this can still be used to track the batch
+      // Generate a unique batch ID
       const batchId = generateBatchId(userID);
       
       // Find the actual column names that matched our patterns
@@ -535,16 +520,12 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         h.toLowerCase().includes('title')
       );
       
-      // No longer creating contacts in Firestore
-      // No longer creating batch records in Firestore
-      // No longer creating bulkSearch records in Firestore
-      
       // Format contacts for batch processing
       const contacts = parsedData.map((row, index) => ({
         searchName: nameField ? row[nameField] || "" : "",
         searchCompany: companyField ? row[companyField] || "" : "",
         searchPosition: positionField ? row[positionField] || "" : "",
-        contactId: `temp-${index}` // Use temporary IDs instead of Firestore IDs
+        contactId: `temp-${index}` // Use temporary IDs
       }));
       
       // Call the API service with the data
@@ -564,8 +545,6 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       
       // Get found count
       const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
-      
-      // No longer updating Firestore after API call
       
       // Update credits
       if (successCount > 0) {
@@ -1043,7 +1022,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                   <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
                     <Upload className="text-accent" size={20} />
                   </div>
-                  <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file with multiple profiles</p>
+                  <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file having Full Name, Company, and Position/Title columns</p>
                   <Button
                     type="button"
                     size="sm"
@@ -1056,16 +1035,6 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                     <FileUp className="mr-2 h-4 w-4" />
                     Browse Files
                   </Button>
-                </div>
-                
-                <div className="bg-primary/10 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-secondary-text mb-2">Your file should include these columns:</p>
-                  <ul className="text-secondary-text list-disc pl-5 space-y-1 text-sm">
-                    <li>Name (required)</li>
-                    <li>Company (required)</li>
-                    <li>Position (required) - Job title/position at the company</li>
-                  </ul>
-                  <p className="text-secondary-text mt-2 text-xs">Note: Position and Title are treated as the same field. Each row will use 1 credit.</p>
                 </div>
               </div>
             ) : (

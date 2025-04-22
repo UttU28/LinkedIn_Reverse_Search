@@ -1,71 +1,108 @@
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 // Development mode flag
 const DEV_MODE = process.env.NODE_ENV !== 'production';
 
-// Mock Firebase admin for development if no service account is available
-if (DEV_MODE) {
-  console.log('Running in development mode with mock Firebase Admin');
+// Flag to indicate if Firebase was successfully initialized
+let firebaseInitialized = false;
+let db = null;
+
+try {
+  // Try to load service account file
+  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
+                            path.join(__dirname, '../../firebaseServiceAccountKey.json');
   
-  // Create a mock Firebase Admin interface
-  const mockDb = {
-    collection: (name) => ({
-      doc: (id) => ({
-        set: async (data) => console.log(`[MOCK] Creating ${name} document for ${id}:`, data),
-        update: async (data) => console.log(`[MOCK] Updating ${name} document for ${id}:`, data),
-        get: async () => ({
-          exists: true,
-          data: () => ({
-            name: 'Mock User',
-            username: 'mockuser',
-            email: 'mock@example.com',
-            createdAt: new Date(),
-            lastLogin: new Date(),
-            linkCredits: 50,
-            totalSearched: 0,
-            totalFound: 0
-          })
-        })
-      })
-    })
-  };
+  console.log(`Attempting to load Firebase service account from: ${serviceAccountPath}`);
   
-  const mockAuth = {
-    // Mock auth methods here if needed
-  };
+  let serviceAccount;
   
-  module.exports = { 
-    admin: { 
-      apps: [{}] // Pretend initialized
-    }, 
-    db: mockDb, 
-    auth: mockAuth 
-  };
-  
-} else {
-  // Production mode - use real Firebase Admin SDK
-  try {
-    // Try to load from file if it exists
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
-    const serviceAccount = require(path.resolve(serviceAccountPath));
-    
-    // Initialize Firebase Admin
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
-      });
+  // Check if service account file exists
+  if (fs.existsSync(serviceAccountPath)) {
+    try {
+      serviceAccount = require(serviceAccountPath);
+      console.log('Firebase service account file loaded successfully');
+    } catch (fileError) {
+      console.error('Error loading Firebase service account file:', fileError.message);
     }
-    
-    const db = admin.firestore();
-    const auth = admin.auth();
-    
-    module.exports = { admin, db, auth };
-    
-  } catch (error) {
-    console.error('Error initializing Firebase Admin:', error);
-    throw error;
+  } else {
+    console.warn(`Firebase service account file not found at ${serviceAccountPath}`);
   }
-} 
+  
+  // If we have a service account, initialize with it
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    firebaseInitialized = true;
+    console.log('Firebase initialized with service account');
+  } 
+  // If we have environment variables for Firebase, use those
+  else if (process.env.FIREBASE_PROJECT_ID && 
+           process.env.FIREBASE_PRIVATE_KEY && 
+           process.env.FIREBASE_CLIENT_EMAIL) {
+    
+    // Fix private key if it's a string with escaped newlines
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        privateKey: privateKey,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+      })
+    });
+    firebaseInitialized = true;
+    console.log('Firebase initialized with environment variables');
+  } 
+  // For local development without service account or env vars
+  else if (DEV_MODE) {
+    console.warn('Running in development mode without Firebase credentials.');
+    console.warn('Set up firebase-service-account.json or environment variables for full functionality.');
+    
+    // Initialize with a minimal configuration for development
+    try {
+      // This will allow Firebase Admin to initialize with default config
+      // It will still be limited in functionality but won't crash the app
+      admin.initializeApp({
+        projectId: 'demo-project-id'
+      });
+      console.log('Firebase initialized with minimal development configuration');
+      firebaseInitialized = true;
+    } catch (devInitError) {
+      console.error('Failed to initialize Firebase with development configuration:', devInitError);
+      firebaseInitialized = false;
+    }
+  } 
+  // Production without credentials
+  else {
+    console.error('No Firebase credentials available. Cannot initialize Firebase.');
+    firebaseInitialized = false;
+  }
+  
+  // Only initialize Firestore if Firebase is initialized
+  if (firebaseInitialized) {
+    try {
+      db = admin.firestore();
+      console.log('Firestore database initialized successfully');
+    } catch (firestoreError) {
+      console.error('Failed to initialize Firestore:', firestoreError);
+      db = null;
+      firebaseInitialized = false;
+    }
+  } else {
+    console.warn('Firestore database was not initialized');
+  }
+} catch (error) {
+  console.error('Failed to initialize Firebase:', error);
+  firebaseInitialized = false;
+}
+
+// Export the database instance and status
+module.exports = {
+  admin: firebaseInitialized ? admin : null,
+  db,
+  firebaseInitialized
+}; 

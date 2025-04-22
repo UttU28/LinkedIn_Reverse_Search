@@ -2,52 +2,42 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
+const { db, firebaseInitialized } = require('./src/config/firebase');
 
-// Import Firebase services
-let createUser, updateLastLogin, updateCreditUsage;
-
-try {
-  // Try loading Firebase services
-  const userService = require('./src/services/userService');
-  createUser = userService.createUser;
-  updateLastLogin = userService.updateLastLogin;
-  updateCreditUsage = userService.updateCreditUsage;
-  console.log('Firebase services loaded successfully');
-} catch (error) {
-  console.error('Error loading Firebase services:', error);
-  // Create dummy functions for development
-  console.log('Using mock Firebase services for development');
-  createUser = async (userData) => {
-    console.log('[MOCK] Creating user:', userData);
-    return { 
-      success: true, 
-      mockData: true,
-      ...userData
-    };
-  };
-  
-  updateLastLogin = async (uid) => {
-    console.log('[MOCK] Updating last login for:', uid);
-    return { 
-      success: true, 
-      mockData: true,
-      uid
-    };
-  };
-  
-  updateCreditUsage = async (uid, creditsUsed, resultsFound) => {
-    console.log('[MOCK] Updating credits for user:', uid);
-    console.log('Credits used:', creditsUsed);
-    console.log('Results found:', resultsFound);
-    return { 
-      success: true, 
-      mockData: true,
-      linkCredits: 50 - creditsUsed,
-      totalSearched: creditsUsed,
-      totalFound: resultsFound
-    };
-  };
-}
+const addSearchHistory = async (userId, historyData) => {
+  try {
+    if (!userId) {
+      console.warn('Cannot add search history: userId is missing');
+      return null;
+    }
+    
+    // If db is not available, skip adding history
+    if (!db) {
+      console.warn('Firestore not available - skipping search history');
+      return null;
+    }
+    
+    // Create a reference to the user's searchHistory collection
+    const userRef = db.collection('users').doc(userId);
+    const searchHistoryRef = userRef.collection('searchHistory');
+    
+    // Add timestamp manually if FieldValue is not available
+    const timestamp = new Date();
+    
+    // Add document with auto-generated ID
+    const docRef = await searchHistoryRef.add({
+      ...historyData,
+      createdAt: timestamp
+    });
+    
+    console.log(`Added search history entry with ID: ${docRef.id} for user: ${userId}`);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding search history:', error);
+    // Don't let history tracking failure prevent the main functionality
+    return null;
+  }
+};
 
 const app = express();
 const PORT = 3000;
@@ -62,8 +52,173 @@ app.get('/', (req, res) => {
   res.send('Hello Duniya');
 });
 
+// Login route
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!firebaseInitialized) {
+      console.warn('Firebase not initialized. Using mock authentication.');
+      // Mock success response for development when Firebase is not available
+      return res.status(200).json({
+        success: true,
+        userId: 'mock-user-123',
+        message: 'Mock login successful (Firebase not initialized)',
+        credits: 100
+      });
+    }
+    
+    // Check if user exists
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('email', '==', email).get();
+    
+    if (snapshot.empty) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    
+    // Get the first matching user
+    const userDoc = snapshot.docs[0];
+    const userData = userDoc.data();
+    
+    // Simple password check (in a real app, you'd use proper password hashing)
+    if (userData.password !== password) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      userId: userDoc.id,
+      message: 'Login successful',
+      credits: userData.credits || 0
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during login' });
+  }
+});
+
+// Signup route
+app.post('/signup', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    
+    if (!firebaseInitialized) {
+      console.warn('Firebase not initialized. Using mock signup.');
+      // Mock success response for development when Firebase is not available
+      return res.status(200).json({
+        success: true,
+        userId: 'mock-user-' + Date.now(),
+        message: 'Mock signup successful (Firebase not initialized)',
+        credits: 10
+      });
+    }
+    
+    // Check if user already exists
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('email', '==', email).get();
+    
+    if (!snapshot.empty) {
+      return res.status(400).json({ success: false, message: 'User already exists' });
+    }
+    
+    // Create new user
+    const userData = {
+      email,
+      password, // In a real app, you'd hash this password
+      name,
+      credits: 10, // Default credits for new users
+      createdAt: new Date()
+    };
+    
+    const newUserRef = await usersRef.add(userData);
+    
+    return res.status(200).json({
+      success: true,
+      userId: newUserRef.id,
+      message: 'Signup successful',
+      credits: userData.credits
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during signup' });
+  }
+});
+
+// Update credits route
+app.post('/updateCredits', async (req, res) => {
+  try {
+    const { uid, creditsUsed, resultsFound } = req.body;
+    
+    if (!uid) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+    
+    if (!firebaseInitialized) {
+      console.warn('Firebase not initialized. Mock credit update.');
+      return res.status(200).json({
+        success: true,
+        message: 'Credits updated successfully (mock)',
+        data: {
+          linkCredits: 100,
+          totalSearched: 1,
+          totalFound: resultsFound || 0
+        }
+      });
+    }
+    
+    // Get user document
+    const userRef = db.collection('users').doc(uid);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    const currentLinkCredits = userData.linkCredits || 100;
+    const currentTotalSearched = userData.totalSearched || 0;
+    const currentTotalFound = userData.totalFound || 0;
+    
+    // Calculate new values
+    const newLinkCredits = Math.max(0, currentLinkCredits - (creditsUsed || 1));
+    const newTotalSearched = currentTotalSearched + 1;
+    const newTotalFound = currentTotalFound + (resultsFound || 0);
+    
+    // Update user record
+    await userRef.update({ 
+      linkCredits: newLinkCredits,
+      totalSearched: newTotalSearched,
+      totalFound: newTotalFound,
+      lastUpdated: new Date()
+    });
+    
+    // Log the credit update
+    await db.collection('creditHistory').add({
+      uid,
+      oldCredits: currentLinkCredits,
+      newCredits: newLinkCredits,
+      creditsUsed: creditsUsed || 1,
+      resultsFound: resultsFound || 0,
+      timestamp: new Date()
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Credits updated successfully',
+      data: {
+        linkCredits: newLinkCredits,
+        totalSearched: newTotalSearched,
+        totalFound: newTotalFound
+      }
+    });
+  } catch (error) {
+    console.error('Update credits error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during credit update' });
+  }
+});
+
 // Find single contact route
-app.post('/findSingleContact', (req, res) => {
+app.post('/findSingleContact', async (req, res) => {
   const { userID, searchName, searchCompany, searchPosition } = req.body;
   
   console.log('\n========== SINGLE CONTACT SEARCH REQUEST ==========');
@@ -84,6 +239,26 @@ app.post('/findSingleContact', (req, res) => {
   console.log('Found Data:', foundData);
   console.log('================================================\n');
 
+  // Add to search history - handle the response gracefully if it fails
+  let historyId = null;
+  try {
+    historyId = await addSearchHistory(userID, {
+      type: "single",
+      status: "pending", // Start as pending
+      inputMeta: {
+        name: searchName,
+        company: searchCompany,
+        position: searchPosition
+      },
+      totalRecords: 1,
+      resultRefPath: "searchResults", // Reference to global collection (placeholder)
+      completedAt: foundData > 0 ? new Date() : null // Only set completed if found
+    });
+  } catch (err) {
+    console.error('Error in search history:', err);
+    // Continue processing - don't fail the whole request
+  }
+
   // Return the search result to the frontend
   res.json({
     status: 'success',
@@ -94,13 +269,14 @@ app.post('/findSingleContact', (req, res) => {
       searchCompany,
       searchPosition,
       linkedinProfileUrl,
-      foundData
+      foundData,
+      historyId // This will be null if history creation failed
     }
   });
 });
 
 // Find batch contacts route
-app.post('/findBatchContact', (req, res) => {
+app.post('/findBatchContact', async (req, res) => {
   const { userID, fileName, timestamp, batchId, contacts } = req.body;
   
   console.log('\n========== BATCH CONTACT SEARCH REQUEST ==========');
@@ -152,6 +328,24 @@ app.post('/findBatchContact', (req, res) => {
   console.log(`Found ${processedContacts.filter(c => c.foundData > 0).length} profiles`);
   console.log('================================================\n');
   
+  // Add to search history - handle the response gracefully if it fails
+  let historyId = null;
+  try {
+    historyId = await addSearchHistory(userID, {
+      type: "bulk",
+      status: "pending", // Start as pending
+      inputMeta: {
+        fileName: fileName
+      },
+      totalRecords: contacts.length,
+      resultRefPath: "searchResults", // Reference to global collection (placeholder)
+      completedAt: processedContacts.some(c => c.foundData > 0) ? new Date() : null
+    });
+  } catch (err) {
+    console.error('Error in search history:', err);
+    // Continue processing - don't fail the whole request
+  }
+  
   // Return the processed contacts
   res.json({
     status: 'success',
@@ -161,13 +355,14 @@ app.post('/findBatchContact', (req, res) => {
       fileName,
       timestamp,
       contactsCount: contacts?.length || 0,
-      contacts: processedContacts
+      contacts: processedContacts,
+      historyId // This will be null if history creation failed
     }
   });
 });
 
 // Find targeted leads route
-app.post('/findTargetedLeads', (req, res) => {
+app.post('/findTargetedLeads', async (req, res) => {
   const { userID, company, positionTitle, pipelineId, leadDocId } = req.body;
   
   console.log('\n========== TARGETED LEADS SEARCH REQUEST ==========');
@@ -220,6 +415,24 @@ app.post('/findTargetedLeads', (req, res) => {
   });
   console.log('================================================\n');
   
+  // Add to search history - handle the response gracefully if it fails
+  let historyId = null;
+  try {
+    historyId = await addSearchHistory(userID, {
+      type: "recruiters",
+      status: "pending", // Start as pending
+      inputMeta: {
+        company: company
+      },
+      totalRecords: filteredResults.length,
+      resultRefPath: "searchResults", // Reference to global collection (placeholder)
+      completedAt: filteredResults.length > 0 ? new Date() : null
+    });
+  } catch (err) {
+    console.error('Error in search history:', err);
+    // Continue processing - don't fail the whole request
+  }
+  
   // Add the company name from the search to the response
   const responseData = {
     company,
@@ -227,7 +440,8 @@ app.post('/findTargetedLeads', (req, res) => {
               positionTitle === 'investment' ? 'Investor' : 'Executive',
     results: filteredResults,
     pipelineId,
-    leadDocId
+    leadDocId,
+    historyId // This will be null if history creation failed
   };
   
   // Return the search results
@@ -239,7 +453,7 @@ app.post('/findTargetedLeads', (req, res) => {
 });
 
 // Team Members route
-app.post('/teamMembers', (req, res) => {
+app.post('/teamMembers', async (req, res) => {
   const { userID, url, teamId, companySearchId } = req.body;
   
   // Log the received data
@@ -263,6 +477,24 @@ app.post('/teamMembers', (req, res) => {
   console.log(`Found ${teamMembers.length} team members for ${url}`);
   console.log('================================================\n');
   
+  // Add to search history - handle the response gracefully if it fails
+  let historyId = null;
+  try {
+    historyId = await addSearchHistory(userID, {
+      type: "team",
+      status: "pending", // Start as pending
+      inputMeta: {
+        companyUrl: url
+      },
+      totalRecords: teamMembers.length,
+      resultRefPath: "searchResults", // Reference to global collection (placeholder)
+      completedAt: teamMembers.length > 0 ? new Date() : null
+    });
+  } catch (err) {
+    console.error('Error in search history:', err);
+    // Continue processing - don't fail the whole request
+  }
+  
   // For now, just return the data as is with dummy team member data
   res.json({ 
     status: 'success',
@@ -272,101 +504,10 @@ app.post('/teamMembers', (req, res) => {
       url, 
       teamId, 
       companySearchId,
-      teamMembers
+      teamMembers,
+      historyId // This will be null if history creation failed
     } 
   });
-});
-
-// Login route
-app.post('/login', async (req, res) => {
-  const { uid, email } = req.body;
-  
-  console.log('Login request received:');
-  console.log('User ID:', uid);
-  console.log('Email:', email);
-  
-  try {
-    // Update last login timestamp in Firestore
-    await updateLastLogin(uid);
-    
-    res.json({
-      status: 'success',
-      message: 'Login successful, user data updated',
-      data: { uid, email }
-    });
-  } catch (error) {
-    console.error('Error updating last login:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to update login timestamp',
-      error: error.message
-    });
-  }
-});
-
-// Signup route
-app.post('/signup', async (req, res) => {
-  const { uid, email, fullName, username } = req.body;
-  
-  console.log('Signup request received:');
-  console.log('User ID:', uid);
-  console.log('Email:', email);
-  console.log('Full Name:', fullName);
-  console.log('Username:', username);
-  
-  try {
-    // Create user in Firestore
-    await createUser({ uid, email, fullName, username });
-    
-    res.json({
-      status: 'success',
-      message: 'User created successfully',
-      data: { 
-        uid, 
-        email, 
-        fullName, 
-        username,
-        linkCredits: 50,  // Initial credits
-        totalSearched: 0,
-        totalFound: 0
-      }
-    });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to create user',
-      error: error.message
-    });
-  }
-});
-
-// Update credits route
-app.post('/updateCredits', async (req, res) => {
-  const { uid, creditsUsed, resultsFound } = req.body;
-  
-  console.log('Update credits request received:');
-  console.log('User ID:', uid);
-  console.log('Credits Used:', creditsUsed);
-  console.log('Results Found:', resultsFound);
-  
-  try {
-    // Update user credits in Firestore
-    const result = await updateCreditUsage(uid, creditsUsed, resultsFound);
-    
-    res.json({
-      status: 'success',
-      message: 'User credits updated successfully',
-      data: result
-    });
-  } catch (error) {
-    console.error('Error updating credits:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to update credits',
-      error: error.message
-    });
-  }
 });
 
 // Error handling middleware

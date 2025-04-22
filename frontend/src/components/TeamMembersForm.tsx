@@ -61,7 +61,7 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
         return;
       }
 
-      // Generate tracking IDs instead of creating records in Firestore
+      // Generate tracking IDs
       const teamId = `team-${Date.now()}`;
       const companySearchId = `company-search-${Date.now()}`;
 

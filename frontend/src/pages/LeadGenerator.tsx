@@ -36,7 +36,7 @@ const LeadGenerator: React.FC = () => {
   const [searchCriteria, setSearchCriteria] = useState({
     company: "",
     position: "",
-        });
+  });
 
   // Variants for animations
   const containerVariants = {
