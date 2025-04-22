@@ -13,7 +13,7 @@ let db = null;
 try {
   // Try to load service account file
   const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
-                            path.join(__dirname, '../../firebaseServiceAccountKey.json');
+                            path.join(__dirname, './firebaseServiceAccountKey.json');
   
   console.log(`Attempting to load Firebase service account from: ${serviceAccountPath}`);
   
