@@ -3,10 +3,6 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-// Development mode flag
-const DEV_MODE = process.env.NODE_ENV !== 'production';
-
-// Flag to indicate if Firebase was successfully initialized
 let firebaseInitialized = false;
 let db = null;
 
@@ -57,32 +53,11 @@ try {
     firebaseInitialized = true;
     console.log('Firebase initialized with environment variables');
   } 
-  // For local development without service account or env vars
-  else if (DEV_MODE) {
-    console.warn('Running in development mode without Firebase credentials.');
-    console.warn('Set up firebase-service-account.json or environment variables for full functionality.');
-    
-    // Initialize with a minimal configuration for development
-    try {
-      // This will allow Firebase Admin to initialize with default config
-      // It will still be limited in functionality but won't crash the app
-      admin.initializeApp({
-        projectId: 'demo-project-id'
-      });
-      console.log('Firebase initialized with minimal development configuration');
-      firebaseInitialized = true;
-    } catch (devInitError) {
-      console.error('Failed to initialize Firebase with development configuration:', devInitError);
-      firebaseInitialized = false;
-    }
-  } 
-  // Production without credentials
   else {
     console.error('No Firebase credentials available. Cannot initialize Firebase.');
     firebaseInitialized = false;
   }
   
-  // Only initialize Firestore if Firebase is initialized
   if (firebaseInitialized) {
     try {
       db = admin.firestore();

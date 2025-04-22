@@ -3,6 +3,8 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const { db, firebaseInitialized } = require('./firebase');
+const { findSingleLinkedinContact } = require('./findSingleLinkedinContact');
+const { startBatchProcessing } = require('./findBatchLinkedinContacts');
 
 const addSearchHistory = async (userId, historyData) => {
   try {
@@ -228,15 +230,17 @@ app.post('/findSingleContact', async (req, res) => {
   console.log('Search Position:', searchPosition);
   console.log('================================================\n');
 
-  // For demonstration, create a LinkedIn profile URL
-  const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
+  // Use our LinkedIn search functionality to find the actual profile
+  const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
   
-  // Simulate found data - in real implementation, this would be from actual search
-  let foundData = Math.random() > 0.4 ? 1 : 0;
+  // Set found data based on the search result
+  const foundData = result.success ? 1 : 0;
+  const linkedinProfileUrl = result.linkedInUrl || '';
 
   console.log('SEARCH RESULT:');
   console.log('LinkedIn Profile URL:', linkedinProfileUrl);
   console.log('Found Data:', foundData);
+  console.log('Search Message:', result.message);
   console.log('================================================\n');
 
   // Add to search history - handle the response gracefully if it fails
@@ -262,7 +266,7 @@ app.post('/findSingleContact', async (req, res) => {
   // Return the search result to the frontend
   res.json({
     status: 'success',
-    message: 'Single contact search completed',
+    message: result.message || 'Single contact search completed',
     data: {
       userID,
       searchName,
@@ -302,61 +306,46 @@ app.post('/findBatchContact', async (req, res) => {
   }
   console.log('================================================\n');
   
-  // Process each contact and generate LinkedIn URLs
-  const processedContacts = contacts.map(contact => {
-    const {searchName, searchCompany, searchPosition, contactId} = contact;
-    
-    // For demonstration purposes, create a LinkedIn URL
-    const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
-    
-    // Simulate found data - 70% chance of finding profile
-    const foundData = Math.random() > 0.3 ? 1 : 0;
-    
-    return {
-      batchId,
-      contactId,
-      searchName,
-      searchCompany,
-      searchPosition,
-      linkedinProfileUrl: foundData ? linkedinProfileUrl : undefined,
-      foundData
-    };
-  });
+  // Generate batch info
+  const batchInfo = {
+    fileName,
+    timestamp: timestamp || Date.now(),
+    batchId: batchId || `batch-${Date.now()}`
+  };
   
-  console.log('BATCH PROCESSING RESULT:');
-  console.log(`Processed ${processedContacts.length} contacts`);
-  console.log(`Found ${processedContacts.filter(c => c.foundData > 0).length} profiles`);
-  console.log('================================================\n');
-  
-  // Add to search history - handle the response gracefully if it fails
+  // Add to search history first to get the history ID
   let historyId = null;
   try {
     historyId = await addSearchHistory(userID, {
       type: "bulk",
-      status: "pending", // Start as pending
+      status: "pending", // Start as pending since we're processing in background
       inputMeta: {
         fileName: fileName
       },
       totalRecords: contacts.length,
       resultRefPath: "searchResults", // Reference to global collection (placeholder)
-      completedAt: processedContacts.some(c => c.foundData > 0) ? new Date() : null
+      batchId: batchInfo.batchId, // Store the batch ID for future reference
+      startedAt: new Date()
     });
+    
+    console.log(`Created search history entry with ID: ${historyId}`);
   } catch (err) {
     console.error('Error in search history:', err);
     // Continue processing - don't fail the whole request
   }
   
-  // Return the processed contacts
+  // Start the batch processing with the history ID
+  const processingInfo = startBatchProcessing(contacts, userID, batchInfo, historyId);
+  
+  // Return the initial response to the frontend immediately
+  // Include an empty contacts array for backwards compatibility with frontend
   res.json({
     status: 'success',
-    message: 'Batch contact search processed',
+    message: 'Batch contact search started in background',
     data: {
-      userID,
-      fileName,
-      timestamp,
-      contactsCount: contacts?.length || 0,
-      contacts: processedContacts,
-      historyId // This will be null if history creation failed
+      ...processingInfo,
+      contacts: [], // Add empty contacts array for backwards compatibility
+      historyId // Include the history ID in the response
     }
   });
 });
