@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, UserCredential, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { getFirestore, doc, getDoc, Timestamp, collection, addDoc, serverTimestamp, updateDoc, setDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 // Fallback to hardcoded values if environment variables aren't available
 const firebaseConfig = {
@@ -20,6 +20,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Backend API url
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 // Auth functions
 export const registerUser = async (
   email: string,
@@ -28,6 +31,7 @@ export const registerUser = async (
   username: string,
 ): Promise<UserCredential> => {
   try {
+    // Handle Firebase authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     
     // Update profile with display name
@@ -35,17 +39,42 @@ export const registerUser = async (
       displayName: fullName,
     });
 
-    // Create user document in Firestore
-    await setDoc(doc(db, "users", userCredential.user.uid), {
-      name: fullName,
-      username: username,
-      email: email,
-      createdAt: serverTimestamp(),
-      lastLogin: serverTimestamp(),
-      linkCredits: 50,
-      totalSearched: 0,
-      totalFound: 0
-    });
+    // Try to create a user document in Firestore directly as well
+    // This is just for development - in production the backend would handle this
+    try {
+      const userRef = doc(db, "users", userCredential.user.uid);
+      await setDoc(userRef, {
+        name: fullName,
+        username: username,
+        email: email,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        linkCredits: 50,
+        totalSearched: 0,
+        totalFound: 0
+      });
+      console.log("Dev mode: Created user document in Firestore");
+    } catch (firestoreError) {
+      console.warn("Could not create user document in Firestore directly. This is expected in production:", firestoreError);
+    }
+
+    // Backend will handle database operations (this will work in production)
+    try {
+      await fetch(`${API_URL}/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: userCredential.user.uid,
+          email,
+          fullName,
+          username,
+        }),
+      });
+    } catch (backendError) {
+      console.warn("Could not communicate with backend API:", backendError);
+    }
 
     return userCredential;
   } catch (error) {
@@ -58,12 +87,54 @@ export const loginUser = async (
   password: string,
 ): Promise<UserCredential> => {
   try {
+    // Handle Firebase authentication
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
-    // Update last login timestamp
-    await updateDoc(doc(db, "users", userCredential.user.uid), {
-      lastLogin: serverTimestamp()
-    });
+    // Create a last login update in Firestore directly
+    // This is just for development - in production the backend would handle this
+    try {
+      const userRef = doc(db, "users", userCredential.user.uid);
+      const docSnap = await getDoc(userRef);
+      
+      if (!docSnap.exists()) {
+        // If the user document doesn't exist, create it
+        await setDoc(userRef, {
+          name: userCredential.user.displayName || 'User',
+          username: email.split('@')[0],
+          email: userCredential.user.email || email,
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+          linkCredits: 50,
+          totalSearched: 0,
+          totalFound: 0
+        });
+        console.log("Dev mode: Created missing user document during login");
+      } else {
+        // Otherwise just update the last login
+        await updateDoc(userRef, {
+          lastLogin: serverTimestamp()
+        });
+        console.log("Dev mode: Updated last login in Firestore");
+      }
+    } catch (firestoreError) {
+      console.warn("Could not update last login in Firestore directly. This is expected in production:", firestoreError);
+    }
+    
+    // Backend will handle updating login timestamp (this will work in production)
+    try {
+      await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: userCredential.user.uid,
+          email,
+        }),
+      });
+    } catch (backendError) {
+      console.warn("Could not communicate with backend API:", backendError);
+    }
     
     return userCredential;
   } catch (error) {
@@ -105,5 +176,23 @@ export interface UserData {
   totalFound: number;
 }
 
-// Export all the Firebase functions needed
-export { auth, db, onAuthStateChanged, collection, addDoc, serverTimestamp, doc, setDoc, updateDoc, getDoc, getDocs, query, orderBy, limit };
+// Export all required Firebase functions
+// Note: These are for READ-ONLY operations from the frontend
+// All write operations should go through the backend API
+export { 
+  auth, 
+  db, 
+  onAuthStateChanged, 
+  doc, 
+  getDoc,
+  // Re-add these exports for component compatibility
+  collection,
+  addDoc,
+  serverTimestamp,
+  updateDoc,
+  setDoc,
+  getDocs,
+  query,
+  orderBy,
+  limit
+};

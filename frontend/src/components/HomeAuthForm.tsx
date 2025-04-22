@@ -243,7 +243,7 @@ const HomeAuthForm: React.FC = () => {
                 className="w-full bg-primary hover:bg-accent-hover text-primary-text font-medium"
                 disabled={isProcessing}
               >
-                {isProcessing ? 'Creating Account...' : 'Create Account'}
+                {isProcessing ? 'Creating Account...' : 'Create Account & Continue to Login'}
               </Button>
             </motion.form>
           )}

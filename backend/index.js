@@ -1,6 +1,53 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+require('dotenv').config();
+
+// Import Firebase services
+let createUser, updateLastLogin, updateCreditUsage;
+
+try {
+  // Try loading Firebase services
+  const userService = require('./src/services/userService');
+  createUser = userService.createUser;
+  updateLastLogin = userService.updateLastLogin;
+  updateCreditUsage = userService.updateCreditUsage;
+  console.log('Firebase services loaded successfully');
+} catch (error) {
+  console.error('Error loading Firebase services:', error);
+  // Create dummy functions for development
+  console.log('Using mock Firebase services for development');
+  createUser = async (userData) => {
+    console.log('[MOCK] Creating user:', userData);
+    return { 
+      success: true, 
+      mockData: true,
+      ...userData
+    };
+  };
+  
+  updateLastLogin = async (uid) => {
+    console.log('[MOCK] Updating last login for:', uid);
+    return { 
+      success: true, 
+      mockData: true,
+      uid
+    };
+  };
+  
+  updateCreditUsage = async (uid, creditsUsed, resultsFound) => {
+    console.log('[MOCK] Updating credits for user:', uid);
+    console.log('Credits used:', creditsUsed);
+    console.log('Results found:', resultsFound);
+    return { 
+      success: true, 
+      mockData: true,
+      linkCredits: 50 - creditsUsed,
+      totalSearched: creditsUsed,
+      totalFound: resultsFound
+    };
+  };
+}
 
 const app = express();
 const PORT = 3000;
@@ -19,26 +66,28 @@ app.get('/', (req, res) => {
 app.post('/findSingleContact', (req, res) => {
   const { userID, searchName, searchCompany, searchPosition } = req.body;
   
-  const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
-//   const linkedinProfileUrl = ``;
-
-  console.log('Single Contact Search Request:');
+  console.log('\n========== SINGLE CONTACT SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('Search Name:', searchName);
   console.log('Search Company:', searchCompany);
   console.log('Search Position:', searchPosition);
+  console.log('================================================\n');
+
+  // For demonstration, create a LinkedIn profile URL
+  const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
+  
+  // Simulate found data - in real implementation, this would be from actual search
+  let foundData = Math.random() > 0.4 ? 1 : 0;
+
+  console.log('SEARCH RESULT:');
   console.log('LinkedIn Profile URL:', linkedinProfileUrl);
+  console.log('Found Data:', foundData);
+  console.log('================================================\n');
 
-  let foundData = 0;
-  if (linkedinProfileUrl) {
-    foundData = 0;
-    // foundData = 1;
-  }
-
-  // For now, just return the received data
+  // Return the search result to the frontend
   res.json({
     status: 'success',
-    message: 'Single contact search received',
+    message: 'Single contact search completed',
     data: {
       userID,
       searchName,
@@ -54,28 +103,42 @@ app.post('/findSingleContact', (req, res) => {
 app.post('/findBatchContact', (req, res) => {
   const { userID, fileName, timestamp, batchId, contacts } = req.body;
   
-  console.log('========== BATCH CONTACT SEARCH REQUEST ==========');
+  console.log('\n========== BATCH CONTACT SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('File Name:', fileName);
   console.log('Timestamp:', new Date(timestamp).toLocaleString());
   console.log('Batch ID:', batchId);
   console.log('Number of contacts:', contacts?.length || 0);
-  console.log('================================================');
+  
+  // Log first 3 contacts for debugging
+  if (contacts && contacts.length > 0) {
+    console.log('\nSample contacts:');
+    contacts.slice(0, 3).forEach((contact, index) => {
+      console.log(`\nContact ${index + 1}:`);
+      console.log('- Name:', contact.searchName);
+      console.log('- Company:', contact.searchCompany);
+      console.log('- Position:', contact.searchPosition);
+      console.log('- Contact ID:', contact.contactId);
+    });
+    if (contacts.length > 3) {
+      console.log(`... and ${contacts.length - 3} more contacts`);
+    }
+  }
+  console.log('================================================\n');
   
   // Process each contact and generate LinkedIn URLs
   const processedContacts = contacts.map(contact => {
-    const {searchName, searchCompany, searchPosition} = contact;
+    const {searchName, searchCompany, searchPosition, contactId} = contact;
     
-    console.log(`Processing contact: ${searchName} - ${searchCompany} - ${searchPosition}`);
-    
+    // For demonstration purposes, create a LinkedIn URL
     const linkedinProfileUrl = `https://www.linkedin.com/in/${searchName.toLowerCase().replace(/\s+/g, '-')}`;
     
+    // Simulate found data - 70% chance of finding profile
     const foundData = Math.random() > 0.3 ? 1 : 0;
-    
-    console.log(`Result for ${searchName}: ${foundData > 0 ? 'Found' : 'Not Found'}`);
     
     return {
       batchId,
+      contactId,
       searchName,
       searchCompany,
       searchPosition,
@@ -84,10 +147,12 @@ app.post('/findBatchContact', (req, res) => {
     };
   });
   
-  console.log('========== BATCH PROCESSING COMPLETE ==========');
-  console.log(`Found ${processedContacts.filter(c => c.foundData > 0).length} out of ${processedContacts.length} profiles`);
+  console.log('BATCH PROCESSING RESULT:');
+  console.log(`Processed ${processedContacts.length} contacts`);
+  console.log(`Found ${processedContacts.filter(c => c.foundData > 0).length} profiles`);
+  console.log('================================================\n');
   
-  // For now, just return the processed contacts
+  // Return the processed contacts
   res.json({
     status: 'success',
     message: 'Batch contact search processed',
@@ -105,13 +170,13 @@ app.post('/findBatchContact', (req, res) => {
 app.post('/findTargetedLeads', (req, res) => {
   const { userID, company, positionTitle, pipelineId, leadDocId } = req.body;
   
-  console.log('========== TARGETED LEADS SEARCH REQUEST ==========');
+  console.log('\n========== TARGETED LEADS SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('Company:', company);
   console.log('Position Title:', positionTitle);
   console.log('Pipeline ID:', pipelineId);
   console.log('Lead Doc ID:', leadDocId);
-  console.log('================================================');
+  console.log('================================================\n');
   
   // Dummy lead data (same as used in frontend before)
   const dummyLeadResults = [
@@ -131,11 +196,29 @@ app.post('/findTargetedLeads', (req, res) => {
     filteredResults = dummyLeadResults.filter(r => r.position.toLowerCase().includes('recruit'));
   } else if (positionTitle === 'investment') {
     // Replace with investment-related positions in a real app
-    filteredResults = dummyLeadResults.slice(0, 3);
+    filteredResults = dummyLeadResults.slice(0, 3).map(r => ({
+      ...r,
+      position: r.position.replace('Recruitment', 'Investment')
+    }));
   } else if (positionTitle === 'c-level') {
     // Replace with c-level positions in a real app
-    filteredResults = dummyLeadResults.slice(3, 6);
+    filteredResults = dummyLeadResults.slice(3, 6).map(r => ({
+      ...r,
+      position: 'C' + r.position
+    }));
   }
+  
+  console.log('LEAD SEARCH RESULT:');
+  console.log(`Found ${filteredResults.length} leads for ${company}`);
+  console.log('Sample leads:');
+  filteredResults.slice(0, 3).forEach((lead, index) => {
+    console.log(`\nLead ${index + 1}:`);
+    console.log('- Name:', lead.name);
+    console.log('- Company:', lead.company);
+    console.log('- Position:', lead.position);
+    console.log('- Exact Match:', lead.exactMatch);
+  });
+  console.log('================================================\n');
   
   // Add the company name from the search to the response
   const responseData = {
@@ -160,19 +243,130 @@ app.post('/teamMembers', (req, res) => {
   const { userID, url, teamId, companySearchId } = req.body;
   
   // Log the received data
-  console.log('Team Members search request received:', { 
-    userID, 
-    url, 
-    teamId,
-    companySearchId 
-  });
+  console.log('\n========== TEAM MEMBERS SEARCH REQUEST ==========');
+  console.log('User ID:', userID);
+  console.log('Company URL:', url);
+  console.log('Team ID:', teamId);
+  console.log('Company Search ID:', companySearchId);
+  console.log('================================================\n');
   
-  // For now, just return the data as is
+  // Generate dummy team member data
+  const teamMembers = [
+    { id: 1, name: 'John Smith', position: 'CEO', linkedinUrl: 'https://linkedin.com/in/john-smith' },
+    { id: 2, name: 'Emily Johnson', position: 'CTO', linkedinUrl: 'https://linkedin.com/in/emily-johnson' },
+    { id: 3, name: 'Michael Chen', position: 'VP of Engineering', linkedinUrl: 'https://linkedin.com/in/michael-chen' },
+    { id: 4, name: 'Sophia Garcia', position: 'Head of Marketing', linkedinUrl: 'https://linkedin.com/in/sophia-garcia' },
+    { id: 5, name: 'David Kim', position: 'CFO', linkedinUrl: 'https://linkedin.com/in/david-kim' }
+  ];
+  
+  console.log('TEAM MEMBER SEARCH RESULT:');
+  console.log(`Found ${teamMembers.length} team members for ${url}`);
+  console.log('================================================\n');
+  
+  // For now, just return the data as is with dummy team member data
   res.json({ 
     status: 'success',
     message: 'Team members search request received',
-    data: { userID, url, teamId, companySearchId } 
+    data: { 
+      userID, 
+      url, 
+      teamId, 
+      companySearchId,
+      teamMembers
+    } 
   });
+});
+
+// Login route
+app.post('/login', async (req, res) => {
+  const { uid, email } = req.body;
+  
+  console.log('Login request received:');
+  console.log('User ID:', uid);
+  console.log('Email:', email);
+  
+  try {
+    // Update last login timestamp in Firestore
+    await updateLastLogin(uid);
+    
+    res.json({
+      status: 'success',
+      message: 'Login successful, user data updated',
+      data: { uid, email }
+    });
+  } catch (error) {
+    console.error('Error updating last login:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update login timestamp',
+      error: error.message
+    });
+  }
+});
+
+// Signup route
+app.post('/signup', async (req, res) => {
+  const { uid, email, fullName, username } = req.body;
+  
+  console.log('Signup request received:');
+  console.log('User ID:', uid);
+  console.log('Email:', email);
+  console.log('Full Name:', fullName);
+  console.log('Username:', username);
+  
+  try {
+    // Create user in Firestore
+    await createUser({ uid, email, fullName, username });
+    
+    res.json({
+      status: 'success',
+      message: 'User created successfully',
+      data: { 
+        uid, 
+        email, 
+        fullName, 
+        username,
+        linkCredits: 50,  // Initial credits
+        totalSearched: 0,
+        totalFound: 0
+      }
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to create user',
+      error: error.message
+    });
+  }
+});
+
+// Update credits route
+app.post('/updateCredits', async (req, res) => {
+  const { uid, creditsUsed, resultsFound } = req.body;
+  
+  console.log('Update credits request received:');
+  console.log('User ID:', uid);
+  console.log('Credits Used:', creditsUsed);
+  console.log('Results Found:', resultsFound);
+  
+  try {
+    // Update user credits in Firestore
+    const result = await updateCreditUsage(uid, creditsUsed, resultsFound);
+    
+    res.json({
+      status: 'success',
+      message: 'User credits updated successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error updating credits:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update credits',
+      error: error.message
+    });
+  }
 });
 
 // Error handling middleware
@@ -190,6 +384,9 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Available routes:`);
   console.log(`- GET /`);
+  console.log(`- POST /login`);
+  console.log(`- POST /signup`);
+  console.log(`- POST /updateCredits`);
   console.log(`- POST /findSingleContact`);
   console.log(`- POST /findBatchContact`);
   console.log(`- POST /findTargetedLeads`);

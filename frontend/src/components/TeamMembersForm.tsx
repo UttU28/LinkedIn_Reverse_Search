@@ -6,7 +6,6 @@ import { Label } from './ui/label';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../hooks/use-toast';
 import axios from 'axios';
-import { createTeamSearch, createCompanySearchRecord } from '../lib/teamFirebase';
 
 interface TeamMembersFormProps {
   onSearchComplete?: (results: any) => void;
@@ -62,18 +61,16 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
         return;
       }
 
-      // Create team search record in Firestore
-      const teamId = await createTeamSearch(url);
-      
-      // Create company search record for the user
-      const companySearchId = await createCompanySearchRecord(userID, teamId);
+      // Generate tracking IDs instead of creating records in Firestore
+      const teamId = `team-${Date.now()}`;
+      const companySearchId = `company-search-${Date.now()}`;
 
       // Call the backend API
       const response = await axios.post('http://localhost:3000/teamMembers', {
         userID,
         url,
-        teamId, // Pass the teamId to the backend
-        companySearchId // Also pass the companySearchId
+        teamId,
+        companySearchId
       });
       
       // Check if the response is successful

@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../hooks/use-toast';
 import axios from 'axios';
-import { createPipeline, updatePipelineCompletion } from '../lib/leadFirebase';
 
 // Define the lead result interface
 export interface LeadResult {
@@ -66,15 +65,12 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
         return;
       }
 
-      // Before calling backend, create pipeline in Firebase
-      const { pipelineId, leadDocId } = await createPipeline(
-        company,
-        positionTitle === 'recruitment' ? 'Recruiter' : 
-        positionTitle === 'investment' ? 'Investor' : 'Executive',
-        userID
-      );
+      // No longer creating pipeline in Firestore
+      // Just generate IDs to send to backend for reference
+      const pipelineId = `pipeline-${Date.now()}`;
+      const leadDocId = `lead-${Date.now()}`;
       
-      console.log('Created pipeline:', pipelineId, 'leadDocId:', leadDocId);
+      console.log('Generated IDs for tracking:', pipelineId, 'leadDocId:', leadDocId);
       
       // Call the backend API
       const response = await axios.post('http://localhost:3000/findTargetedLeads', {
@@ -87,13 +83,7 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
       
       // Check if the response is successful
       if (response.data.status === 'success') {
-        // Update the pipeline with completion status
-        await updatePipelineCompletion(
-          pipelineId, 
-          userID, 
-          leadDocId,
-          response.data.data.results
-        );
+        // No longer updating any pipeline in Firestore
         
         // Update credit usage
         await useAuthStore.getState().updateCreditUsage(1, response.data.data.results.length);

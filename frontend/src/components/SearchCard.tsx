@@ -150,30 +150,19 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Reset validation errors and search response
-    setValidationErrors({});
-    
-    // Validate form
-    let hasErrors = false;
-    const errors: Record<string, string> = {};
-    
+    // Validate all required fields
     if (!searchForm.name.trim()) {
-      errors.name = 'Name is required';
-      hasErrors = true;
+      setValidationErrors({ name: 'Full name is required' });
+      return;
     }
     
     if (!searchForm.company.trim()) {
-      errors.company = 'Company is required';
-      hasErrors = true;
+      setValidationErrors({ company: 'Company name is required' });
+      return;
     }
     
     if (!searchForm.position.trim()) {
-      errors.position = 'Position is required';
-      hasErrors = true;
-    }
-    
-    if (hasErrors) {
-      setValidationErrors(errors);
+      setValidationErrors({ position: 'Position/title is required' });
       return;
     }
     
@@ -194,21 +183,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     const userID = useAuthStore.getState().user?.uid || 'unknown';
     
     try {
-      // First, add contact to Firestore
-      const contactData = {
-        name: searchForm.name,
-        company: searchForm.company,
-        position: searchForm.position,
-        createdAt: serverTimestamp()
-      };
-      
-      // Add to contacts collection and get auto-generated ID
-      let contactID = 'temp-' + Date.now();
-      await safeFirestoreOperation(async () => {
-        const contactRef = await addDoc(collection(db, 'contacts'), contactData);
-        contactID = contactRef.id;
-        console.log('Contact saved with ID:', contactID);
-      });
+      // No longer saving to Firestore - just call the API directly
       
       // Use the API service to find contact
       const result = await findSingleContact({
@@ -218,31 +193,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         searchPosition: searchForm.position
       });
       
-      // Update user's search history in Firestore
-      const searchData = {
-        contactID,
-        timestamp: serverTimestamp(),
-        searchName: searchForm.name,
-        searchCompany: searchForm.company,
-        searchPosition: searchForm.position,
-        linkedinProfileUrl: result.data.foundData > 0 ? result.data.linkedinProfileUrl : null,
-        foundData: result.data.foundData || 0
-      };
-      
-      // Add to users/{userID}/singleSearch with auto-generated document ID
-      await safeFirestoreOperation(async () => {
-        // Create a reference to the singleSearch collection
-        const singleSearchCollectionRef = collection(db, 'users', userID, 'singleSearch');
-        
-        // Add document with auto-generated ID
-        const searchDocRef = await addDoc(singleSearchCollectionRef, searchData);
-        console.log('Search history added for user with ID:', searchDocRef.id);
-        
-        // Call the callback after the search is complete
-        if (onSearchComplete) {
-          onSearchComplete();
-        }
-      });
+      // No longer saving search history to Firestore
       
       // Update credits only if profiles were found
       if (result.data.foundData > 0) {
@@ -264,6 +215,11 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         description: result.data.foundData === 1 ? "We found a matching profile!" : "No exact match found. No credits were used.",
         variant: "default"
       });
+      
+      // Call the callback after the search is complete
+      if (onSearchComplete) {
+        onSearchComplete();
+      }
       
     } catch (error) {
       console.error('Search error:', error);
@@ -545,7 +501,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       // Get user ID from auth store
       const userID = useAuthStore.getState().user?.uid || 'unknown';
       
-      // Generate a unique batch ID
+      // Generate a unique batch ID - this can still be used to track the batch
       const batchId = generateBatchId(userID);
       
       // Find the actual column names that matched our patterns
@@ -579,77 +535,19 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         h.toLowerCase().includes('title')
       );
       
-      // STEP 1: Bulk create contacts and store their IDs
-      const contactIds: string[] = [];
-      
-      await safeFirestoreOperation(async () => {
-        for (const row of parsedData) {
-          // Create contact data
-          const contactData = {
-            name: nameField ? row[nameField] || "" : "",
-            company: companyField ? row[companyField] || "" : "",
-            position: positionField ? row[positionField] || "" : "",
-            createdAt: serverTimestamp()
-          };
-          
-          // Add to contacts collection
-          const contactRef = await addDoc(collection(db, 'contacts'), contactData);
-          contactIds.push(contactRef.id);
-        }
-        console.log(`Created ${contactIds.length} contacts in Firestore`);
-      });
-      
-      // STEP 2: Create a document in the 'batches' collection
-      let batchDocId = '';
-      await safeFirestoreOperation(async () => {
-        const batchData = {
-          userID,
-          contactIds,
-          batchId,
-          fileName: selectedFile.name,
-          recordCount: parsedData.length,
-          status: 'pending', // Status options: pending, processing, completed, failed
-          createdAt: serverTimestamp()
-        };
-        
-        const batchDocRef = await addDoc(collection(db, 'batches'), batchData);
-        batchDocId = batchDocRef.id;
-        console.log('Batch record created with ID:', batchDocId);
-      });
-      
-      // STEP 3: Create a document in users/{userID}/bulkSearch
-      let bulkSearchDocId = '';
-      await safeFirestoreOperation(async () => {
-        const bulkSearchData = {
-          batchId: batchDocId,
-          foundData: null, // Will be updated after API response
-          totalData: parsedData.length,
-          fileName: selectedFile.name,
-          timestamp: serverTimestamp(),
-          status: 'pending' // Status options: pending, processing, completed, failed
-        };
-        
-        const bulkSearchRef = await addDoc(collection(db, 'users', userID, 'bulkSearch'), bulkSearchData);
-        bulkSearchDocId = bulkSearchRef.id;
-        console.log('Bulk search record created with ID:', bulkSearchDocId);
-      });
+      // No longer creating contacts in Firestore
+      // No longer creating batch records in Firestore
+      // No longer creating bulkSearch records in Firestore
       
       // Format contacts for batch processing
       const contacts = parsedData.map((row, index) => ({
         searchName: nameField ? row[nameField] || "" : "",
         searchCompany: companyField ? row[companyField] || "" : "",
         searchPosition: positionField ? row[positionField] || "" : "",
-        contactId: contactIds[index] || `temp-${index}`
+        contactId: `temp-${index}` // Use temporary IDs instead of Firestore IDs
       }));
       
-      // Update batch status to processing
-      await safeFirestoreOperation(async () => {
-        await updateDoc(doc(db, 'batches', batchDocId), { 
-          status: 'processing'
-        });
-      });
-      
-      // Call the API service with additional info
+      // Call the API service with the data
       const result = await findBatchContacts({
         userID,
         fileName: selectedFile.name,
@@ -667,50 +565,33 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       // Get found count
       const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
       
-      // STEP 4: Update the bulkSearch document with the found count
-      await safeFirestoreOperation(async () => {
-        await updateDoc(doc(db, 'users', userID, 'bulkSearch', bulkSearchDocId), {
-          foundData: successCount,
-          status: 'completed',
-          completedAt: serverTimestamp()
-        });
-        console.log(`Updated bulkSearch record with foundData: ${successCount}`);
-        
-        // Call the callback after bulk search completes
-        if (onSearchComplete) {
-          onSearchComplete();
-        }
-      });
-      
-      // Update batch status to completed
-      await safeFirestoreOperation(async () => {
-        await updateDoc(doc(db, 'batches', batchDocId), { 
-          status: 'completed', 
-          successCount,
-          completedAt: serverTimestamp()
-        });
-      });
+      // No longer updating Firestore after API call
       
       // Update credits
-      await updateCreditUsage(recordCount, successCount);
+      if (successCount > 0) {
+        await updateCreditUsage(successCount, successCount);
+      }
       
+      // Show toast message
       toast({
-        title: "Processing complete",
-        description: `Successfully found ${successCount} out of ${recordCount} profiles. Batch ID: ${batchId}`,
+        title: "Batch search complete",
+        description: `Found ${successCount} out of ${contacts.length} profiles`,
         variant: "default"
       });
       
-      // Reset form inputs but keep results displayed
+      // Reset the file input
       resetFileUploadOnly();
       
-      // Show both forms again after processing is complete
-      setShowCSVUpload(true);
+      // Call the callback if specified
+      if (onSearchComplete) {
+        onSearchComplete();
+      }
       
     } catch (error) {
-      console.error('CSV processing error:', error);
+      console.error('Batch search error:', error);
       toast({
-        title: "Processing failed",
-        description: "There was a problem processing your file",
+        title: "Batch search failed",
+        description: "There was a problem with your search",
         variant: "destructive"
       });
     } finally {

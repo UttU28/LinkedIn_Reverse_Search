@@ -73,17 +73,25 @@ export const useAuth = () => {
     setIsProcessing(true);
     
     try {
+      // Register user with Firebase Auth and backend database
       await registerUser(email, password, fullName, username);
+      
+      // Sign out the user immediately after registration
+      await logoutUser();
+      
       toast({
-        title: "Account created",
-        description: "Welcome to Link It Up!",
+        title: "Account created successfully",
+        description: "Please log in with your new credentials",
       });
+      
+      // Close any open modals
       closeModal();
-      await fetchUserData();
-      // Manual redirect to dashboard
+      
+      // Redirect to home page where the user can log in
       setTimeout(() => {
-        setLocation('/dashboard');
+        setLocation('/');
       }, 500);
+      
       return true;
     } catch (error) {
       console.error("Registration error:", error);
