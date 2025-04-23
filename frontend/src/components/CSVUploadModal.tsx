@@ -261,22 +261,6 @@ const CSVUploadModal: React.FC = () => {
                 )}
               </div>
             )}
-            
-            <div className="bg-primary/10 rounded-lg p-4 mt-6">
-              <div className="flex items-start">
-                <Info className="text-primary mt-1 mr-2 h-4 w-4" />
-                <div>
-                  <p className="text-sm text-secondary-text mb-2">Your file should include these columns:</p>
-                  <ul className="text-sm text-secondary-text list-disc pl-5">
-                    <li>Name (required)</li>
-                    <li>Company (required)</li>
-                    <li>Position (required)</li>
-                    <li>Title (optional)</li>
-                  </ul>
-                  <p className="text-sm text-secondary-text mt-2">Each row will use 1 credit from your account.</p>
-                </div>
-              </div>
-            </div>
           </div>
           
           <div className="bg-background/50 p-4 flex justify-end space-x-2">

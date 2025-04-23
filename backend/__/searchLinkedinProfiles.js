@@ -1,12 +1,58 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
-const chalk = require('chalk');
+const fs = require('fs');
+const path = require('path');
 const { SYSTEM_PROMPT, USER_PROMPT } = require('./prompts');
 
-dotenv.config({ path: '.example.env' });
+dotenv.config();
 
-const printStatus = (message, color) => {
-  console.log(color(message));
+const printStatus = (message) => {
+  console.log(message);
+};
+
+const TEMP_STORAGE_DIR = path.join(__dirname, 'temp');
+const getStorageFilePath = (batchId) => path.join(TEMP_STORAGE_DIR, `linkedin_results_${batchId}.json`);
+
+const initLocalStorage = (batchId) => {
+  if (!fs.existsSync(TEMP_STORAGE_DIR)) {
+    fs.mkdirSync(TEMP_STORAGE_DIR, { recursive: true });
+  }
+  
+  const storageFilePath = getStorageFilePath(batchId);
+  fs.writeFileSync(storageFilePath, JSON.stringify([]));
+  return storageFilePath;
+};
+
+const saveResultToStorage = (result, batchId) => {
+  try {
+    const storageFilePath = getStorageFilePath(batchId);
+    const existingResults = JSON.parse(fs.readFileSync(storageFilePath, 'utf8'));
+    existingResults.push(result);
+    fs.writeFileSync(storageFilePath, JSON.stringify(existingResults));
+  } catch (error) {
+    printStatus(`Warning: Failed to save result to local storage: ${error.message}`);
+  }
+};
+
+const getResultsFromStorage = (batchId) => {
+  try {
+    const storageFilePath = getStorageFilePath(batchId);
+    return JSON.parse(fs.readFileSync(storageFilePath, 'utf8'));
+  } catch (error) {
+    printStatus(`Warning: Failed to read results from local storage: ${error.message}`);
+    return [];
+  }
+};
+
+const cleanupStorage = (batchId) => {
+  try {
+    const storageFilePath = getStorageFilePath(batchId);
+    if (fs.existsSync(storageFilePath)) {
+      fs.unlinkSync(storageFilePath);
+    }
+  } catch (error) {
+    printStatus(`Warning: Failed to clean up local storage: ${error.message}`);
+  }
 };
 
 class GoogleCustomSearch {
@@ -27,15 +73,9 @@ class GoogleCustomSearch {
         }
       });
       
-      if (!response.data.items || response.data.items.length === 0) {
-        printStatus("No search results found", chalk.yellow);
-      } else {
-        printStatus(`Found ${response.data.items.length} results`, chalk.green);
-      }
-      
       return response.data.items || [];
     } catch (error) {
-      printStatus(`Search error: ${error.message}`, chalk.red);
+      printStatus(`Search error: ${error.message}`);
       return [];
     }
   }
@@ -54,11 +94,9 @@ async function callOpenAI(jsonData) {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     
     if (!OPENAI_API_KEY) {
-      printStatus("Error: OpenAI API key not found in environment variables", chalk.red);
+      printStatus("Error: OpenAI API key not found in environment variables");
       return null;
     }
-    
-    printStatus("Calling OpenAI...", chalk.cyan);
     
     const userPromptWithData = USER_PROMPT.replace("{json_input}", JSON.stringify(jsonData, null, 2));
     
@@ -86,7 +124,7 @@ async function callOpenAI(jsonData) {
     const aiResponse = response.data.choices[0].message.content;
     return aiResponse;
   } catch (error) {
-    printStatus(`Error calling OpenAI: ${error.message}`, chalk.red);
+    printStatus(`Error calling OpenAI: ${error.message}`);
     return null;
   }
 }
@@ -94,26 +132,22 @@ async function callOpenAI(jsonData) {
 function extractUrlFromResponse(response) {
   if (!response) return "";
   
-  // First, try to see if the response is already a clean URL
   if (response.trim().startsWith('http') && !response.includes('\n')) {
     return response.trim();
   }
   
-  // Try to extract a URL using regex
   const urlRegex = /(https?:\/\/[^\s"]+)/;
   const match = response.match(urlRegex);
   
   if (match && match[1]) {
-    return match[1].replace(/["`]/g, ''); // Remove any quotes or backticks
+    return match[1].replace(/["`]/g, '');
   }
   
   return "";
 }
 
-async function processProfile(profileData, searchClient) {
+async function processProfile(profileData, searchClient, batchId = null) {
   try {
-    printStatus(`Processing: ${profileData.fullName} (${profileData.company})`, chalk.cyan);
-    
     const searchStrategies = [
       `site:linkedin.com/in ${profileData.fullName}, ${profileData.company}, ${profileData.position}`,
       `site:linkedin.com/in ${profileData.fullName}, ${profileData.company}`
@@ -121,7 +155,6 @@ async function processProfile(profileData, searchClient) {
     
     let results = [];
     
-    // Try search strategies until we find results
     for (const strategy of searchStrategies) {
       results = await searchClient.search(strategy, 10);
       
@@ -131,17 +164,21 @@ async function processProfile(profileData, searchClient) {
     }
     
     if (!results || results.length === 0) {
-      printStatus(`No results found for ${profileData.fullName}`, chalk.yellow);
-      return {
+      const resultObj = {
         profile: profileData,
         linkedInUrl: "",
         success: false
       };
+      
+      if (batchId) {
+        saveResultToStorage(resultObj, batchId);
+      }
+      
+      return resultObj;
     }
     
     const essentialData = extractEssentialData(results);
     
-    // Format data for OpenAI
     const jsonData = {
       metadata: {
         fullName: profileData.fullName,
@@ -150,43 +187,50 @@ async function processProfile(profileData, searchClient) {
       search_results: essentialData
     };
     
-    // Call OpenAI to extract LinkedIn URL
     const aiResponse = await callOpenAI(jsonData);
     
     if (aiResponse !== null) {
-      // Extract URL using our helper function
       const extractedUrl = extractUrlFromResponse(aiResponse);
       
-      if (extractedUrl === "") {
-        printStatus(`No matching LinkedIn profile found for ${profileData.fullName}`, chalk.yellow);
-        return {
-          profile: profileData,
-          linkedInUrl: "",
-          success: false
-        };
-      } else {
-        printStatus(`Found LinkedIn URL: ${extractedUrl}`, chalk.green);
-        return {
-          profile: profileData,
-          linkedInUrl: extractedUrl,
-          success: true
-        };
+      const resultObj = {
+        profile: profileData,
+        linkedInUrl: extractedUrl || "",
+        success: !!extractedUrl
+      };
+      
+      if (batchId) {
+        saveResultToStorage(resultObj, batchId);
       }
+      
+      return resultObj;
     }
     
-    return {
+    const resultObj = {
       profile: profileData,
       linkedInUrl: "",
       success: false
     };
+    
+    if (batchId) {
+      saveResultToStorage(resultObj, batchId);
+    }
+    
+    return resultObj;
   } catch (error) {
-    printStatus(`Error: ${error.message}`, chalk.red);
-    return {
+    printStatus(`Error processing profile: ${error.message}`);
+    
+    const resultObj = {
       profile: profileData,
       linkedInUrl: "",
       success: false,
       error: error.message
     };
+    
+    if (batchId) {
+      saveResultToStorage(resultObj, batchId);
+    }
+    
+    return resultObj;
   }
 }
 
@@ -196,43 +240,49 @@ async function processBatchOfProfiles(profiles) {
     const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!API_KEY || !SEARCH_ENGINE_ID) {
-      printStatus("Error: Missing API credentials in environment variables", chalk.red);
+      printStatus("Error: Missing API credentials in environment variables");
       return [];
     }
+    
+    const batchId = Date.now().toString();
+    initLocalStorage(batchId);
     
     const searchClient = new GoogleCustomSearch(API_KEY, SEARCH_ENGINE_ID);
     const results = [];
     let successCount = 0;
     
-    printStatus(`Starting batch processing of ${profiles.length} profiles`, chalk.cyan);
-    
-    // Process one profile at a time
     for (let i = 0; i < profiles.length; i++) {
-      printStatus(`Profile ${i+1}/${profiles.length}`, chalk.cyan);
+      const existingResults = getResultsFromStorage(batchId);
+      if (existingResults.length > i) {
+        results.push(existingResults[i]);
+        if (existingResults[i].success) {
+          successCount++;
+        }
+        continue;
+      }
       
-      const result = await processProfile(profiles[i], searchClient);
+      const result = await processProfile(profiles[i], searchClient, batchId);
       results.push(result);
       
       if (result.success) {
         successCount++;
       }
       
-      // Add a small delay between profiles to avoid hitting rate limits
       if (i < profiles.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     
-    printStatus(`Completed: Found ${successCount} LinkedIn URLs out of ${profiles.length} profiles`, chalk.green);
+    printStatus(`LinkedIn profiles found: ${successCount}/${profiles.length}`);
+    cleanupStorage(batchId);
     
     return results;
   } catch (error) {
-    printStatus(`Error in batch processing: ${error.message}`, chalk.red);
+    printStatus(`Error in batch processing: ${error.message}`);
     return [];
   }
 }
 
-// Example usage for a single profile
 async function searchLinkedinProfile() {
   const profileData = {
     fullName: "Utsav Chaudhary",
@@ -244,20 +294,18 @@ async function searchLinkedinProfile() {
   const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
   
   if (!API_KEY || !SEARCH_ENGINE_ID) {
-    printStatus("Error: Missing API credentials in environment variables", chalk.red);
+    printStatus("Error: Missing API credentials in environment variables");
     return;
   }
   
   const searchClient = new GoogleCustomSearch(API_KEY, SEARCH_ENGINE_ID);
   const result = await processProfile(profileData, searchClient);
   
-  printStatus("Result:", chalk.green);
+  printStatus("\n===== LinkedIn Profile Search Result =====");
   console.log(JSON.stringify(result, null, 2));
 }
 
-// Example for processing multiple profiles
 async function searchMultipleProfiles() {
-  // Sample batch of profiles
   const profiles = [
     {
       fullName: "Utsav Chaudhary",
@@ -271,22 +319,12 @@ async function searchMultipleProfiles() {
     }
   ];
   
-  // Process the profiles
+  printStatus("Searching LinkedIn profiles...");
   const results = await processBatchOfProfiles(profiles);
   
-  printStatus("Results:", chalk.green);
+  printStatus("\n===== LinkedIn Profiles Search Results =====");
   console.log(JSON.stringify(results, null, 2));
-  
-  printStatus("\nRecommendation for Processing 100 Profiles:", chalk.green);
-  printStatus("1. Process profiles one by one rather than batching all Google searches first", chalk.white);
-  printStatus("2. Add delay between API calls to avoid rate limits", chalk.white);
-  printStatus("3. Implement proper error handling and retries", chalk.white);
-  printStatus("4. Consider saving results to disk after each profile", chalk.white);
 }
 
-// Choose which function to run:
-// For a single profile example:
-// searchLinkedinProfile();
-
-// For multiple profiles with recommendations:
-searchMultipleProfiles(); 
+// searchMultipleProfiles(); 
+searchLinkedinProfile();

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { auth, db, getUserData, UserData } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+
+// Backend API url
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 interface AuthState {
   user: User | null;
@@ -46,20 +48,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user || !userData) return;
     
     try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        linkCredits: increment(-creditsUsed),
-        totalSearched: increment(creditsUsed),
-        totalFound: increment(resultsFound)
+      // Use backend API to update credits
+      const response = await fetch(`${API_URL}/updateCredits`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          creditsUsed,
+          resultsFound
+        }),
       });
       
-      // Update local state
+      if (!response.ok) {
+        throw new Error('Failed to update credits');
+      }
+      
+      const result = await response.json();
+      
+      // Update local state with values from backend
       set({
         userData: {
           ...userData,
-          linkCredits: userData.linkCredits - creditsUsed,
-          totalSearched: userData.totalSearched + creditsUsed,
-          totalFound: userData.totalFound + resultsFound
+          linkCredits: result.data.linkCredits,
+          totalSearched: result.data.totalSearched,
+          totalFound: result.data.totalFound
         }
       });
     } catch (error) {

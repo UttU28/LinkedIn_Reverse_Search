@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export interface SearchResult {
+export interface F {
   id: string;
   name: string;
   company: string;

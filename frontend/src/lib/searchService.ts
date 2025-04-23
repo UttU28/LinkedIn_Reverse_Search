@@ -1,77 +1,91 @@
 import { db } from './firebase';
-import { collection, getDocs, query, orderBy, limit, DocumentData, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
-// Define interfaces for typed data
-export interface SingleSearchResult {
-  id: string;
-  searchName: string;
-  searchCompany: string;
-  searchPosition: string;
-  linkedinProfileUrl: string | null;
-  foundData: number;
-  timestamp: Date;
+// Create a simple event emitter for search history updates
+type Listener = () => void;
+class SearchHistoryEventEmitter {
+  private listeners: Listener[] = [];
+  
+  subscribe(listener: Listener): () => void {
+    this.listeners.push(listener);
+    // Return unsubscribe function
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+  
+  emit(): void {
+    this.listeners.forEach(listener => listener());
+  }
 }
 
-export interface BulkSearchResult {
-  id: string;
-  batchId: string;
-  fileName: string;
-  totalData: number;
-  foundData: number;
-  timestamp: Date;
-  status: string;
-}
+// Singleton instance of the event emitter
+export const searchHistoryEvents = new SearchHistoryEventEmitter();
 
-export interface BatchData {
-  userID: string;
-  contactIds: string[];
-  batchId: string;
-  fileName: string;
-  recordCount: number;
+// Define interface for typed data
+export interface SearchHistoryResult {
+  id: string;
+  type: 'single' | 'bulk' | 'recruiters' | 'team';
   status: string;
-  successCount?: number;
+  inputMeta?: {
+    name?: string;
+    company?: string;
+    position?: string;
+    fileName?: string;
+    companyUrl?: string;
+  };
+  totalRecords: number;
+  resultRefPath?: string;
+  resultIds?: string[];
   createdAt: Date;
   completedAt?: Date;
-}
-
-export interface ContactData {
-  id: string;
-  name: string;
-  company: string;
-  position: string;
-  createdAt: any;
-  [key: string]: any; // For any additional fields
 }
 
 // Function to fetch user's search history
 export const fetchSearchHistory = async (userId: string) => {
   try {
+    console.log(`Fetching search history for user ID: ${userId}`);
     const result = {
-      singleSearches: [] as SingleSearchResult[],
-      bulkSearches: [] as BulkSearchResult[]
+      searchHistory: [] as SearchHistoryResult[],
     };
 
-    // Fetch single searches
-    const singleSearchRef = collection(db, 'users', userId, 'singleSearch');
-    const singleSearchQuery = query(singleSearchRef, orderBy('timestamp', 'desc'), limit(10));
-    const singleSearchSnapshot = await getDocs(singleSearchQuery);
-    const singleSearchData = singleSearchSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() || new Date(),
-    })) as SingleSearchResult[];
-    result.singleSearches = singleSearchData;
+    // Check if user ID is valid
+    if (!userId) {
+      console.error("Invalid user ID provided");
+      return result;
+    }
 
-    // Fetch bulk searches
-    const bulkSearchRef = collection(db, 'users', userId, 'bulkSearch');
-    const bulkSearchQuery = query(bulkSearchRef, orderBy('timestamp', 'desc'), limit(10));
-    const bulkSearchSnapshot = await getDocs(bulkSearchQuery);
-    const bulkSearchData = bulkSearchSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() || new Date(),
-    })) as BulkSearchResult[];
-    result.bulkSearches = bulkSearchData;
+    // Fetch from consolidated searchHistory collection
+    try {
+      const searchHistoryRef = collection(db, 'users', userId, 'searchHistory');
+      const searchHistoryQuery = query(searchHistoryRef, orderBy('createdAt', 'desc'), limit(20));
+      const searchHistorySnapshot = await getDocs(searchHistoryQuery);
+      
+      console.log(`Found ${searchHistorySnapshot.docs.length} search history entries`);
+      
+      if (!searchHistorySnapshot.empty) {
+        const searchHistoryData = searchHistorySnapshot.docs.map(doc => {
+          const data = doc.data();
+          
+          // Convert to our internal format
+          return {
+            id: doc.id,
+            type: data.type || 'single',
+            status: data.status || 'pending',
+            inputMeta: data.inputMeta || {},
+            totalRecords: data.totalRecords || 0,
+            resultRefPath: data.resultRefPath || '',
+            resultIds: data.resultIds || [],
+            createdAt: data.createdAt?.toDate() || new Date(),
+            completedAt: data.completedAt?.toDate() || null
+          } as SearchHistoryResult;
+        });
+        
+        result.searchHistory = searchHistoryData;
+      }
+    } catch (err) {
+      console.error("Error fetching search history:", err);
+    }
 
     return result;
   } catch (error) {
@@ -80,61 +94,8 @@ export const fetchSearchHistory = async (userId: string) => {
   }
 };
 
-// Function to fetch batch data by ID
-export const fetchBatchData = async (batchDocId: string) => {
-  try {
-    const batchRef = doc(db, 'batches', batchDocId);
-    const batchSnap = await getDoc(batchRef);
-    
-    if (batchSnap.exists()) {
-      const batchData = {
-        ...batchSnap.data(),
-        createdAt: batchSnap.data().createdAt?.toDate() || new Date(),
-        completedAt: batchSnap.data().completedAt?.toDate() || null
-      } as BatchData;
-      
-      return batchData;
-    } else {
-      console.error('No batch found with ID:', batchDocId);
-      return null;
-    }
-  } catch (error) {
-    console.error('Error fetching batch data:', error);
-    throw error;
-  }
-};
-
-// Function to fetch contact data for each contact ID
-export const fetchContactsData = async (contactIds: string[]) => {
-  try {
-    console.log(`Fetching data for ${contactIds.length} contacts...`);
-    const contactsData: ContactData[] = [];
-    
-    // Fetch each contact data in sequence
-    for (const contactId of contactIds) {
-      try {
-        const contactRef = doc(db, 'contacts', contactId);
-        const contactSnap = await getDoc(contactRef);
-        
-        if (contactSnap.exists()) {
-          const contactData = {
-            id: contactId,
-            ...contactSnap.data(),
-            createdAt: contactSnap.data().createdAt?.toDate() || new Date()
-          } as ContactData;
-          
-          contactsData.push(contactData);
-        } else {
-          console.log(`Contact ${contactId} not found in database`);
-        }
-      } catch (error) {
-        console.error(`Error fetching contact ${contactId}:`, error);
-      }
-    }
-    
-    return contactsData;
-  } catch (error) {
-    console.error('Error fetching contacts data:', error);
-    throw error;
-  }
+// Function to trigger a refresh of search history
+export const refreshSearchHistory = () => {
+  console.log('Triggering search history refresh');
+  searchHistoryEvents.emit();
 }; 

@@ -41,17 +41,14 @@ import {
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import SearchCard from '../components/SearchCard';
-import SearchHistory from '../components/SearchHistory';
-import LeadSearchHistory from '../components/LeadSearchHistory';
-import TeamSearchHistory from '../components/TeamSearchHistory';
 import axios from 'axios';
-import { createPipeline, updatePipelineCompletion } from '../lib/leadFirebase';
 import LinkedInIcon from '../assets/icons/LinkedInIcon';
 import LeadSearchForm from '../components/LeadSearchForm';
 import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
 import TeamMembersForm from '../components/TeamMembersForm';
 import { Badge } from '../components/ui/badge';
+import RecentSearches from '../components/RecentSearches';
 
 const Dashboard: React.FC = () => {
   const { user, userData } = useAuthStore();
@@ -70,20 +67,11 @@ const Dashboard: React.FC = () => {
   const [teamSearchResults, setTeamSearchResults] = useState<any>(null);
   const [showTeamSearchResults, setShowTeamSearchResults] = useState(false);
   
-  // Refresh states for history components
-  const [refreshLeadHistory, setRefreshLeadHistory] = useState(0);
-  const [refreshProfileHistory, setRefreshProfileHistory] = useState(0);
-  const [refreshTeamHistory, setRefreshTeamHistory] = useState(0);
-  
   const positionOptions = [
     { value: 'recruitment', label: 'Recruitment' },
     { value: 'investment', label: 'Investment' },
     { value: 'c-level', label: 'C-Level Executives' }
   ];
-  
-  useEffect(() => {
-    // Empty effect to replace removed fetchUserData call
-  }, []);
   
   // Calculate success rate
   const getSuccessRate = (): string => {
@@ -122,7 +110,6 @@ const Dashboard: React.FC = () => {
   const handleLeadSearchComplete = (results: LeadResult[]) => {
     setLeadResults(results);
     setShowLeadResults(true);
-    setRefreshLeadHistory(prev => prev + 1);
   };
   
   const handleLeadSearchStart = () => {
@@ -140,7 +127,6 @@ const Dashboard: React.FC = () => {
   const handleTeamSearchComplete = (results: any) => {
     setTeamSearchResults(results);
     setShowTeamSearchResults(true);
-    setRefreshTeamHistory(prev => prev + 1);
   };
   
   const handleTeamSearchStart = () => {
@@ -235,7 +221,7 @@ const Dashboard: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <SearchCard onSearchComplete={() => setRefreshProfileHistory(prev => prev + 1)} />
+              <SearchCard />
             </motion.section>
           ) : activeTab === 'leadSearch' ? (
             /* Lead Generator Search Card */
@@ -293,7 +279,7 @@ const Dashboard: React.FC = () => {
         {/* Results Sections */}
         <AnimatePresence>
           {/* Lead Generator Results */}
-          {activeTab === 'leadSearch' && (
+          {activeTab === 'leadSearch' && showLeadResults && (
             <LeadResultsTable 
               results={leadResults}
               searchCriteria={leadSearchCriteria}
@@ -315,7 +301,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
                       <LinkIcon className="h-8 w-8 text-primary/70" />
-                </div>
+                    </div>
                     <h3 className="text-xl font-heading font-semibold text-primary-text">
                       Team Members Search Submitted
                     </h3>
@@ -324,7 +310,7 @@ const Dashboard: React.FC = () => {
                       <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 ml-2">
                         Processing
                       </Badge>
-                          </div>
+                    </div>
                     
                     <div className="max-w-lg">
                       <p className="text-secondary-text mb-2">
@@ -332,26 +318,34 @@ const Dashboard: React.FC = () => {
                       </p>
                       <div className="bg-background/50 rounded-md p-3 text-primary-text font-mono text-sm break-all">
                         {teamSearchResults?.originalUrl}
-                          </div>
+                      </div>
                       <p className="text-secondary-text mt-4 text-sm">
                         Team member information will be available soon. We'll update you when it's ready.
                       </p>
-                          </div>
-                          </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
           )}
         </AnimatePresence>
-        
-        {/* Recent Searches */}
-        {activeTab === 'profile' ? (
-          <SearchHistory refresh={refreshProfileHistory} />
-        ) : activeTab === 'leadSearch' ? (
-          <LeadSearchHistory refresh={refreshLeadHistory} />
-        ) : (
-          <TeamSearchHistory refresh={refreshTeamHistory} />
-        )}
+
+        {/* Recent Searches Section */}
+        <motion.section
+          className="mb-6"
+          variants={itemVariants}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <h2 className="text-xl font-heading font-semibold text-primary-text mb-4 flex items-center">
+            <Clock className="mr-2 h-5 w-5 text-primary" />
+            Dashboard Overview
+          </h2>
+          <div className="w-full">
+            <RecentSearches />
+          </div>
+        </motion.section>
       </motion.main>
       
       <Footer />
