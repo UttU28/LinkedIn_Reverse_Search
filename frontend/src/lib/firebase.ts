@@ -102,14 +102,7 @@ export const logoutUser = async (): Promise<void> => {
 
 export const getUserData = async (userId: string) => {
   try {
-    // Attempt to get user data from backend instead of directly from Firestore
-    const response = await fetch(`${API_URL}/user/${userId}`);
-    
-    if (response.ok) {
-      return await response.json();
-    }
-    
-    // Fallback to Firestore if API call fails
+    // Directly use Firestore for user data
     const docRef = doc(db, "users", userId);
     const docSnap = await getDoc(docRef);
     

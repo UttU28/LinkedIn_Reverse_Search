@@ -456,39 +456,34 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   };
 
   const handleCSVSubmit = async () => {
-    if (!selectedFile) return;
-    
-    // Check if columns are valid
-    if (!columnValidation.isValid) {
+    if (!selectedFile || parsedData.length === 0 || !columnValidation.isValid) {
       toast({
-        title: "Missing required columns",
-        description: "Your file must include columns for Name, Company, and Position/Title.",
+        title: "No valid data",
+        description: "Please upload a valid CSV file with name, company, and position columns",
         variant: "destructive"
       });
       return;
     }
-    
-    // Check credits
-    const recordCount = parsedData.length || 5; // Default to 5 if we can't determine
-    
-    if (userData?.linkCredits === undefined || userData.linkCredits < recordCount) {
+
+    // Check if user has enough credits
+    if (userData?.linkCredits === undefined || userData.linkCredits < parsedData.length) {
       toast({
         title: "Insufficient credits",
-        description: `You need ${recordCount} credits but only have ${userData?.linkCredits || 0}`,
+        description: `You need ${parsedData.length} credits for this batch, but only have ${userData?.linkCredits || 0}`,
         variant: "destructive"
       });
       return;
     }
-    
+
     setIsProcessingCSV(true);
-    
+
     try {
       // Get user ID from auth store
       const userID = useAuthStore.getState().user?.uid || 'unknown';
-      
+
       // Generate a unique batch ID
       const batchId = generateBatchId(userID);
-      
+
       // Find the actual column names that matched our patterns
       const headers = Object.keys(parsedData[0]);
       const nameField = headers.find(h => 

@@ -1,13 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchStore, SearchResult } from '../store/searchStore';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchStore } from '../store/searchStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Button } from './ui/button';
-import { History, ExternalLink, Search, Users, Link as LinkIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
-import { format } from 'date-fns';
-import { fetchSearchHistory, SearchHistoryResult } from '../lib/searchService';
+import { 
+  History, 
+  ExternalLink, 
+  Search, 
+  Users, 
+  Link as LinkIcon, 
+  Filter, 
+  ChevronDown, 
+  ChevronUp, 
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader,
+  FileSpreadsheet,
+  FileText,
+  Download,
+  Linkedin
+} from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { fetchSearchHistory, SearchHistoryResult, searchHistoryEvents } from '../lib/searchService';
 import { useAuthStore } from '../store/authStore';
 import { Badge } from './ui/badge';
+import { useToast } from '../hooks/use-toast';
+import { exportToExcel, SearchInfo } from '../utils/excelExporter';
+import { exportToCSV } from '../utils/csvExporter';
 
 // Define a unified search result interface for display
 interface UnifiedSearchResult {
@@ -15,10 +35,22 @@ interface UnifiedSearchResult {
   type: string;
   title: string;
   subtitle: string;
-  status: 'Found' | 'Not Found' | 'Pending';
+  status: string; // Allow any string for status
   timestamp: number;
   url?: string;
   icon: JSX.Element;
+  resultIds?: string[]; // Use resultIds property name to match database
+  originalData?: any; // Store the full original data
+}
+
+// Interface for search result data
+interface SearchResultData {
+  name?: string;
+  company?: string;
+  title?: string;
+  linkedin?: string;
+  createdAt?: Date;
+  [key: string]: any;
 }
 
 const RecentSearches: React.FC = () => {
@@ -28,118 +60,262 @@ const RecentSearches: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState<{id: string, type: 'excel'|'csv'} | null>(null);
+  const [expandedDownloadMenu, setExpandedDownloadMenu] = useState<string | null>(null);
+  const { toast } = useToast();
   
   // Number of items to show initially
   const initialCount = 5;
 
-  useEffect(() => {
-    const loadSearchHistory = async () => {
-      if (!user?.uid) return;
+  // Handle click on search card
+  const handleCardClick = (searchResult: UnifiedSearchResult) => {
+    // Only check for resultIds array without logging the full data
+    if (searchResult.originalData && searchResult.originalData.resultIds && 
+        searchResult.originalData.resultIds.length > 0) {
+      console.log('resultIds array:', searchResult.originalData.resultIds);
+    } else {
+      console.log('No resultIds array found');
+    }
+    
+    // Close any open download menus when clicking the card
+    setExpandedDownloadMenu(null);
+  };
+
+  // Toggle the download menu expansion
+  const toggleDownloadMenu = (e: React.MouseEvent, searchId: string) => {
+    e.stopPropagation(); // Prevent card click
+    if (expandedDownloadMenu === searchId) {
+      setExpandedDownloadMenu(null);
+    } else {
+      setExpandedDownloadMenu(searchId);
+    }
+  };
+
+  // Generic handler for file downloads
+  const handleDownload = async (
+    e: React.MouseEvent, 
+    searchResult: UnifiedSearchResult, 
+    type: 'excel' | 'csv'
+  ) => {
+    e.stopPropagation(); // Prevent card click event from firing
+    
+    // Close the menu
+    setExpandedDownloadMenu(null);
+    
+    if (!searchResult.originalData?.resultIds?.length) {
+      toast({
+        title: "No data to download",
+        description: "This search doesn't have any result IDs to download.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setDownloadLoading({id: searchResult.id, type});
       
-      try {
-        setLoading(true);
-        setError(null);
-        console.log("Fetching search history for user:", user.uid);
-        const searchHistory = await fetchSearchHistory(user.uid);
-        console.log("Search history response:", searchHistory);
-        
-        // Convert Firestore search history to unified format
-        const unifiedResults: UnifiedSearchResult[] = [];
-        
-        // Process all searchHistory items
-        if (searchHistory?.searchHistory?.length) {
-          searchHistory.searchHistory.forEach(item => {
-            try {
-              // Process based on type
-              let title = '';
-              let subtitle = '';
-              let url = undefined;
-              let icon = <Search className="h-4 w-4" />;
-              
-              switch (item.type) {
-                case 'single':
-                  title = item.inputMeta?.name || 'Unknown Person';
-                  subtitle = [
-                    item.inputMeta?.company || '',
-                    item.inputMeta?.position || ''
-                  ].filter(Boolean).join(' • ');
-                  icon = <Search className="h-4 w-4" />;
-                  break;
-                  
-                case 'bulk':
-                  title = item.inputMeta?.fileName || 'Bulk Search';
-                  subtitle = `${item.totalRecords || 0} records`;
-                  icon = <Users className="h-4 w-4" />;
-                  break;
-                  
-                case 'recruiters':
-                  title = `${item.inputMeta?.company || 'Unknown'} Recruiters`;
-                  subtitle = `${item.totalRecords || 0} leads found`;
-                  icon = <Filter className="h-4 w-4" />;
-                  break;
-                  
-                case 'team':
-                  title = `${item.inputMeta?.company || 'Company'} Team`;
-                  subtitle = item.inputMeta?.companyUrl || '';
-                  url = item.inputMeta?.companyUrl;
-                  icon = <LinkIcon className="h-4 w-4" />;
-                  break;
-                  
-                default:
-                  title = `Search: ${item.id}`;
-                  subtitle = `Type: ${item.type}`;
-              }
-              
-              unifiedResults.push({
-                id: item.id,
-                type: item.type,
-                title,
-                subtitle,
-                status: item.completedAt 
-                  ? 'Found' 
-                  : item.status === 'pending' 
-                    ? 'Pending' 
-                    : 'Not Found',
-                timestamp: item.createdAt.getTime(),
-                url,
-                icon
-              });
-            } catch (err) {
-              console.error("Error processing search history item:", err, item);
-            }
+      // Prepare search info for the exporter
+      const searchInfo: SearchInfo = {
+        id: searchResult.id,
+        title: searchResult.title,
+        timestamp: searchResult.timestamp,
+        resultIds: searchResult.originalData.resultIds
+      };
+      
+      // Progress callback for toast notifications
+      const onProgress = (stage: 'fetching' | 'creating' | 'complete' | 'error', count?: number) => {
+        if (stage === 'fetching') {
+          toast({
+            title: `Preparing ${type.toUpperCase()} download`,
+            description: "Fetching data for export...",
+            variant: "default"
+          });
+        } else if (stage === 'complete' && count) {
+          toast({
+            title: "Download complete",
+            description: `Successfully downloaded ${count} records as ${type.toUpperCase()} file.`,
+            variant: "default"
+          });
+        } else if (stage === 'error') {
+          toast({
+            title: "Download failed",
+            description: `There was a problem downloading the ${type.toUpperCase()} file.`,
+            variant: "destructive"
           });
         }
-        
-        // Process recent searches from store (in-memory)
-        recentSearches.forEach(search => {
-          unifiedResults.push({
-            id: search.id,
-            type: 'single',
-            title: search.name,
-            subtitle: [search.company, search.position].filter(Boolean).join(' • '),
-            status: search.status,
-            timestamp: search.timestamp,
-            url: search.linkedinProfileUrl,
-            icon: <Search className="h-4 w-4" />
-          });
-        });
-        
-        console.log("Processed unified search results:", unifiedResults);
-        
-        // Sort by timestamp (newest first)
-        const sortedResults = unifiedResults.sort((a, b) => b.timestamp - a.timestamp);
-        
-        setSearchResults(sortedResults);
-      } catch (error) {
-        console.error('Error loading search history:', error);
-        setError('Failed to load search history');
-      } finally {
-        setLoading(false);
+      };
+      
+      // Call the appropriate export function with progress updates
+      if (type === 'excel') {
+        await exportToExcel(searchInfo, onProgress);
+      } else {
+        await exportToCSV(searchInfo, onProgress);
       }
+    } catch (error) {
+      console.error(`Error downloading ${type} file:`, error);
+      toast({
+        title: "Download failed",
+        description: `There was a problem downloading the ${type.toUpperCase()} file.`,
+        variant: "destructive"
+      });
+    } finally {
+      setDownloadLoading(null);
+    }
+  };
+
+  // Handle clicking outside to close the expanded menu
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setExpandedDownloadMenu(null);
     };
     
-    loadSearchHistory();
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
+  // Create a memoized loadSearchHistory function to avoid recreating it on each render
+  const loadSearchHistory = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("Fetching search history for user:", user.uid);
+      const searchHistory = await fetchSearchHistory(user.uid);
+      console.log("Search history response:", searchHistory);
+      
+      // Convert Firestore search history to unified format
+      const unifiedResults: UnifiedSearchResult[] = [];
+      
+      // Process all searchHistory items
+      if (searchHistory?.searchHistory?.length) {
+        searchHistory.searchHistory.forEach(item => {
+          try {
+            // Process based on type
+            let title = '';
+            let subtitle = '';
+            let url = undefined;
+            let icon = <Search className="h-4 w-4" />;
+            
+            switch (item.type) {
+              case 'single':
+                title = item.inputMeta?.name || 'Unknown Person';
+                subtitle = [
+                  item.inputMeta?.company || '',
+                  item.inputMeta?.position || ''
+                ].filter(Boolean).join(' • ');
+                icon = <Search className="h-4 w-4" />;
+                break;
+                
+              case 'bulk':
+                title = item.inputMeta?.fileName || 'Bulk Search';
+                subtitle = `${item.totalRecords || 0} records`;
+                icon = <Users className="h-4 w-4" />;
+                break;
+                
+              case 'recruiters':
+                title = `${item.inputMeta?.company || 'Unknown'} Recruiters`;
+                subtitle = `${item.totalRecords || 0} leads found`;
+                icon = <Filter className="h-4 w-4" />;
+                break;
+                
+              case 'team':
+                title = `${item.inputMeta?.company || 'Company'} Team`;
+                subtitle = item.inputMeta?.companyUrl || '';
+                url = item.inputMeta?.companyUrl;
+                icon = <LinkIcon className="h-4 w-4" />;
+                break;
+                
+              default:
+                title = `Search: ${item.id}`;
+                subtitle = `Type: ${item.type}`;
+            }
+            
+            unifiedResults.push({
+              id: item.id,
+              type: item.type,
+              title,
+              subtitle,
+              status: item.status || 'Pending',
+              timestamp: item.createdAt.getTime(),
+              url,
+              icon,
+              resultIds: item.resultIds || [], // Include resultIds directly
+              originalData: item // Store the full original data
+            });
+          } catch (err) {
+            console.error("Error processing search history item:", err, item);
+          }
+        });
+      }
+      
+      // Process recent searches from store (in-memory)
+      recentSearches.forEach(search => {
+        unifiedResults.push({
+          id: search.id,
+          type: 'single',
+          title: search.name,
+          subtitle: [search.company, search.position].filter(Boolean).join(' • '),
+          status: search.status,
+          timestamp: search.timestamp,
+          url: search.linkedinProfileUrl,
+          icon: <Search className="h-4 w-4" />
+        });
+      });
+      
+      console.log("Processed unified search results:", unifiedResults);
+      
+      // Sort by timestamp (newest first)
+      const sortedResults = unifiedResults.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setSearchResults(sortedResults);
+    } catch (error) {
+      console.error('Error loading search history:', error);
+      setError('Failed to load search history');
+    } finally {
+      setLoading(false);
+    }
   }, [user?.uid, recentSearches]);
+
+  // Load search history initially and set up event listener for refreshes
+  useEffect(() => {
+    // Only load if we have a user
+    if (user?.uid) {
+      loadSearchHistory();
+      
+      // Subscribe to search history updates
+      const unsubscribe = searchHistoryEvents.subscribe(() => {
+        console.log('Received search history update event, refreshing data');
+        loadSearchHistory();
+      });
+      
+      return () => {
+        unsubscribe();
+      };
+    }
+  }, [user?.uid, loadSearchHistory]);
+
+  // Format time ago string with status prefix
+  const formatTimeAgo = (timestamp: number, status: string): string => {
+    try {
+      const timeAgo = formatDistanceToNow(new Date(timestamp), { addSuffix: true });
+      
+      // Map status to display text
+      let displayStatus = "Unknown";
+      if (status === 'completed') displayStatus = "Found";
+      else if (status === 'pending') displayStatus = "Finding";
+      else if (status === 'failed') displayStatus = "Failed";
+      else displayStatus = status; // Fallback to original status
+      
+      // Replace "about " prefix with status
+      return `${displayStatus} ${timeAgo.replace('about ', '')}`;
+    } catch (error) {
+      console.error("Error formatting time:", error);
+      return `Unknown time ago`;
+    }
+  };
 
   // Toggle expanded view
   const toggleExpanded = () => {
@@ -150,6 +326,98 @@ const RecentSearches: React.FC = () => {
   const displayedResults = expanded 
     ? searchResults 
     : searchResults.slice(0, initialCount);
+
+  // Update the rendered button section
+  const renderDownloadButton = (search: UnifiedSearchResult) => {
+    if (!search.originalData?.resultIds?.length) return null;
+    
+    return (
+      <div className="relative ml-2" onClick={(e) => e.stopPropagation()}>
+        {/* Main download button */}
+        <button
+          className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+          onClick={(e) => toggleDownloadMenu(e, search.id)}
+          title="Download options"
+          disabled={downloadLoading !== null}
+        >
+          {downloadLoading?.id === search.id ? (
+            <Loader className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+        </button>
+        
+        {/* Expanded options */}
+        {expandedDownloadMenu === search.id && (
+          <div 
+            className="absolute top-0 left-full ml-3 flex items-center h-full z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex rounded-md shadow-md overflow-hidden">
+              {/* Excel option */}
+              <button
+                className="px-4 py-1 flex items-center gap-1.5 bg-card hover:bg-card/80 border-r border-border/50 transition-colors"
+                onClick={(e) => handleDownload(e, search, 'excel')}
+                disabled={downloadLoading !== null}
+              >
+                <FileSpreadsheet className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium">Excel</span>
+              </button>
+              
+              {/* CSV option */}
+              <button
+                className="px-4 py-1 flex items-center gap-1.5 bg-card hover:bg-card/80 transition-colors"
+                onClick={(e) => handleDownload(e, search, 'csv')}
+                disabled={downloadLoading !== null}
+              >
+                <FileText className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">CSV</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Add LinkedIn icon component
+  const renderLinkedInIcon = (search: UnifiedSearchResult) => {
+    // Only show for single searches
+    if (search.type !== 'single') return null;
+    
+    // Check multiple possible locations for LinkedIn URL
+    const linkedInUrl = 
+      search.url || 
+      (search.originalData?.inputMeta?.linkedin) ||
+      (search.originalData?.linkedin) || 
+      (search.originalData?.linkedInUrl) || 
+      (search.originalData?.linkedinProfileUrl);
+    
+    const hasLinkedIn = !!linkedInUrl;
+    
+    return (
+      <div className="ml-2" onClick={(e) => e.stopPropagation()}>
+        <a 
+          href={hasLinkedIn ? linkedInUrl : '#'} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={`inline-flex p-1.5 rounded-full transition-colors ${
+            hasLinkedIn 
+              ? 'text-[#0A66C2] hover:bg-[#0A66C2]/10 cursor-pointer' 
+              : 'text-gray-400/50 cursor-not-allowed'
+          }`}
+          onClick={(e) => {
+            if (!hasLinkedIn) {
+              e.preventDefault();
+            }
+          }}
+          title={hasLinkedIn ? "View LinkedIn Profile" : "No LinkedIn Profile Found"}
+        >
+          <Linkedin className="h-5 w-5" />
+        </a>
+      </div>
+    );
+  };
 
   // Loading state
   if (loading) {
@@ -231,7 +499,8 @@ const RecentSearches: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="grid grid-cols-3 items-center p-3 rounded-md bg-background/50 border border-border/30 hover:bg-background transition-colors overflow-hidden"
+                className="grid grid-cols-3 items-center p-3 rounded-md bg-background/50 border border-border/30 hover:bg-background transition-colors overflow-hidden cursor-pointer"
+                onClick={() => handleCardClick(search)}
               >
                 {/* Left Column - Icon and Title */}
                 <div className="flex items-center space-x-3 overflow-hidden">
@@ -240,26 +509,49 @@ const RecentSearches: React.FC = () => {
                       {React.cloneElement(search.icon as React.ReactElement, { className: "h-5 w-5" })}
                     </div>
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex items-center">
                     <span className="font-medium text-base truncate block">{search.title}</span>
+                    
+                    {/* LinkedIn Icon */}
+                    {renderLinkedInIcon(search)}
+                    
+                    {/* Add download button if resultIds are available */}
+                    {renderDownloadButton(search)}
                   </div>
                 </div>
                 
-                {/* Middle Column - Subtitle (Centered) */}
+                {/* Middle Column - Subtitle */}
                 <div className="flex justify-center">
                   <div className="text-sm text-secondary-text truncate max-w-[90%] text-center">
                     {search.subtitle}
                   </div>
                 </div>
                 
-                {/* Right Column - Status Badge */}
-                <div className="flex justify-end">
-                  <Badge 
-                    variant={search.status === 'Found' ? 'default' : search.status === 'Pending' ? 'secondary' : 'destructive'} 
-                    className="text-sm px-3 py-1 whitespace-nowrap"
-                  >
-                    {search.status}
-                  </Badge>
+                {/* Time Ago Column with Status Icon */}
+                <div className="flex items-center justify-end">
+                  <div className="text-sm flex items-center">
+                    {search.status === 'completed' ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-500 mr-1.5" />
+                        <span className="text-green-500">{formatTimeAgo(search.timestamp, search.status)}</span>
+                      </>
+                    ) : search.status === 'pending' ? (
+                      <>
+                        <Loader className="h-4 w-4 text-amber-500 animate-spin mr-1.5" />
+                        <span className="text-amber-500/80">{formatTimeAgo(search.timestamp, search.status)}</span>
+                      </>
+                    ) : search.status === 'failed' ? (
+                      <>
+                        <XCircle className="h-4 w-4 text-destructive mr-1.5" />
+                        <span className="text-destructive/80">{formatTimeAgo(search.timestamp, search.status)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-4 w-4 text-secondary-text mr-1.5" />
+                        <span className="text-secondary-text">{formatTimeAgo(search.timestamp, search.status || 'Unknown')}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             ))}

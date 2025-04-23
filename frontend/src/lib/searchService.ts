@@ -1,6 +1,27 @@
 import { db } from './firebase';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
+// Create a simple event emitter for search history updates
+type Listener = () => void;
+class SearchHistoryEventEmitter {
+  private listeners: Listener[] = [];
+  
+  subscribe(listener: Listener): () => void {
+    this.listeners.push(listener);
+    // Return unsubscribe function
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+  
+  emit(): void {
+    this.listeners.forEach(listener => listener());
+  }
+}
+
+// Singleton instance of the event emitter
+export const searchHistoryEvents = new SearchHistoryEventEmitter();
+
 // Define interface for typed data
 export interface SearchHistoryResult {
   id: string;
@@ -15,6 +36,7 @@ export interface SearchHistoryResult {
   };
   totalRecords: number;
   resultRefPath?: string;
+  resultIds?: string[];
   createdAt: Date;
   completedAt?: Date;
 }
@@ -53,6 +75,7 @@ export const fetchSearchHistory = async (userId: string) => {
             inputMeta: data.inputMeta || {},
             totalRecords: data.totalRecords || 0,
             resultRefPath: data.resultRefPath || '',
+            resultIds: data.resultIds || [],
             createdAt: data.createdAt?.toDate() || new Date(),
             completedAt: data.completedAt?.toDate() || null
           } as SearchHistoryResult;
@@ -70,3 +93,9 @@ export const fetchSearchHistory = async (userId: string) => {
     throw error;
   }
 };
+
+// Function to trigger a refresh of search history
+export const refreshSearchHistory = () => {
+  console.log('Triggering search history refresh');
+  searchHistoryEvents.emit();
+}; 

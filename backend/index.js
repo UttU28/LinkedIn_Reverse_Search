@@ -2,44 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
-const { db, firebaseInitialized } = require('./firebase');
-const { findSingleLinkedinContact } = require('./findSingleLinkedinContact');
-const { startBatchProcessing } = require('./findBatchLinkedinContacts');
-
-const addSearchHistory = async (userId, historyData) => {
-  try {
-    if (!userId) {
-      console.warn('Cannot add search history: userId is missing');
-      return null;
-    }
-    
-    // If db is not available, skip adding history
-    if (!db) {
-      console.warn('Firestore not available - skipping search history');
-      return null;
-    }
-    
-    // Create a reference to the user's searchHistory collection
-    const userRef = db.collection('users').doc(userId);
-    const searchHistoryRef = userRef.collection('searchHistory');
-    
-    // Add timestamp manually if FieldValue is not available
-    const timestamp = new Date();
-    
-    // Add document with auto-generated ID
-    const docRef = await searchHistoryRef.add({
-      ...historyData,
-      createdAt: timestamp
-    });
-    
-    console.log(`Added search history entry with ID: ${docRef.id} for user: ${userId}`);
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding search history:', error);
-    // Don't let history tracking failure prevent the main functionality
-    return null;
-  }
-};
+const { firebaseInitialized } = require('./firebase');
+const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
+const dbService = require('./dbService');
 
 const app = express();
 const PORT = 3000;
@@ -70,28 +35,23 @@ app.post('/login', async (req, res) => {
       });
     }
     
-    // Check if user exists
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('email', '==', email).get();
+    // Find user by email
+    const user = await dbService.findUserByEmail(email);
     
-    if (snapshot.empty) {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
     
-    // Get the first matching user
-    const userDoc = snapshot.docs[0];
-    const userData = userDoc.data();
-    
     // Simple password check (in a real app, you'd use proper password hashing)
-    if (userData.password !== password) {
+    if (user.data.password !== password) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
     
     return res.status(200).json({
       success: true,
-      userId: userDoc.id,
+      userId: user.id,
       message: 'Login successful',
-      credits: userData.credits || 0
+      credits: user.data.credits || 0
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -116,10 +76,9 @@ app.post('/signup', async (req, res) => {
     }
     
     // Check if user already exists
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('email', '==', email).get();
+    const existingUser = await dbService.findUserByEmail(email);
     
-    if (!snapshot.empty) {
+    if (existingUser) {
       return res.status(400).json({ success: false, message: 'User already exists' });
     }
     
@@ -132,11 +91,11 @@ app.post('/signup', async (req, res) => {
       createdAt: new Date()
     };
     
-    const newUserRef = await usersRef.add(userData);
+    const userId = await dbService.createUser(userData);
     
     return res.status(200).json({
       success: true,
-      userId: newUserRef.id,
+      userId: userId,
       message: 'Signup successful',
       credits: userData.credits
     });
@@ -155,63 +114,17 @@ app.post('/updateCredits', async (req, res) => {
       return res.status(400).json({ success: false, message: 'User ID is required' });
     }
     
-    if (!firebaseInitialized) {
-      console.warn('Firebase not initialized. Mock credit update.');
-      return res.status(200).json({
-        success: true,
-        message: 'Credits updated successfully (mock)',
-        data: {
-          linkCredits: 100,
-          totalSearched: 1,
-          totalFound: resultsFound || 0
-        }
-      });
-    }
+    // Update user credits
+    const updatedData = await dbService.updateUserCredits(uid, creditsUsed, resultsFound);
     
-    // Get user document
-    const userRef = db.collection('users').doc(uid);
-    const userDoc = await userRef.get();
-    
-    if (!userDoc.exists) {
+    if (!updatedData) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
-    const userData = userDoc.data();
-    const currentLinkCredits = userData.linkCredits || 100;
-    const currentTotalSearched = userData.totalSearched || 0;
-    const currentTotalFound = userData.totalFound || 0;
-    
-    // Calculate new values
-    const newLinkCredits = Math.max(0, currentLinkCredits - (creditsUsed || 1));
-    const newTotalSearched = currentTotalSearched + 1;
-    const newTotalFound = currentTotalFound + (resultsFound || 0);
-    
-    // Update user record
-    await userRef.update({ 
-      linkCredits: newLinkCredits,
-      totalSearched: newTotalSearched,
-      totalFound: newTotalFound,
-      lastUpdated: new Date()
-    });
-    
-    // Log the credit update
-    await db.collection('creditHistory').add({
-      uid,
-      oldCredits: currentLinkCredits,
-      newCredits: newLinkCredits,
-      creditsUsed: creditsUsed || 1,
-      resultsFound: resultsFound || 0,
-      timestamp: new Date()
-    });
     
     return res.status(200).json({
       success: true,
       message: 'Credits updated successfully',
-      data: {
-        linkCredits: newLinkCredits,
-        totalSearched: newTotalSearched,
-        totalFound: newTotalFound
-      }
+      data: updatedData
     });
   } catch (error) {
     console.error('Update credits error:', error);
@@ -246,18 +159,30 @@ app.post('/findSingleContact', async (req, res) => {
   // Add to search history - handle the response gracefully if it fails
   let historyId = null;
   try {
-    historyId = await addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "single",
-      status: "pending", // Start as pending
+      status: foundData > 0 ? "completed" : "failed",
       inputMeta: {
         name: searchName,
         company: searchCompany,
-        position: searchPosition
+        position: searchPosition,
+        linkedin: linkedinProfileUrl
       },
       totalRecords: 1,
       resultRefPath: "searchResults", // Reference to global collection (placeholder)
       completedAt: foundData > 0 ? new Date() : null // Only set completed if found
     });
+    
+    // Store search result data if we have a history ID
+    if (historyId) {
+      const searchData = {
+        name: searchName,
+        company: searchCompany,
+        position: searchPosition
+      };
+      
+      await dbService.addSearchResult(userID, historyId, "single", searchData, linkedinProfileUrl);
+    }
   } catch (err) {
     console.error('Error in search history:', err);
     // Continue processing - don't fail the whole request
@@ -281,13 +206,12 @@ app.post('/findSingleContact', async (req, res) => {
 
 // Find batch contacts route
 app.post('/findBatchContact', async (req, res) => {
-  const { userID, fileName, timestamp, batchId, contacts } = req.body;
+  const { userID, fileName, timestamp, contacts } = req.body;
   
   console.log('\n========== BATCH CONTACT SEARCH REQUEST ==========');
   console.log('User ID:', userID);
   console.log('File Name:', fileName);
   console.log('Timestamp:', new Date(timestamp).toLocaleString());
-  console.log('Batch ID:', batchId);
   console.log('Number of contacts:', contacts?.length || 0);
   
   // Log first 3 contacts for debugging
@@ -309,14 +233,13 @@ app.post('/findBatchContact', async (req, res) => {
   // Generate batch info
   const batchInfo = {
     fileName,
-    timestamp: timestamp || Date.now(),
-    batchId: batchId || `batch-${Date.now()}`
+    timestamp: timestamp || Date.now()
   };
   
   // Add to search history first to get the history ID
   let historyId = null;
   try {
-    historyId = await addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "bulk",
       status: "pending", // Start as pending since we're processing in background
       inputMeta: {
@@ -324,7 +247,6 @@ app.post('/findBatchContact', async (req, res) => {
       },
       totalRecords: contacts.length,
       resultRefPath: "searchResults", // Reference to global collection (placeholder)
-      batchId: batchInfo.batchId, // Store the batch ID for future reference
       startedAt: new Date()
     });
     
@@ -407,7 +329,7 @@ app.post('/findTargetedLeads', async (req, res) => {
   // Add to search history - handle the response gracefully if it fails
   let historyId = null;
   try {
-    historyId = await addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "recruiters",
       status: "pending", // Start as pending
       inputMeta: {
@@ -442,7 +364,7 @@ app.post('/findTargetedLeads', async (req, res) => {
 });
 
 // Team Members route
-app.post('/teamMembers', async (req, res) => {
+app.post('/findTeamMembers', async (req, res) => {
   const { userID, url, teamId, companySearchId } = req.body;
   
   // Log the received data
@@ -469,7 +391,7 @@ app.post('/teamMembers', async (req, res) => {
   // Add to search history - handle the response gracefully if it fails
   let historyId = null;
   try {
-    historyId = await addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "team",
       status: "pending", // Start as pending
       inputMeta: {
@@ -520,5 +442,5 @@ app.listen(PORT, () => {
   console.log(`- POST /findSingleContact`);
   console.log(`- POST /findBatchContact`);
   console.log(`- POST /findTargetedLeads`);
-  console.log(`- POST /teamMembers`);
+  console.log(`- POST /findTeamMembers`);
 }); 
