@@ -350,12 +350,20 @@ class DbService {
         createdAt: new Date()
       };
       
-      // Create user document
+      // Create user document with the provided UID as document ID
       const usersRef = this.db.collection('users');
-      const newUserRef = await usersRef.add(userDataWithDefaults);
       
-      this.log(`Created user with ID: ${newUserRef.id}`);
-      return newUserRef.id;
+      // If uid is provided, use it as the document ID
+      if (userData.uid) {
+        await usersRef.doc(userData.uid).set(userDataWithDefaults);
+        this.log(`Created user with ID: ${userData.uid}`);
+        return userData.uid;
+      } else {
+        // Fallback to auto-generated ID if uid is not provided
+        const newUserRef = await usersRef.add(userDataWithDefaults);
+        this.log(`Created user with auto-generated ID: ${newUserRef.id}`);
+        return newUserRef.id;
+      }
     } catch (error) {
       this.logError('Error creating user', error);
       return null;

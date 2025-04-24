@@ -547,7 +547,7 @@ app.post('/login', async (req, res) => {
 // Signup route
 app.post('/signup', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, uid } = req.body;
     
     if (!firebaseInitialized) {
       console.warn('Firebase not initialized. Using mock signup.');
@@ -572,6 +572,7 @@ app.post('/signup', async (req, res) => {
       email,
       password, // In a real app, you'd hash this password
       name,
+      uid, // Pass the Firebase Auth UID to be used as document ID
       linkCredits: 10, // Default credits for new users
       createdAt: new Date()
     };
