@@ -49,7 +49,7 @@ const PaymentSuccess = () => {
   // Function to check payment status
   const checkPaymentStatus = async (paymentId: string) => {
     try {
-      const response = await axios.get(`http://localhost:3000/payment-status/${paymentId}`);
+      const response = await axios.get(`http://localhost:3005/payment-status/${paymentId}`);
       if (response.data.success) {
         setPaymentStatus(response.data.data);
         return response.data.data.status;
@@ -70,7 +70,7 @@ const PaymentSuccess = () => {
 
       try {
         setIsLoading(true);
-        const response = await axios.get(`http://localhost:3000/verify-payment/${sessionId}`);
+        const response = await axios.get(`http://localhost:3005/verify-payment/${sessionId}`);
         
         if (response.data.success) {
           setPaymentDetails(response.data.data);
@@ -135,7 +135,7 @@ const PaymentSuccess = () => {
             });
           }
         }
-      }, 3000);
+      }, 3005);
       
       // Clean up interval on component unmount
       return () => clearInterval(pollInterval);

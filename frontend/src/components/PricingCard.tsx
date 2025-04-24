@@ -74,7 +74,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
       setIsLoading(true);
       
       // Create a checkout session
-      const response = await axios.post('http://localhost:3000/create-checkout-session', {
+      const response = await axios.post('http://localhost:3005/create-checkout-session', {
         planName: plan.name,
         price: plan.price,
         credits: plan.credits,

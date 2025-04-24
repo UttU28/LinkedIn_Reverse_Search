@@ -65,7 +65,7 @@ interface TeamMembersParams {
   companySearchId: string;
 }
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://localhost:3005';
 
 /**
  * Service for finding a single LinkedIn contact

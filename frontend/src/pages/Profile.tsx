@@ -45,7 +45,7 @@ const Profile = () => {
       
       setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:3000/payment-history/${user.uid}`);
+        const response = await axios.get(`http://localhost:3005/payment-history/${user.uid}`);
         if (response.data.success) {
           setPaymentHistory(response.data.data || []);
         }

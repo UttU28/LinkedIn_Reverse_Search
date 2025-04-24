@@ -9,7 +9,7 @@ const stripe = require('stripe')(process.env.VITE_STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3005;
 
 // Important: The webhook route needs raw body for signature verification
 // This route must be defined before JSON body parser middleware
