@@ -5,7 +5,7 @@ require('dotenv').config();
 const { firebaseInitialized } = require('./firebase');
 const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
 const dbService = require('./dbService');
-const stripe = require('stripe')(process.env.VITE_STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
 
 const app = express();
@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3005;
 // This route must be defined before JSON body parser middleware
 app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
   const signature = req.headers['stripe-signature'];
-  const endpointSecret = process.env.VITE_STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
   
   let event;
   

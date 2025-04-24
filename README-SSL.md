@@ -112,10 +112,14 @@ server {
    curl https://api.amitluhar.com/api/
    ```
 
-3. Check Nginx logs if needed:
+3. Remove all Docker Conteners:
    ```bash
-   sudo tail -f /var/log/nginx/access.log
-   sudo tail -f /var/log/nginx/error.log
+   docker stop $(docker ps -a -q)
+   docker rm $(docker ps -a -q)
+   docker rmi $(docker images -q)
+   docker volume rm $(docker volume ls -q)
+   docker network prune -f
+   docker system prune -a -f
    ```
 
 ## Troubleshooting
