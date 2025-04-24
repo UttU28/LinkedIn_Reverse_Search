@@ -16,6 +16,9 @@ import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../hooks/useAuth';
 import axios from 'axios';
 
+// API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
+
 // Define the payment history interface
 interface PaymentHistory {
   id: string;
@@ -45,7 +48,7 @@ const Profile = () => {
       
       setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:3005/payment-history/${user.uid}`);
+        const response = await axios.get(`${API_URL}/payment-history/${user.uid}`);
         if (response.data.success) {
           setPaymentHistory(response.data.data || []);
         }

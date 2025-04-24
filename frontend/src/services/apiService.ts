@@ -65,7 +65,8 @@ interface TeamMembersParams {
   companySearchId: string;
 }
 
-const API_BASE_URL = 'http://localhost:3005';
+// Use environment variable for API URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
 
 /**
  * Service for finding a single LinkedIn contact

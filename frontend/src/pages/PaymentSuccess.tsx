@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
+// API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
+
 interface UserData {
   credits?: number;
   uid?: string;
@@ -49,7 +52,7 @@ const PaymentSuccess = () => {
   // Function to check payment status
   const checkPaymentStatus = async (paymentId: string) => {
     try {
-      const response = await axios.get(`http://localhost:3005/payment-status/${paymentId}`);
+      const response = await axios.get(`${API_URL}/payment-status/${paymentId}`);
       if (response.data.success) {
         setPaymentStatus(response.data.data);
         return response.data.data.status;
@@ -70,7 +73,7 @@ const PaymentSuccess = () => {
 
       try {
         setIsLoading(true);
-        const response = await axios.get(`http://localhost:3005/verify-payment/${sessionId}`);
+        const response = await axios.get(`${API_URL}/verify-payment/${sessionId}`);
         
         if (response.data.success) {
           setPaymentDetails(response.data.data);

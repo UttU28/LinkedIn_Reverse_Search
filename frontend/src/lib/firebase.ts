@@ -2,14 +2,14 @@ import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, UserCredential, onAuthStateChanged, User } from "firebase/auth";
 import { getFirestore, doc, getDoc, Timestamp } from "firebase/firestore";
 
-// Fallback to hardcoded values if environment variables aren't available
+// Use environment variables for Firebase config
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAm371QG8npgLnw3wZtIuL537X9HT7vPyo",
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "link-it-up-bac0d"}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "link-it-up-bac0d",
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "link-it-up-bac0d"}.firebasestorage.googleapis.com`,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "600724348351",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:600724348351:web:381de9ee8873f93a24150a"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Log the config being used (excluding sensitive values)

@@ -8,6 +8,8 @@ import { loadStripe } from '@stripe/stripe-js';
 
 // Load the Stripe publishable key from environment variables
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
 
 interface PricingCardProps {
   plan: {
@@ -74,7 +76,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
       setIsLoading(true);
       
       // Create a checkout session
-      const response = await axios.post('http://localhost:3005/create-checkout-session', {
+      const response = await axios.post(`${API_URL}/create-checkout-session`, {
         planName: plan.name,
         price: plan.price,
         credits: plan.credits,
