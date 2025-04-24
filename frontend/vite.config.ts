@@ -24,6 +24,8 @@ export default defineConfig({
     'import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
   },
   server: {
-    port: 5173
+    port: 3004,
+    host: true,
+    allowedHosts: ['api.amitluhar.com', 'localhost']
   }
 });
