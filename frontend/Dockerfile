@@ -11,11 +11,8 @@ RUN npm ci
 # Copy the rest of the application
 COPY . .
 
-# Build the application
-RUN npm run build
-
 # Expose the port
 EXPOSE 3004
 
 # Set the command to run the application with host binding 
-CMD ["npm", "run", "dev"] 
+CMD ["npm", "run", "dev:docker"] 
