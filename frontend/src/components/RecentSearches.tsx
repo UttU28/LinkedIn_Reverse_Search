@@ -329,7 +329,8 @@ const RecentSearches: React.FC = () => {
 
   // Update the rendered button section
   const renderDownloadButton = (search: UnifiedSearchResult) => {
-    if (!search.originalData?.resultIds?.length) return null;
+    // Only show download button for 'bulk' type searches that have resultIds
+    if (search.type !== 'bulk' || !search.originalData?.resultIds?.length) return null;
     
     return (
       <div className="relative ml-2" onClick={(e) => e.stopPropagation()}>

@@ -1,6 +1,13 @@
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import axios from 'axios';
+import { useAuth } from '../hooks/useAuth';
+import { loadStripe } from '@stripe/stripe-js';
+
+// Load the Stripe publishable key from environment variables
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 interface PricingCardProps {
   plan: {
@@ -21,6 +28,8 @@ interface PricingCardProps {
 
 const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, isAuthenticated = false }) => {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
   
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -38,7 +47,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
     ));
   };
 
-  const handleBuyNowClick = () => {
+  const handleBuyNowClick = async () => {
     const totalCredits = plan.credits + (plan.bonusCredits || 0);
     
     // Log plan details to console
@@ -50,16 +59,53 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
       totalCredits: totalCredits
     });
     
-    if (isAuthenticated) {
-      // If logged in, show toast instead of redirecting
+    if (!isAuthenticated) {
+      // If not logged in, inform user they need to sign in
       toast({
-        title: "Purchase Initiated",
-        description: `${plan.name} Plan: $${plan.price} for ${totalCredits} credits (${plan.credits} + ${plan.bonusCredits || 0} bonus)`,
+        title: "Authentication Required",
+        description: "Please sign in to purchase credits.",
         variant: "default",
       });
-    } else {
-      // If not logged in, proceed with normal flow (redirect)
       onButtonClick(plan.name);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Create a checkout session
+      const response = await axios.post('http://localhost:3000/create-checkout-session', {
+        planName: plan.name,
+        price: plan.price,
+        credits: plan.credits,
+        bonusCredits: plan.bonusCredits || 0,
+        userId: user?.uid || null
+      });
+      
+      // Load Stripe
+      const stripe = await stripePromise;
+      
+      if (!stripe) {
+        throw new Error('Stripe failed to load');
+      }
+      
+      // Redirect to Stripe checkout
+      const result = await stripe.redirectToCheckout({
+        sessionId: response.data.sessionId,
+      });
+      
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: "Checkout Failed",
+        description: "There was an error starting the checkout process. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -120,11 +166,21 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
                 <span className="text-xs text-white/70 ml-2 uppercase tracking-wide">Credits</span>
               </div>
               <button 
-                className="py-2 px-4 rounded-lg bg-white/10 backdrop-blur-sm text-white text-sm flex items-center justify-center hover:bg-white/20 transition-colors relative z-10"
+                className={`py-2 px-4 rounded-lg bg-white/10 backdrop-blur-sm text-white text-sm flex items-center justify-center hover:bg-white/20 transition-colors relative z-10 ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
                 onClick={handleBuyNowClick}
+                disabled={isLoading}
               >
+                {isLoading ? (
+                  <>
+                    <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin mr-2"></span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
                 Buy Now
                 <ChevronRight className="ml-1 h-3 w-3" />
+                  </>
+                )}
               </button>
             </div>
           </div>

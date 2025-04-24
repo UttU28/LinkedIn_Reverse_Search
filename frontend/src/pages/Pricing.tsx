@@ -168,15 +168,19 @@ const Pricing = () => {
           className="max-w-7xl mx-auto mb-20"
           variants={itemVariants}
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-items-center">
             {creditPackages.map((plan, index) => (
-              <PricingCard 
+              <div 
                 key={index}
-                plan={plan}
-                index={index}
-                onButtonClick={handleGetStarted}
-                isAuthenticated={isAuthenticated}
-              />
+                className={`w-full max-w-[420px] ${index === 2 ? 'sm:col-span-2 lg:col-span-1 sm:mx-auto' : ''}`} 
+              >
+                <PricingCard 
+                  plan={plan}
+                  index={index}
+                  onButtonClick={handleGetStarted}
+                  isAuthenticated={isAuthenticated}
+                />
+              </div>
             ))}
           </div>
         </motion.div>

@@ -133,44 +133,47 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
   return (
     <form onSubmit={handleLeadSearch} className={className}>
       <div className="space-y-4">
-        {/* Company Input */}
-        <div className="space-y-2">
-          <Label htmlFor="company-name" className="text-sm font-medium">
-            Company Name
-          </Label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Building className="w-5 h-5 text-gray-500" />
-            </div>
-            <Input
-              id="company-name"
-              type="text"
-              placeholder="Enter company name..."
-              value={company}
-              onChange={handleCompanyChange}
-              className="pl-10"
-            />
-          </div>
-        </div>
-        
-        {/* Position Selector */}
-        <div className="space-y-2">
-          <Label htmlFor="position-title" className="text-sm font-medium">
-            Position Title
-          </Label>
-          <Select value={positionTitle} onValueChange={handlePositionChange}>
-            <SelectTrigger id="position-title" className="pl-10 relative">
+        {/* Inputs in one line */}
+        <div className="flex flex-row gap-4">
+          {/* Company Input */}
+          <div className="flex-1">
+            <Label htmlFor="company-name" className="text-sm font-medium block mb-2">
+              Company Name
+            </Label>
+            <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Briefcase className="w-5 h-5 text-gray-500" />
+                <Building className="w-5 h-5 text-gray-500" />
               </div>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recruitment">Recruitment</SelectItem>
-              <SelectItem value="investment">Investment</SelectItem>
-              <SelectItem value="c-level">C-Level Executives</SelectItem>
-            </SelectContent>
-          </Select>
+              <Input
+                id="company-name"
+                type="text"
+                placeholder="Enter company name..."
+                value={company}
+                onChange={handleCompanyChange}
+                className="pl-10 w-full"
+              />
+            </div>
+          </div>
+          
+          {/* Position Selector */}
+          <div className="flex-1">
+            <Label htmlFor="position-title" className="text-sm font-medium block mb-2">
+              Position Title
+            </Label>
+            <Select value={positionTitle} onValueChange={handlePositionChange}>
+              <SelectTrigger id="position-title" className="pl-10 relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <Briefcase className="w-5 h-5 text-gray-500" />
+                </div>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recruitment">Recruitment</SelectItem>
+                <SelectItem value="investment">Investment</SelectItem>
+                <SelectItem value="c-level">C-Level Executives</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         
         {/* Search Button */}

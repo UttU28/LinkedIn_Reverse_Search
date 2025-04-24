@@ -29,9 +29,14 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
   };
   
   const handleValidation = (url: string): boolean => {
-    // Basic validation for LinkedIn company URL
-    const linkedinPattern = /^https?:\/\/(?:www\.)?linkedin\.com\/company\/[a-zA-Z0-9_-]+\/?.*$/i;
-    return linkedinPattern.test(url);
+    // Basic validation for any URL format
+    try {
+      // Check if it's a valid URL
+      new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,7 +45,7 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
     if (!url) {
       toast({
         title: "URL required",
-        description: "Please enter a LinkedIn company URL",
+        description: "Please enter a company website URL",
         variant: "destructive"
       });
       return;
@@ -50,7 +55,7 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
     if (!handleValidation(url)) {
       toast({
         title: "Invalid URL",
-        description: "Please enter a valid LinkedIn company URL (e.g., https://www.linkedin.com/company/companyname)",
+        description: "Please enter a valid URL (e.g., https://www.example.com)",
         variant: "destructive"
       });
       return;
@@ -138,19 +143,19 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
           {showLabels && (
             <Label htmlFor="company-url" className="flex items-center">
               <Link className="mr-2 h-4 w-4 text-primary/70" />
-              LinkedIn Company URL <span className="text-destructive ml-1">*</span>
+              Company Website URL <span className="text-destructive ml-1">*</span>
             </Label>
           )}
           <Input
             id="company-url"
-            placeholder="https://www.linkedin.com/company/companyname"
+            placeholder="https://www.example.com"
             value={url}
             onChange={handleUrlChange}
             required
             className="bg-background/50"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            Enter the URL of the LinkedIn company page to find team members
+            Enter any URL to find team members from that website
           </p>
         </div>
         

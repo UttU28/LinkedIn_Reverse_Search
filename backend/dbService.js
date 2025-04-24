@@ -1,5 +1,6 @@
 const { db, firebaseInitialized } = require('./firebase');
 const { log } = require('./utils');
+const admin = require('firebase-admin');
 
 /**
  * Database Service
@@ -113,7 +114,6 @@ class DbService {
       // Update the document
       await historyDocRef.update({
         ...updateData,
-        lastUpdated: new Date()
       });
       
       this.log(`Updated search history entry ID: ${historyId} for user: ${userId}`);
@@ -190,17 +190,39 @@ class DbService {
       // Create a reference to the searchResults collection
       const searchResultsRef = this.db.collection('searchResults');
       
-      // Add document with the search result data
-      const docRef = await searchResultsRef.add({
-        searchId: historyId,
+      // Map the data based on the type and format expected
+      const name = type === 'single' ? searchData.name : (searchData.searchName || searchData.name);
+      const company = type === 'single' ? searchData.company : (searchData.searchCompany || searchData.company);
+      const position = type === 'single' ? searchData.position : (searchData.searchPosition || searchData.position);
+      
+      // Special case for 'recruiters' type to use the proper structure
+      let inputTitle = position;
+      if (type === 'recruiters') {
+        inputTitle = position; // For recruiters, use position as title
+      }
+      
+      // Log what we're storing
+      this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}`);
+      
+      // Prepare the data in the requested format - use historyId as searchId
+      const resultData = {
         userId: userId,
+        searchId: historyId,
         type: type,
-        name: type === 'single' ? searchData.name : searchData.searchName || null,
-        company: type === 'single' ? searchData.company : searchData.searchCompany || null,
-        title: type === 'single' ? searchData.position : searchData.searchPosition || null,
-        linkedin: linkedinUrl || null,
+        inputData: {
+          name: name,
+          company: company,
+          title: inputTitle
+        },
+        linkedinUrl: linkedinUrl || null,
         createdAt: new Date()
-      });
+      };
+      
+      // Debug log to see what we're trying to store
+      console.log('Storing search result:', JSON.stringify(resultData, null, 2));
+      
+      // Add document with the search result data
+      const docRef = await searchResultsRef.add(resultData);
       
       this.log(`Added search result with ID: ${docRef.id} for history: ${historyId}`);
       return docRef.id;
@@ -324,7 +346,7 @@ class DbService {
       // Add default values
       const userDataWithDefaults = {
         ...userData,
-        credits: userData.credits || 10,
+        linkCredits: userData.linkCredits || 10,
         createdAt: new Date()
       };
       
@@ -423,4 +445,183 @@ class DbService {
 
 // Create and export a singleton instance
 const dbService = new DbService();
+
+// Add credits to user account from payment
+const addCreditsToUser = async (userId, creditsToAdd) => {
+  try {
+    // Validate inputs
+    if (!userId || !creditsToAdd || isNaN(creditsToAdd)) {
+      console.error('Invalid input for addCreditsToUser:', { userId, creditsToAdd });
+      return null;
+    }
+
+    // Get Firebase Firestore instance
+    const db = admin.firestore();
+    
+    // Reference to the user document
+    const userRef = db.collection('users').doc(userId);
+    
+    // Get the current user data
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      console.error(`User ${userId} not found for adding credits`);
+      return null;
+    }
+    
+    const userData = userDoc.data();
+    const currentCredits = userData.linkCredits || 0;
+    const newCredits = currentCredits + creditsToAdd;
+    
+    // Create a timestamp for now
+    const timestamp = new Date();
+    
+    // Update the user document with new credits
+    await userRef.update({
+      linkCredits: newCredits,
+      lastCreditUpdate: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    
+    console.log(`Added ${creditsToAdd} credits to user ${userId}. New balance: ${newCredits}`);
+    
+    return {
+      userId,
+      previousCredits: currentCredits,
+      addedCredits: creditsToAdd,
+      newCredits: newCredits
+    };
+  } catch (error) {
+    console.error('Error adding credits to user:', error);
+    return null;
+  }
+};
+
+/**
+ * Update payment status in the database
+ * @param {string} paymentId - The Stripe payment ID or session ID
+ * @param {string} status - The payment status (completed, processing, failed, requires_action)
+ * @param {string} errorMessage - Optional error message for failed payments
+ * @param {object} paymentDetails - Additional payment details (amount, credits, etc.)
+ * @returns {Promise<object|null>} - Updated payment data or null if failed
+ */
+const updatePaymentStatus = async (paymentId, status, errorMessage = null, paymentDetails = {}) => {
+  try {
+    if (!paymentId || !status) {
+      console.error('Invalid input for updatePaymentStatus:', { paymentId, status });
+      return null;
+    }
+
+    // Get Firebase Firestore instance
+    const db = admin.firestore();
+    
+    // Create a timestamp for now
+    const timestamp = new Date();
+    
+    // Extract payment details with defaults
+    const { 
+      userId = null,
+      creditsPurchased = 0,
+      amountUSD = 0, 
+      planName = null,
+      paymentProvider = 'Stripe'
+    } = paymentDetails;
+    
+    // Create the payment data object
+    const paymentData = {
+      userId: userId,
+      creditsPurchased: creditsPurchased,
+      amountUSD: amountUSD,
+      paymentProvider: paymentProvider,
+      planName: planName,
+      status: status,
+      errorMessage: errorMessage || '',
+      paymentId: paymentId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    
+    // 1. Add/update record in the top-level paymentResults collection
+    const paymentResultsRef = db.collection('paymentResults');
+    
+    // Try to find existing payment record first
+    const query = paymentResultsRef.where('paymentId', '==', paymentId);
+    const snapshot = await query.get();
+    
+    let paymentResultId = null;
+    
+    if (snapshot.empty) {
+      // Payment record doesn't exist yet, create a new one
+      console.log(`Payment record not found for ID: ${paymentId}. Creating new record.`);
+      
+      // Add the new payment record
+      const docRef = await paymentResultsRef.add(paymentData);
+      paymentResultId = docRef.id;
+      console.log(`Created new payment record with ID: ${paymentResultId}`);
+    } else {
+      // Payment record exists, update it
+      const paymentDoc = snapshot.docs[0];
+      paymentResultId = paymentDoc.id;
+      
+      // Update existing record (only non-null fields)
+      await paymentDoc.ref.update({
+        status: status,
+        errorMessage: errorMessage || paymentDoc.data().errorMessage || '',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      console.log(`Updated payment status to ${status} for payment ID: ${paymentId}`);
+    }
+    
+    // 2. Add to user's paymentHistory subcollection if userId is provided
+    if (userId) {
+      try {
+        // Reference to the user's paymentHistory collection
+        const userRef = db.collection('users').doc(userId);
+        const paymentHistoryRef = userRef.collection('paymentHistory');
+        
+        // Create the payment history entry
+        const paymentHistoryData = {
+          ...paymentData,
+          paymentResultId: paymentResultId,  // reference to top-level collection document
+          timestamp: timestamp
+        };
+        
+        // Try to find existing record in user's payment history
+        const userPaymentQuery = paymentHistoryRef.where('paymentId', '==', paymentId);
+        const userPaymentSnapshot = await userPaymentQuery.get();
+        
+        if (userPaymentSnapshot.empty) {
+          // Add new entry to user's payment history
+          const historyRef = await paymentHistoryRef.add(paymentHistoryData);
+          console.log(`Added payment to user's history with ID: ${historyRef.id}`);
+        } else {
+          // Update existing entry
+          const historyDoc = userPaymentSnapshot.docs[0];
+          await historyDoc.ref.update({
+            status: status,
+            errorMessage: errorMessage || historyDoc.data().errorMessage || '',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          console.log(`Updated payment in user's history with ID: ${historyDoc.id}`);
+        }
+      } catch (error) {
+        console.error('Error updating user payment history:', error);
+        // Continue with the main function even if this part fails
+      }
+    }
+    
+    return {
+      id: paymentResultId,
+      ...paymentData
+    };
+  } catch (error) {
+    console.error('Error updating payment status:', error);
+    return null;
+  }
+};
+
+// Add the new function to the dbService object
+dbService.addCreditsToUser = addCreditsToUser;
+dbService.updatePaymentStatus = updatePaymentStatus;
+
 module.exports = dbService; 

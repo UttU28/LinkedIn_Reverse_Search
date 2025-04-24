@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,16 +10,59 @@ import { toast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, User, CreditCard, Clock, Settings, Mail, Phone, Building, CalendarClock } from 'lucide-react';
+import { LogOut, User, CreditCard, Clock, Settings, Mail, Phone, Building, CalendarClock, Loader2 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '../hooks/useAuth';
+import axios from 'axios';
+
+// Define the payment history interface
+interface PaymentHistory {
+  id: string;
+  userId: string;
+  creditsPurchased: number;
+  amountUSD: number;
+  planName: string;
+  paymentProvider: string;
+  status: string;
+  paymentId: string;
+  createdAt: any; // Use any for Timestamp compatibility
+  timestamp?: any; // Use any for Timestamp compatibility
+}
 
 const Profile = () => {
   const { user, userData } = useAuthStore();
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState('profile');
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch payment history
+  useEffect(() => {
+    const fetchPaymentHistory = async () => {
+      if (!user?.uid) return;
+      
+      setIsLoading(true);
+      try {
+        const response = await axios.get(`http://localhost:3000/payment-history/${user.uid}`);
+        if (response.data.success) {
+          setPaymentHistory(response.data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching payment history:', error);
+        toast({
+          title: 'Error',
+          description: 'Could not load payment history',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPaymentHistory();
+  }, [user?.uid]);
 
   const handleSignOut = async () => {
     const success = await logout();
@@ -52,19 +95,44 @@ const Profile = () => {
     }
   };
 
-  // Calculate used percent
-  const totalCredits = userData?.linkCredits || 0;
+  // Calculate credit metrics
+  const availableCredits = userData?.linkCredits || 0;
   const usedCredits = userData?.totalSearched || 0;
-  const initialCredits = 100; // Assuming initial credit allotment is 100
-  const usedPercent = Math.min(100, Math.round((usedCredits / initialCredits) * 100));
+  
+  // Calculate usage percentage out of total allocated
+  const totalAllocation = availableCredits + usedCredits;
+  const usedPercent = totalAllocation > 0 ? Math.min(100, Math.round((usedCredits / totalAllocation) * 100)) : 0;
 
-  // Mock transaction history
-  const transactions = [
-    { id: 1, date: '2025-04-15', description: 'Monthly credit allocation', amount: '+50 credits' },
-    { id: 2, date: '2025-04-10', description: 'Profile search', amount: '-1 credit' },
-    { id: 3, date: '2025-04-08', description: 'Bulk search (CSV upload)', amount: '-15 credits' },
-    { id: 4, date: '2025-04-01', description: 'Welcome bonus', amount: '+25 credits' }
-  ];
+  // Format date for display
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'N/A';
+    // Handle both string dates and Firestore timestamps
+    const date = typeof dateValue === 'string' 
+      ? new Date(dateValue) 
+      : dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  // Get transaction description based on status
+  const getTransactionDescription = (payment: PaymentHistory) => {
+    if (payment.status === 'completed' || payment.status === 'succeeded') {
+      return `${payment.planName} purchase`;
+    }
+    return payment.status === 'failed' ? 'Payment failed' : `Payment ${payment.status}`;
+  };
+
+  // Format amount for display (USD)
+  const formatAmount = (payment: PaymentHistory) => {
+    return payment.amountUSD ? `$${payment.amountUSD.toFixed(2)}` : 'N/A';
+  };
+
+  // Format credits for display
+  const formatCredits = (payment: PaymentHistory) => {
+    if (payment.status === 'completed' || payment.status === 'succeeded') {
+      return payment.creditsPurchased ? `+${payment.creditsPurchased}` : '0';
+    }
+    return payment.status === 'failed' ? 'Failed' : payment.status;
+  };
 
   return (
     <div className="min-h-screen flex flex-col grainy-bg">
@@ -108,7 +176,7 @@ const Profile = () => {
                       {usedCredits > 50 ? 'Power User' : 'Basic User'}
                     </Badge>
                     <Badge variant="outline" className="text-xs px-3 py-1 bg-accent/10 text-accent border-accent/20 whitespace-nowrap">
-                      Member since {userData?.createdAt ? 'April 2025' : 'April 2025'}
+                      Member since {userData?.createdAt ? formatDate(userData.createdAt) : 'Recently'}
                     </Badge>
                   </div>
                 </div>
@@ -145,7 +213,7 @@ const Profile = () => {
                         <h3 className="text-sm font-medium text-secondary-text mb-1">Member Since</h3>
                         <p className="text-primary-text font-medium flex items-center">
                           <CalendarClock className="h-4 w-4 mr-1 text-primary/70" />
-                          {'April 1, 2025'}
+                          {userData?.createdAt ? formatDate(userData.createdAt) : 'Recently'}
                         </p>
                       </div>
                       <div>
@@ -220,7 +288,7 @@ const Profile = () => {
                   <div className="mt-6">
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="text-sm font-medium text-secondary-text">Credit Usage</h3>
-                      <span className="text-xs text-secondary-text">{usedCredits} of {initialCredits} used</span>
+                      <span className="text-xs text-secondary-text">{usedCredits} of {totalAllocation} used</span>
                     </div>
                     <Progress value={usedPercent} className="h-2" />
                   </div>
@@ -232,26 +300,41 @@ const Profile = () => {
                         <thead className="bg-background/40">
                           <tr>
                             <th className="px-4 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">Date</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">Description</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-secondary-text uppercase tracking-wider">Amount</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider">Amount</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-secondary-text uppercase tracking-wider">Credits</th>
                           </tr>
                         </thead>
                         <tbody className="bg-card/30 divide-y divide-border">
-                          {transactions.map(transaction => (
-                            <tr key={transaction.id} className="hover:bg-background/30 transition-colors duration-150">
-                              <td className="px-4 py-3 text-sm text-secondary-text whitespace-nowrap">
-                                {new Date(transaction.date).toLocaleDateString()}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-primary-text whitespace-nowrap">
-                                {transaction.description}
-                              </td>
-                              <td className={`px-4 py-3 text-sm text-right whitespace-nowrap font-medium ${
-                                transaction.amount.startsWith('+') ? 'text-success' : 'text-destructive'
-                              }`}>
-                                {transaction.amount}
+                          {isLoading ? (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-8 text-center">
+                                <div className="flex items-center justify-center">
+                                  <Loader2 className="h-5 w-5 animate-spin mr-2 text-primary" />
+                                  <span className="text-secondary-text">Loading transactions...</span>
+                                </div>
                               </td>
                             </tr>
-                          ))}
+                          ) : paymentHistory.length > 0 ? (
+                            paymentHistory.map(payment => (
+                              <tr key={payment.id} className="hover:bg-background/30 transition-colors duration-150">
+                                <td className="px-4 py-3 text-sm text-secondary-text whitespace-nowrap">
+                                  {formatDate(payment.createdAt || payment.timestamp)}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-primary-text whitespace-nowrap">
+                                  {formatAmount(payment)}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-right whitespace-nowrap font-medium text-success">
+                                  {formatCredits(payment)}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-6 text-center text-secondary-text">
+                                No transactions found
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -320,8 +403,14 @@ const Profile = () => {
                   </div>
                   
                   <div className="flex justify-between">
-                    <span className="text-secondary-text">Next Credit Refresh</span>
-                    <span className="text-primary-text font-medium">May 1, 2025</span>
+                    <span className="text-secondary-text">Recent Credits Added</span>
+                    <span className="text-primary-text font-medium">
+                      {paymentHistory.length > 0 
+                        ? paymentHistory
+                            .filter(p => p.status === 'completed' || p.status === 'succeeded')
+                            .reduce((total, p) => total + (p.creditsPurchased || 0), 0)
+                        : 0}
+                    </span>
                   </div>
                 </div>
               </CardContent>

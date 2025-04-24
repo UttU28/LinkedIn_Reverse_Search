@@ -49,6 +49,7 @@ import { LeadResult } from '../components/LeadSearchForm';
 import TeamMembersForm from '../components/TeamMembersForm';
 import { Badge } from '../components/ui/badge';
 import RecentSearches from '../components/RecentSearches';
+import TeamMembersTable from '../components/TeamMembersTable';
 
 const Dashboard: React.FC = () => {
   const { user, userData } = useAuthStore();
@@ -289,44 +290,55 @@ const Dashboard: React.FC = () => {
           
           {/* Team Members Results - Show submitted search */}
           {activeTab === 'teamMembers' && showTeamSearchResults && (
-            <motion.div
-              className="mb-8"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="bg-card/70 border-border/50">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                      <LinkIcon className="h-8 w-8 text-primary/70" />
-                    </div>
-                    <h3 className="text-xl font-heading font-semibold text-primary-text">
-                      Team Members Search Submitted
-                    </h3>
-                    
-                    <div className="flex items-center justify-center">
-                      <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 ml-2">
-                        Processing
-                      </Badge>
-                    </div>
-                    
-                    <div className="max-w-lg">
-                      <p className="text-secondary-text mb-2">
-                        We're processing your request for:
-                      </p>
-                      <div className="bg-background/50 rounded-md p-3 text-primary-text font-mono text-sm break-all">
-                        {teamSearchResults?.originalUrl}
+            <>
+              {/* Check if the teamMembers array is available in the response */}
+              {teamSearchResults?.teamMembers?.length > 0 ? (
+                <TeamMembersTable 
+                  teamMembers={teamSearchResults.teamMembers}
+                  companyUrl={teamSearchResults.originalUrl}
+                  isVisible={showTeamSearchResults}
+                />
+              ) : (
+                <motion.div
+                  className="mb-8"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Card className="bg-card/70 border-border/50">
+                    <CardContent className="p-6">
+                      <div className="flex flex-col items-center text-center space-y-4">
+                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                          <LinkIcon className="h-8 w-8 text-primary/70" />
+                        </div>
+                        <h3 className="text-xl font-heading font-semibold text-primary-text">
+                          Team Members Search Submitted
+                        </h3>
+                        
+                        <div className="flex items-center justify-center">
+                          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 ml-2">
+                            Processing
+                          </Badge>
+                        </div>
+                        
+                        <div className="max-w-lg">
+                          <p className="text-secondary-text mb-2">
+                            We're processing your request for:
+                          </p>
+                          <div className="bg-background/50 rounded-md p-3 text-primary-text font-mono text-sm break-all">
+                            {teamSearchResults?.originalUrl}
+                          </div>
+                          <p className="text-secondary-text mt-4 text-sm">
+                            Team member information will be available soon. We'll update you when it's ready.
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-secondary-text mt-4 text-sm">
-                        Team member information will be available soon. We'll update you when it's ready.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+            </>
           )}
         </AnimatePresence>
 
