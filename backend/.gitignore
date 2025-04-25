@@ -4,3 +4,4 @@
 
 node_modules/
 firebaseServiceAccountKey.json
+package-lock.json
