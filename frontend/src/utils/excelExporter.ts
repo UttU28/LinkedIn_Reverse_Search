@@ -32,6 +32,8 @@ export const fetchSearchResultData = async (resultIds: string[]): Promise<Search
   const results: SearchResultData[] = [];
   
   try {
+    console.log('Fetching search results with IDs:', resultIds);
+    
     // Firestore has a limit of 10 items for 'in' queries, so we need to batch
     const batchSize = 10;
     
@@ -42,19 +44,31 @@ export const fetchSearchResultData = async (resultIds: string[]): Promise<Search
       const q = query(searchResultsRef, where('__name__', 'in', batch));
       const querySnapshot = await getDocs(q);
       
+      console.log(`Batch ${i/batchSize + 1}: Found ${querySnapshot.docs.length} documents`);
+      
       querySnapshot.forEach(doc => {
         const data = doc.data();
-        results.push({
+        console.log('Document data:', data);
+        
+        // Handle the inputData field structure from the database
+        const inputData = data.inputData || {};
+        
+        // Create a result object with properly extracted fields
+        const resultItem: SearchResultData = {
           id: doc.id,
-          name: data.name || '',
-          company: data.company || '',
-          title: data.title || '',
-          linkedin: data.linkedin || '',
+          name: inputData.name || '',
+          company: inputData.company || '',
+          title: inputData.title || '',
+          linkedin: data.linkedinUrl || '',  // LinkedIn URL is stored at the root level
           createdAt: data.createdAt?.toDate() || new Date(),
-        });
+        };
+        
+        console.log('Processed result item:', resultItem);
+        results.push(resultItem);
       });
     }
     
+    console.log(`Total results processed: ${results.length}`);
     return results;
   } catch (error) {
     console.error('Error fetching search result data:', error);
@@ -83,8 +97,8 @@ export const exportToExcel = async (
       throw new Error('No search results found to export');
     }
     
-    // Notify start of Excel creation
-    if (onProgress) onProgress('creating', detailedData.length);
+    // Skip notifying about Excel creation to avoid duplicate toasts
+    // if (onProgress) onProgress('creating', detailedData.length);
     
     // Create a workbook
     const wb = XLSX.utils.book_new();
