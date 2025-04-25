@@ -1,0 +1,56 @@
+name: Auto Deploy to Kaka Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Set up working directory
+        run: cd ~/Desktop/LinkedIn_Reverse_Search
+
+      - name: Check repo exists and is clean
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          if [ ! -d ".git" ]; then
+            echo "❌ Git repo not found in ~/Desktop/LinkedIn_Reverse_Search"
+            exit 1
+          fi
+
+      - name: Pull latest changes from main
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Validate Docker Compose file
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          docker-compose config -q
+
+      - name: Stop and remove existing containers
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          docker-compose down --remove-orphans
+
+      - name: Rebuild and launch services
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          docker-compose pull || true # don't fail if no new image
+          docker-compose up -d --build
+
+      - name: Verify container health
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search
+          sleep 10 # Give it a few seconds to boot up
+          docker-compose ps
+          unhealthy=$(docker inspect --format='{{json .State.Health.Status}}' link-backend)
+          if [[ "$unhealthy" != "\"healthy\"" ]]; then
+            echo "❌ Backend health check failed."
+            exit 1
+          fi
+          echo "✅ Backend is healthy."
