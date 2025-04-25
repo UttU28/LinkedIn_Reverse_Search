@@ -30,24 +30,24 @@ jobs:
       - name: Validate Docker Compose file
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
-          docker-compose config -q
+          docker compose config -q
 
       - name: Stop and remove existing containers
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
-          docker-compose down --remove-orphans
+          docker compose down --remove-orphans
 
       - name: Rebuild and launch services
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
-          docker-compose pull || true # don't fail if no new image
-          docker-compose up -d --build
+          docker compose pull || true # don't fail if no new image
+          docker compose up -d --build
 
       - name: Verify container health
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
           sleep 10 # Give it a few seconds to boot up
-          docker-compose ps
+          docker compose ps
           unhealthy=$(docker inspect --format='{{json .State.Health.Status}}' link-backend)
           if [[ "$unhealthy" != "\"healthy\"" ]]; then
             echo "❌ Backend health check failed."
