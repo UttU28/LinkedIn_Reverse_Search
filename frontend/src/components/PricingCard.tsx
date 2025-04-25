@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { loadStripe } from '@stripe/stripe-js';
 
 // Load the Stripe publishable key from environment variables
-const stripePromise = loadStripe(import.meta.env.STRIPE_PUBLISHABLE_KEY);
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 // API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
 

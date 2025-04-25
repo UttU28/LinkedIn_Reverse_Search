@@ -120,6 +120,7 @@ server {
    docker volume rm $(docker volume ls -q)
    docker network prune -f
    docker system prune -a -f
+   docker compose up -d 
    ```
 
 ## Troubleshooting
