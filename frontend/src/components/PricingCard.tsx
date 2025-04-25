@@ -160,7 +160,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
             <div className="flex justify-between items-center border-t border-white/10 pt-4">
               <div className="text-white/90">
                 <span className="text-2xl font-light">
-                  {plan.credits}
+                  ₹ {plan.credits}
                   {plan.bonusCredits && (
                     <span className="text-white/70 ml-2 text-base">+{plan.bonusCredits}</span>
                   )}

@@ -241,10 +241,10 @@ const PaymentSuccess = () => {
                   <div className="space-y-2 text-sm text-secondary-foreground">
                     <p><span className="font-medium">Plan:</span> {paymentDetails.planName}</p>
                     {paymentDetails.creditsAdded && (
-                      <p><span className="font-medium">Credits Added:</span> {paymentDetails.creditsAdded}</p>
+                      <p><span className="font-medium">Credits Added:</span> ₹ {paymentDetails.creditsAdded}</p>
                     )}
                     {!isAuthenticated && paymentDetails.totalCredits && (
-                      <p><span className="font-medium">Credits to Claim:</span> {paymentDetails.totalCredits}</p>
+                      <p><span className="font-medium">Credits to Claim:</span> ₹ {paymentDetails.totalCredits}</p>
                     )}
                   </div>
                 </div>

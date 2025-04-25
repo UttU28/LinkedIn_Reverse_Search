@@ -3,7 +3,6 @@ import { z } from "zod";
 // User API Types
 export const userSchema = z.object({
   id: z.number(),
-  username: z.string(),
   name: z.string(),
   email: z.string().email(),
   createdAt: z.string().datetime(),
@@ -16,14 +15,13 @@ export const userSchema = z.object({
 export type User = z.infer<typeof userSchema>;
 
 export const loginRequestSchema = z.object({
-  username: z.string(),
+  email: z.string().email(),
   password: z.string(),
 });
 
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 
 export const registerRequestSchema = z.object({
-  username: z.string(),
   password: z.string(),
   name: z.string(),
   email: z.string().email(),

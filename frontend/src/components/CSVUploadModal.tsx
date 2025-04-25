@@ -125,7 +125,7 @@ const CSVUploadModal: React.FC = () => {
     if (userData?.linkCredits === undefined || userData.linkCredits < recordCount) {
       toast({
         title: "Insufficient credits",
-        description: `You need ${recordCount} credits but only have ${userData?.linkCredits || 0}`,
+        description: `You need ${recordCount} credits but only have ₹ ${userData?.linkCredits || 0}`,
         variant: "destructive"
       });
       return;

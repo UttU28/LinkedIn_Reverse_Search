@@ -92,7 +92,7 @@ const LeadGenerator: React.FC = () => {
             <div className="flex items-center space-x-4">
               <div className="text-secondary-text bg-background/50 py-1 px-3 rounded-full text-sm">
                 <Coins className="inline-block text-primary mr-1 h-4 w-4" />
-                <span>{userData?.linkCredits || 0}</span> credits
+                <span>₹ {userData?.linkCredits || 0}</span> credits
               </div>
 
               <div className="flex items-center space-x-2">
@@ -142,7 +142,7 @@ const LeadGenerator: React.FC = () => {
                         Available Credits
                       </p>
                       <p className="text-3xl font-heading font-semibold text-primary-text">
-                        {userData?.linkCredits || 0}
+                        ₹ {userData?.linkCredits || 0}
                       </p>
                     </div>
                   </div>

@@ -469,7 +469,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     if (userData?.linkCredits === undefined || userData.linkCredits < parsedData.length) {
       toast({
         title: "Insufficient credits",
-        description: `You need ${parsedData.length} credits for this batch, but only have ${userData?.linkCredits || 0}`,
+        description: `You need ${parsedData.length} credits for this batch, but only have ₹ ${userData?.linkCredits || 0}`,
         variant: "destructive"
       });
       return;
@@ -758,7 +758,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       
                       <div className="text-xs text-secondary-text mt-4 pb-1">
                         <p>
-                          This search used {(searchResponse.foundData ?? 0)} credit{(searchResponse.foundData ?? 0) !== 1 ? 's' : ''} from your account.
+                          This search used ₹ {(searchResponse.foundData ?? 0)} credit{(searchResponse.foundData ?? 0) !== 1 ? 's' : ''} from your account.
                         </p>
                       </div>
                     </div>
@@ -788,7 +788,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       </div>
                       
                       <div className="text-xs text-secondary-text mt-4 pb-1">
-                        <p>0 credits used from your account.</p>
+                        <p>₹ 0 credits used from your account.</p>
                       </div>
                     </div>
                   </div>
@@ -860,7 +860,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                 
                 <div className="px-4 py-3 border-t border-border/30 bg-background/20">
                   <p className="text-xs text-secondary-text">
-                    This search used {bulkSearchResults.filter(r => r.foundData > 0).length} credit{bulkSearchResults.filter(r => r.foundData > 0).length !== 1 ? 's' : ''} from your account.
+                    This search used ₹ {bulkSearchResults.filter(r => r.foundData > 0).length} credit{bulkSearchResults.filter(r => r.foundData > 0).length !== 1 ? 's' : ''} from your account.
                   </p>
                 </div>
               </div>
@@ -1193,7 +1193,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
                       <p className="text-xs sm:text-sm text-secondary-text">
                         Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
-                        This will use <span className="text-primary font-medium">{parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
+                        This will use <span className="text-primary font-medium">₹ {parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
                       </p>
                     </div>
                   </div>

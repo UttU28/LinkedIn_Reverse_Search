@@ -28,7 +28,6 @@ export const registerUser = async (
   email: string,
   password: string,
   fullName: string,
-  username: string,
 ): Promise<UserCredential> => {
   try {
     // Handle Firebase authentication
@@ -117,7 +116,6 @@ export const getUserData = async (userId: string) => {
     // Return some default data to prevent UI from breaking
     return {
       name: auth.currentUser?.displayName || "User",
-      username: auth.currentUser?.email?.split('@')[0] || "user",
       email: auth.currentUser?.email || "",
       linkCredits: 10,
       totalSearched: 0,
@@ -128,7 +126,6 @@ export const getUserData = async (userId: string) => {
 
 export interface UserData {
   name: string;
-  username?: string;
   email: string;
   createdAt?: Timestamp;
   lastLogin?: Timestamp;

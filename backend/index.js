@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 const { firebaseInitialized } = require('./firebase');
 const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
+const { findRecruitersAtCompany } = require('./leadGenerator');
 const dbService = require('./dbService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
@@ -567,7 +568,7 @@ app.post('/signup', async (req, res) => {
       return res.status(400).json({ success: false, message: 'User already exists' });
     }
     
-    // Create new user
+    // Create new user - remove username field
     const userData = {
       email,
       password, // In a real app, you'd hash this password
@@ -770,134 +771,69 @@ app.post('/findTargetedLeads', async (req, res) => {
   console.log('Lead Doc ID:', leadDocId);
   console.log('================================================\n');
   
-  // Dummy lead data (same as used in frontend before)
-  const dummyLeadResults = [
-    { id: 1, name: 'Sarah Johnson', company: 'TechCorp', position: 'VP of Recruitment', exactMatch: true },
-    { id: 2, name: 'Michael Chen', company: 'TechCorp', position: 'Senior Recruitment Manager', exactMatch: true },
-    { id: 3, name: 'Emily Rodriguez', company: 'TechCorp', position: 'Talent Acquisition Lead', exactMatch: true },
-    { id: 4, name: 'James Wilson', company: 'GlobalHR', position: 'Recruitment Director', exactMatch: false },
-    { id: 5, name: 'Aisha Patel', company: 'TalentSphere', position: 'Head of Recruitment', exactMatch: false },
-    { id: 6, name: 'Robert Kim', company: 'TechCorp', position: 'Technical Recruiter', exactMatch: true },
-    { id: 7, name: 'Jessica Smith', company: 'JobMatch', position: 'Recruitment Specialist', exactMatch: false },
-  ];
-  
-  // Filter results based on position selection (similar to what was done on frontend)
-  let filteredResults = [...dummyLeadResults];
-  
-  if (positionTitle === 'recruitment') {
-    filteredResults = dummyLeadResults.filter(r => r.position.toLowerCase().includes('recruit'));
-  } else if (positionTitle === 'investment') {
-    // Replace with investment-related positions in a real app
-    filteredResults = dummyLeadResults.slice(0, 3).map(r => ({
-      ...r,
-      position: r.position.replace('Recruitment', 'Investment')
-    }));
-  } else if (positionTitle === 'c-level') {
-    // Replace with c-level positions in a real app
-    filteredResults = dummyLeadResults.slice(3, 6).map(r => ({
-      ...r,
-      position: 'C' + r.position
-    }));
-  }
-  
-  console.log('LEAD SEARCH RESULT:');
-  console.log(`Found ${filteredResults.length} leads for ${company}`);
-  console.log('Sample leads:');
-  filteredResults.slice(0, 3).forEach((lead, index) => {
-    console.log(`\nLead ${index + 1}:`);
-    console.log('- Name:', lead.name);
-    console.log('- Company:', lead.company);
-    console.log('- Position:', lead.position);
-    console.log('- Exact Match:', lead.exactMatch);
-  });
-  console.log('================================================\n');
-  
-  // Add to search history - handle the response gracefully if it fails
-  let historyId = null;
   try {
-    historyId = await dbService.addSearchHistory(userID, {
-      type: "recruiters",
-      status: "pending", // Change from "pending" to "completed" since we're using dummy data
-      inputMeta: {
-        company: company,
-        position: positionTitle
-      },
-      totalRecords: filteredResults.length,
-      resultRefPath: "searchResults", // Reference to global collection (placeholder)
-      completedAt: new Date() // Mark as completed immediately for dummy data
-    });
+    // Call the lead generator service to find recruiters
+    const results = await findRecruitersAtCompany(company, userID, positionTitle);
     
-    // Store exact match results in searchResults collection
-    if (historyId) {
-      // Find exact matches
-      const exactMatches = filteredResults.filter(result => result.exactMatch === true);
-      console.log(`Storing ${exactMatches.length} exact matches in searchResults collection`);
-      
-      // Array to collect all resultIds
-      const resultIds = [];
-      
-      // Loop through exact matches and store them
-      for (const match of exactMatches) {
-        // Format the search data to match what addSearchResult expects
-        const searchData = {
-          name: match.name,
-          company: match.company,
-          position: match.position
-        };
-        
-        // Generate a LinkedIn URL (dummy for now)
-        // In a real app, this would come from actual search results
-        const formattedName = match.name.toLowerCase().replace(/\s+/g, '-');
-        const linkedinUrl = match.linkedinUrl || `https://www.linkedin.com/in/${formattedName}`;
-        
-        // Store in searchResults collection using historyId as searchId
-        const resultId = await dbService.addSearchResult(
-          userID, 
-          historyId, 
-          "recruiters", 
-          searchData,
-          linkedinUrl
-        );
-        
-        // Store the resultId in our array if it exists
-        if (resultId) {
-          resultIds.push(resultId);
-        }
-        
-        console.log(`Stored search result with ID: ${resultId}`);
-      }
-      
-      // Update the search history with resultIds array and set status to completed
-      await dbService.updateSearchHistory(userID, historyId, {
-        status: "completed",
-        resultsCount: exactMatches.length,
-        resultIds: resultIds // Store the array of resultIds in the database
+    console.log('LEAD SEARCH RESULT:');
+    console.log(`Found ${results.data.length} leads for ${company}`);
+    
+    // Log sample data if available
+    if (results.data && results.data.length > 0) {
+      console.log('Sample leads:');
+      results.data.slice(0, 3).forEach((lead, index) => {
+        console.log(`\nLead ${index + 1}:`);
+        console.log('- Name:', lead.fullName);
+        console.log('- Company:', lead.company);
+        console.log('- Position:', lead.position);
+        console.log('- LinkedIn URL:', lead.linkedinUrl);
       });
-      
-      console.log(`Updated search history with ${resultIds.length} result IDs`);
     }
-  } catch (err) {
-    console.error('Error in search history:', err);
-    // Continue processing - don't fail the whole request
+    console.log('================================================\n');
+    
+    // Format the results for frontend compatibility
+    const formattedResults = results.data.map((person, index) => ({
+      id: index + 1,
+      name: person.fullName,
+      company: person.company || company,
+      position: person.position || 'N/A',
+      linkedinUrl: person.linkedinUrl || '',
+      exactMatch: true // All results from our search are considered exact matches
+    }));
+    
+    // Add the company name from the search to the response
+    const responseData = {
+      company,
+      position: positionTitle === 'recruitment' ? 'Recruiter' : 
+                positionTitle === 'investment' ? 'Investor' : 'Executive',
+      results: formattedResults,
+      pipelineId,
+      leadDocId,
+      historyId: results.historyId
+    };
+    
+    // Return the search results
+    return res.json({
+      status: 'success',
+      message: results.message || 'Targeted leads search processed',
+      data: responseData
+    });
+  } catch (error) {
+    console.error(`Error in targeted leads search: ${error.message}`);
+    
+    // Return error response
+    return res.status(500).json({
+      status: 'error',
+      message: `Error finding targeted leads: ${error.message}`,
+      data: {
+        company,
+        position: positionTitle,
+        results: [],
+        pipelineId,
+        leadDocId
+      }
+    });
   }
-  
-  // Add the company name from the search to the response
-  const responseData = {
-    company,
-    position: positionTitle === 'recruitment' ? 'Recruiter' : 
-              positionTitle === 'investment' ? 'Investor' : 'Executive',
-    results: filteredResults,
-    pipelineId,
-    leadDocId,
-    historyId // This will be null if history creation failed
-  };
-  
-  // Return the search results
-  res.json({
-    status: 'success',
-    message: 'Targeted leads search processed',
-    data: responseData
-  });
 });
 
 // Team Members route
