@@ -253,7 +253,7 @@ const Profile = () => {
                   </div>
                   <Button 
                     variant="ghost" 
-                    className="flex items-center hover:bg-destructive/10 hover:text-destructive text-secondary-text"
+                    className="flex items-center bg-red-600 hover:bg-red-700 text-white font-bold border-2 border-red-600"
                     onClick={handleSignOut}
                     size="sm"
                   >

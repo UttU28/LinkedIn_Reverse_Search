@@ -1,34 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useLocation } from 'wouter';
-import { Link2, Briefcase, LogOut, Users, CreditCard, User } from 'lucide-react';
+import { Link2, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const Navbar: React.FC = () => {
-  const { isAuthenticated, userData, logout } = useAuth();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { isAuthenticated, userData } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAvatarClicked, setIsAvatarClicked] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [location] = useLocation();
-
-  // Handle closing the user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
-
-    if (userMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [userMenuOpen]);
 
   // Animation reset timeout
   useEffect(() => {
@@ -40,12 +21,6 @@ const Navbar: React.FC = () => {
       return () => clearTimeout(timeout);
     }
   }, [isAvatarClicked]);
-
-  const handleLogout = async () => {
-    await logout();
-    setUserMenuOpen(false);
-    setMobileMenuOpen(false);
-  };
 
   const getUserInitials = (): string => {
     if (!userData?.name) return '';
@@ -95,7 +70,7 @@ const Navbar: React.FC = () => {
             
             {/* User menu for authenticated users */}
             {isAuthenticated && (
-              <div className="relative ml-4" ref={menuRef}>
+              <div className="relative ml-4">
                 <div className="flex items-center text-primary-text ml-2">
                   <Link to="/profile" className="flex items-center hover:opacity-90 transition-opacity">
                     <span className="mr-2 font-medium text-primary">₹ {userData?.linkCredits || 0}</span>
@@ -113,7 +88,6 @@ const Navbar: React.FC = () => {
                       whileHover={{ scale: 1.05 }}
                       onClick={() => {
                         setIsAvatarClicked(true);
-                        setUserMenuOpen(!userMenuOpen);
                       }}
                       className="cursor-pointer"
                     >
@@ -146,39 +120,6 @@ const Navbar: React.FC = () => {
                     </motion.div>
                   </Link>
                 </div>
-                
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-card border border-border overflow-hidden"
-                    >
-                      <div className="py-1">
-                        <Link to="/dashboard" className="flex items-center px-4 py-2 text-sm text-secondary-text hover:bg-background hover:text-primary-text">
-                          <span className="mr-2 font-bold">Dashboard</span>
-                        </Link>
-                        <Link to="/profile" className="flex items-center px-4 py-2 text-sm text-secondary-text hover:bg-background hover:text-primary-text">
-                          <Briefcase className="mr-2 h-5 w-5" />
-                          Your Profile
-                        </Link>
-                        <Link to="/pricing" className="flex items-center px-4 py-2 text-sm text-secondary-text hover:bg-background hover:text-primary-text">
-                          <CreditCard className="mr-2 h-5 w-5" />
-                          Buy Credits
-                        </Link>
-                        <button 
-                          onClick={handleLogout}
-                          className="w-full text-left flex items-center px-4 py-2 text-sm text-destructive hover:bg-background"
-                        >
-                          <LogOut className="mr-2 h-5 w-5" />
-                          Sign out
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             )}
             
@@ -230,51 +171,43 @@ const Navbar: React.FC = () => {
       </div>
       
       {/* Mobile menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-card border-t border-border"
-          >
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link to="/" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
-                Home
-              </Link>
-              
-              {isAuthenticated ? (
-                <>
-                  <Link to="/dashboard" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/dashboard" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
-                    Dashboard
-                  </Link>
-                  <Link to="/profile" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/profile" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
-                    Profile
-                  </Link>
-                  <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
-                    Buy Credits
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-destructive hover:bg-background"
-                  >
-                    Sign out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
-                    Pricing
-                  </Link>
-                  <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">
-                    Log In
-                  </Link>
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-card border-t border-border">
+          <div className="px-2 pt-2 pb-3 space-y-1">
+            <Link to="/" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+              Home
+            </Link>
+            
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/dashboard" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                  Dashboard
+                </Link>
+                <Link to="/profile" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/profile" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                  Profile
+                </Link>
+                <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                  Buy Credits
+                </Link>
+                <Link to="/profile"
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-600 hover:bg-red-700 text-white font-bold border-2 border-red-600"
+                >
+                  Profile
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                  Pricing
+                </Link>
+                <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">
+                  Log In
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
