@@ -24,10 +24,6 @@ const UserProfile: React.FC = () => {
           <p>{userData.name}</p>
         </div>
         <div>
-          <p className="text-secondary-text">Username</p>
-          <p>{userData.username}</p>
-        </div>
-        <div>
           <p className="text-secondary-text">Email</p>
           <p>{userData.email}</p>
         </div>

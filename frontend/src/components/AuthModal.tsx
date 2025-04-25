@@ -57,7 +57,6 @@ const AuthModal: React.FC = () => {
 
   const [signupForm, setSignupForm] = useState({
     fullName: '',
-    username: '',
     email: '',
     password: '',
     termsAgreed: false
@@ -76,7 +75,6 @@ const AuthModal: React.FC = () => {
         
         setSignupForm({
           fullName: '',
-          username: '',
           email: '',
           password: '',
           termsAgreed: false
@@ -94,7 +92,6 @@ const AuthModal: React.FC = () => {
     e.preventDefault();
     await register(
       signupForm.fullName,
-      signupForm.username,
       signupForm.email,
       signupForm.password,
       signupForm.termsAgreed
@@ -232,21 +229,6 @@ const AuthModal: React.FC = () => {
                   />
                   {validationErrors.fullName && (
                     <p className="text-sm text-destructive">{validationErrors.fullName}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="signup-username">Username</Label>
-                  <Input
-                    id="signup-username"
-                    type="text"
-                    placeholder="Choose a username"
-                    value={signupForm.username}
-                    onChange={(e) => setSignupForm({...signupForm, username: e.target.value})}
-                    className={validationErrors.username ? 'border-destructive' : ''}
-                  />
-                  {validationErrors.username && (
-                    <p className="text-sm text-destructive">{validationErrors.username}</p>
                   )}
                 </div>
                 

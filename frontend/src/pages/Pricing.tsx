@@ -157,10 +157,10 @@ const Pricing = () => {
           </p>
           <div className="flex items-center justify-center mb-3">
             <Gift className="h-5 w-5 text-primary mr-2" />
-            <p className="text-lg font-semibold text-primary">50 free credits with every new account!</p>
+            <p className="text-lg font-semibold text-primary">₹ 50 free credits with every new account!</p>
           </div>
           <p className="text-secondary-text max-w-2xl mx-auto mb-8">
-            Get 10 credits for every dollar spent, plus bonus credits on larger packages.
+            Get ₹ 10 credits for every dollar spent, plus bonus credits on larger packages.
           </p>
         </motion.div>
 
@@ -234,7 +234,7 @@ const Pricing = () => {
               Ready to supercharge your professional prospecting?
             </h2>
             <p className="text-lg text-secondary-text mb-8">
-              Sign up today and get 50 free credits to start finding the right professional connections.
+              Sign up today and get ₹ 50 free credits to start finding the right professional connections.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button 
@@ -242,7 +242,7 @@ const Pricing = () => {
                 size="lg"
                 onClick={handleGetFreeCredits}
               >
-                Get 50 Free Credits
+                Get ₹ 50 Free Credits
               </Button>
               <Link href="/demo">
                 <Button variant="outline" className="border-primary/30 hover:bg-primary/10 text-primary text-lg px-8 py-6" size="lg">

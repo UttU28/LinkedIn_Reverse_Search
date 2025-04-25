@@ -568,7 +568,7 @@ app.post('/signup', async (req, res) => {
       return res.status(400).json({ success: false, message: 'User already exists' });
     }
     
-    // Create new user
+    // Create new user - remove username field
     const userData = {
       email,
       password, // In a real app, you'd hash this password

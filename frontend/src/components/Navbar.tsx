@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useLocation } from 'wouter';
-import { Link2, Briefcase, LogOut, Users, CreditCard } from 'lucide-react';
+import { Link2, Briefcase, LogOut, Users, CreditCard, User } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const Navbar: React.FC = () => {
   const { isAuthenticated, userData, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAvatarClicked, setIsAvatarClicked] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [location] = useLocation();
 
@@ -27,6 +29,17 @@ const Navbar: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [userMenuOpen]);
+
+  // Animation reset timeout
+  useEffect(() => {
+    if (isAvatarClicked) {
+      const timeout = setTimeout(() => {
+        setIsAvatarClicked(false);
+      }, 1000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [isAvatarClicked]);
 
   const handleLogout = async () => {
     await logout();
@@ -84,15 +97,54 @@ const Navbar: React.FC = () => {
             {isAuthenticated && (
               <div className="relative ml-4" ref={menuRef}>
                 <div className="flex items-center text-primary-text ml-2">
-                  <Link to="/profile" className="mr-2 text-sm uppercase hover:text-primary transition-colors">
-                    {userData?.name || 'User'}
+                  <Link to="/profile" className="flex items-center hover:opacity-90 transition-opacity">
+                    <span className="mr-2 font-medium text-primary">₹ {userData?.linkCredits || 0}</span>
+                    <motion.div
+                      initial={{ scale: 1 }}
+                      animate={{ 
+                        scale: isAvatarClicked ? 1.1 : 1,
+                        rotate: isAvatarClicked ? [0, -10, 10, -5, 5, 0] : 0
+                      }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 15
+                      }}
+                      whileHover={{ scale: 1.05 }}
+                      onClick={() => {
+                        setIsAvatarClicked(true);
+                        setUserMenuOpen(!userMenuOpen);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Avatar className="h-9 w-9 relative overflow-visible">
+                        <motion.div
+                          className="absolute inset-0"
+                          animate={{ 
+                            opacity: [0.1, 0.2, 0.1], 
+                            scale: [1, 1.1, 1]
+                          }}
+                          transition={{ 
+                            duration: 3,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                            ease: "easeInOut"
+                          }}
+                          style={{
+                            borderRadius: "100%",
+                            background: "radial-gradient(circle, rgba(138,43,226,0.15) 0%, rgba(138,43,226,0) 70%)"
+                          }}
+                        />
+                        <AvatarImage 
+                          src={`https://api.dicebear.com/7.x/bottts/svg?seed=${userData?.email || 'default'}`} 
+                          alt={userData?.name || 'User'}
+                        />
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                          {getUserInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
                   </Link>
-                  <button 
-                    className="w-8 h-8 rounded-full bg-primary flex items-center justify-center"
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  >
-                    <span className="text-xs font-semibold">{userData?.linkCredits || 0}</span>
-                  </button>
                 </div>
                 
                 <AnimatePresence>
@@ -143,11 +195,23 @@ const Navbar: React.FC = () => {
           {/* Mobile navigation button */}
           <div className="flex md:hidden items-center">
             {isAuthenticated && (
-              <button 
-                className="w-8 h-8 rounded-full bg-primary flex items-center justify-center mr-2"
-              >
-                <span className="text-xs font-semibold">{userData?.linkCredits || 0}</span>
-              </button>
+              <Link to="/profile" className="flex items-center mr-3">
+                <span className="mr-2 font-medium text-primary text-sm">₹ {userData?.linkCredits || 0}</span>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage 
+                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=${userData?.email || 'default'}`} 
+                      alt={userData?.name || 'User'}
+                    />
+                    <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </motion.div>
+              </Link>
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

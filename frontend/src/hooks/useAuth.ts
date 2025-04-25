@@ -21,7 +21,6 @@ export const useAuth = () => {
 
   const register = async (
     fullName: string,
-    username: string,
     email: string,
     password: string,
     termsAgreed: boolean,
@@ -35,11 +34,6 @@ export const useAuth = () => {
     
     if (!fullName.trim()) {
       errors.fullName = 'Full name is required';
-      hasErrors = true;
-    }
-    
-    if (!username.trim()) {
-      errors.username = 'Username is required';
       hasErrors = true;
     }
     
@@ -74,7 +68,7 @@ export const useAuth = () => {
     
     try {
       // Register user with Firebase Auth and backend database
-      await registerUser(email, password, fullName, username);
+      await registerUser(email, password, fullName);
       
       // Sign out the user immediately after registration
       await logoutUser();
