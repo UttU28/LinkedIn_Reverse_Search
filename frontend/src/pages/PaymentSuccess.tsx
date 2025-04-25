@@ -198,31 +198,33 @@ const PaymentSuccess = () => {
         animate="visible"
       >
         <motion.div 
-          className="max-w-md w-full p-8 bg-card border border-border rounded-xl shadow-lg"
+          className="max-w-md w-full p-8 bg-card border border-border/40 rounded-2xl shadow-xl backdrop-blur-sm"
           variants={itemVariants}
         >
           {isLoading ? (
             <div className="flex flex-col items-center py-10">
               <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin mb-4"></div>
-              <p className="text-secondary-text">Verifying your payment...</p>
+              <p className="text-secondary-foreground">Verifying your payment...</p>
             </div>
           ) : (
             <>
               <div className="flex justify-center mb-6">
-                <div className={`h-16 w-16 ${paymentStatus?.status === 'failed' ? 'bg-red-500/20' : 'bg-primary/20'} rounded-full flex items-center justify-center`}>
-                  {paymentStatus?.status === 'failed' ? (
-                    <AlertTriangle className="h-8 w-8 text-red-500" />
-                  ) : (
-                    <Check className="h-8 w-8 text-primary" />
-                  )}
-                </div>
+                {paymentStatus?.status === 'failed' ? (
+                  <div className="h-20 w-20 bg-destructive/20 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="h-10 w-10 text-destructive" />
+                  </div>
+                ) : (
+                  <div className="h-20 w-20 bg-primary/25 rounded-full flex items-center justify-center">
+                    <Check className="h-10 w-10 text-primary" />
+                  </div>
+                )}
               </div>
               
-              <h1 className="text-2xl font-bold text-center mb-2">
+              <h1 className="text-3xl font-bold text-center mb-3 text-foreground">
                 {paymentStatus?.status === 'failed' ? 'Payment Failed' : 'Payment Successful!'}
               </h1>
               
-              <p className="text-secondary-text text-center mb-6">
+              <p className="text-secondary-foreground text-center mb-8">
                 {paymentStatus?.status === 'failed' 
                   ? "Your payment was not successful. Please try again."
                   : isAuthenticated 
@@ -230,22 +232,13 @@ const PaymentSuccess = () => {
                     : "Create an account to claim your credits."}
               </p>
               
-              {/* Payment Status Badge */}
-              {paymentStatus && (
-                <div className="flex justify-center mb-4">
-                  <div className={`px-3 py-1 rounded-full ${statusDisplay.color} text-white text-xs font-medium`}>
-                    {statusDisplay.text}
-                  </div>
-                </div>
-              )}
-              
-              {paymentDetails && (
-                <div className="mb-6 p-4 bg-background rounded-lg border border-border/50">
-                  <div className="flex items-center mb-2">
+              {paymentDetails && paymentStatus?.status !== 'failed' && (
+                <div className="mb-8 p-5 bg-muted/30 rounded-xl border border-border/30">
+                  <div className="flex items-center mb-3">
                     <CreditCard className="h-5 w-5 text-primary mr-2" />
-                    <h3 className="font-medium">Purchase Details</h3>
+                    <h3 className="font-medium text-foreground">Purchase Details</h3>
                   </div>
-                  <div className="space-y-1 text-sm text-secondary-text">
+                  <div className="space-y-2 text-sm text-secondary-foreground">
                     <p><span className="font-medium">Plan:</span> {paymentDetails.planName}</p>
                     {paymentDetails.creditsAdded && (
                       <p><span className="font-medium">Credits Added:</span> {paymentDetails.creditsAdded}</p>
@@ -253,30 +246,32 @@ const PaymentSuccess = () => {
                     {!isAuthenticated && paymentDetails.totalCredits && (
                       <p><span className="font-medium">Credits to Claim:</span> {paymentDetails.totalCredits}</p>
                     )}
-                    
-                    {/* Show error message if payment failed */}
-                    {paymentStatus?.status === 'failed' && paymentStatus.errorMessage && (
-                      <p className="text-red-500 mt-2">
-                        <span className="font-medium">Error:</span> {paymentStatus.errorMessage}
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
               
-              <div className="space-y-3">
+              {/* Show error message if payment failed */}
+              {paymentStatus?.status === 'failed' && paymentStatus.errorMessage && (
+                <div className="mb-8 p-5 bg-destructive/10 rounded-xl border border-destructive/30">
+                  <p className="text-destructive font-medium">
+                    Error: {paymentStatus.errorMessage}
+                  </p>
+                </div>
+              )}
+              
+              <div className="space-y-6">
                 <Button 
-                  className="w-full" 
+                  className="w-full py-5 text-base font-medium rounded-xl shadow-md"
                   onClick={() => setLocation('/dashboard')}
                 >
                   Go to Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                
-                <Link href="/pricing">
-                  <Button variant="outline" className="w-full">
+
+                <Link href="/pricing" className="block w-full text-center">
+                  <span className="text-secondary-foreground hover:text-primary transition-colors">
                     Back to Pricing
-                  </Button>
+                  </span>
                 </Link>
               </div>
             </>

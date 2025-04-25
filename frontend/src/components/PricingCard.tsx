@@ -135,7 +135,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, index, onButtonClick, i
           
           {/* Card issuer (top right) */}
           <div className="absolute top-8 right-8 font-medium tracking-wide text-white/70 text-sm uppercase">
-            Buy Credits
+            GET MORE !!
           </div>
 
           {/* Card number (middle) */}
