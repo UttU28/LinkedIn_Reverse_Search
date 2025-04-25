@@ -1,4 +1,4 @@
-const { GoogleCustomSearch, callOpenAI, log } = require('./utils');
+const { GoogleCustomSearch, callOpenAI, log } = require('./backend/utils');
 require('dotenv').config();
 
 // Get user input from command line arguments
