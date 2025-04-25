@@ -122,15 +122,20 @@ const RecentSearches: React.FC = () => {
         resultIds: searchResult.originalData.resultIds
       };
       
+      // Log the search info for debugging
+      console.log('Download request for search:', searchInfo);
+      
       // Progress callback for toast notifications
       const onProgress = (stage: 'fetching' | 'creating' | 'complete' | 'error', count?: number) => {
         if (stage === 'fetching') {
           toast({
             title: `Preparing ${type.toUpperCase()} download`,
-            description: "Fetching data for export...",
+            description: "Fetching data from database...",
             variant: "default"
           });
-        } else if (stage === 'complete' && count) {
+        } 
+        // Removed 'creating' toast to avoid duplicate notifications
+        else if (stage === 'complete' && count) {
           toast({
             title: "Download complete",
             description: `Successfully downloaded ${count} records as ${type.toUpperCase()} file.`,

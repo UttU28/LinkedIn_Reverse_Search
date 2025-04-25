@@ -71,8 +71,8 @@ export const exportToCSV = async (
       throw new Error('No search results found to export');
     }
     
-    // Notify start of CSV creation
-    if (onProgress) onProgress('creating', detailedData.length);
+    // Skip notifying about CSV creation to avoid duplicate toasts
+    // if (onProgress) onProgress('creating', detailedData.length);
     
     // Convert data to CSV
     const csvContent = convertToCSV(detailedData);

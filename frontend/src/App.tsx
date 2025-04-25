@@ -17,6 +17,23 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import { Loader2 } from "lucide-react";
 import ScrollToTop from "./components/ScrollToTop";
 
+// Protected route component
+const ProtectedRoute = ({ component: Component }: { component: React.ComponentType<any> }) => {
+  const { user } = useAuthStore();
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    if (!user) {
+      // Redirect to home if not authenticated
+      setLocation("/");
+    }
+  }, [user, setLocation]);
+  
+  // If user is authenticated, render the component
+  // If not, this will redirect via the useEffect above
+  return <Component />;
+};
+
 function App() {
   const { user, loading, initialized } = useAuthStore();
   const [location, setLocation] = useLocation();
@@ -25,8 +42,11 @@ function App() {
   useEffect(() => {
     if (!initialized) return;
     
-    // Only redirect from dashboard to home when not authenticated
-    if (!user && location === "/dashboard") {
+    // List of routes that require authentication
+    const protectedRoutes = ["/dashboard", "/profile"];
+    
+    // Check if current location is a protected route
+    if (!user && protectedRoutes.includes(location)) {
       setLocation("/");
     }
   }, [user, location, initialized, setLocation]);
@@ -48,8 +68,12 @@ function App() {
       <ScrollToTop />
       <Switch>
         <Route path="/" component={Home} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/profile" component={Profile} />
+        <Route path="/dashboard">
+          {() => <ProtectedRoute component={Dashboard} />}
+        </Route>
+        <Route path="/profile">
+          {() => <ProtectedRoute component={Profile} />}
+        </Route>
         <Route path="/features" component={Features} />
         <Route path="/pricing" component={Pricing} />
         <Route path="/faq" component={FAQ} />

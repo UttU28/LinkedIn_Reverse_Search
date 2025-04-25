@@ -104,18 +104,6 @@ const Footer: React.FC = () => {
                     Contact
                   </Link>
                 </li>
-                <li>
-                  <Link 
-                    href="/accessibility" 
-                    className={`transition-colors duration-200 ${
-                      isActiveLink('/accessibility') 
-                        ? 'text-primary font-medium' 
-                        : 'text-secondary-text hover:text-accent'
-                    }`}
-                  >
-                    Accessibility
-                  </Link>
-                </li>
               </ul>
             </div>
             

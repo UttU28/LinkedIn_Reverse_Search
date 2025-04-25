@@ -50,6 +50,7 @@ export const registerUser = async (
           email,
           password,
           name: fullName,
+          uid: userCredential.user.uid,
         }),
       });
     } catch (backendError) {
