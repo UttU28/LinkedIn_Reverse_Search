@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from '@/hooks/use-toast';
-import { Mail, Phone, MapPin, MessageSquare, User, Building, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, MessageSquare, User, Building, Send, Loader2 } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+import { db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const contactFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -22,6 +26,9 @@ const contactFormSchema = z.object({
 type ContactFormValues = z.infer<typeof contactFormSchema>;
 
 const Contact = () => {
+  const { user, userData } = useAuthStore();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
@@ -31,15 +38,61 @@ const Contact = () => {
       message: "",
     },
   });
+  
+  // Auto-fill form with user data if logged in
+  useEffect(() => {
+    if (userData) {
+      form.setValue('name', userData.name || '');
+      form.setValue('email', userData.email || '');
+    }
+  }, [userData, form]);
 
-  const onSubmit = (data: ContactFormValues) => {
-    // In a real app, this would send the form data to a server
-    console.log("Form submitted:", data);
-    toast({
-      title: "Message sent!",
-      description: "We'll get back to you as soon as possible.",
-    });
-    form.reset();
+  const onSubmit = async (data: ContactFormValues) => {
+    setIsSubmitting(true);
+    
+    try {
+      // Create a new document in the messages collection
+      const messageData = {
+        name: data.name,
+        email: data.email,
+        company: data.company || null,
+        message: data.message,
+        userId: user?.uid || null, // Include user ID if available
+        timestamp: serverTimestamp(),
+        status: 'new',
+      };
+      
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'messages'), messageData);
+      
+      console.log("Message submitted with ID:", docRef.id);
+      
+      toast({
+        title: "Message sent!",
+        description: "Thank you! We'll get back to you as soon as possible.",
+        variant: "default"
+      });
+      
+      // Reset form
+      form.reset();
+      
+      // If user is logged in, restore their data in the form after reset
+      if (userData) {
+        setTimeout(() => {
+          form.setValue('name', userData.name || '');
+          form.setValue('email', userData.email || '');
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({
+        title: "Error sending message",
+        description: "There was a problem sending your message. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const containerVariants = {
@@ -130,34 +183,11 @@ const Contact = () => {
                   </div>
                 </div>
                 
-                <Card className="border border-border/50 bg-card/50">
-                  <CardContent className="pt-6">
-                    <h3 className="text-lg font-medium text-primary-text mb-2 flex items-center">
-                      <MessageSquare className="h-5 w-5 text-primary mr-2" />
-                      Support Hours
-                    </h3>
-                    <div className="space-y-2 text-secondary-text">
-                      <div className="flex justify-between">
-                        <span>Monday - Friday</span>
-                        <span>9:00 AM - 5:00 PM PT</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Saturday</span>
-                        <span>10:00 AM - 2:00 PM PT</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sunday</span>
-                        <span>Closed</span>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-border">
-                      <p className="text-sm text-secondary-text">
-                        For urgent support outside of business hours, please email <span className="text-primary">urgent@linkitup.com</span>
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="mt-4 pt-4">
+                  <p className="text-sm text-secondary-text">
+                    For urgent support outside of business hours, please email <span className="text-primary">urgent@linkitup.com</span>
+                  </p>
+                </div>
               </div>
             </motion.div>
             
@@ -249,9 +279,18 @@ const Contact = () => {
                         )}
                       />
                       
-                      <Button type="submit" className="w-full">
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Message
+                      <Button type="submit" className="w-full" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Send Message
+                          </>
+                        )}
                       </Button>
                     </form>
                   </Form>
@@ -270,43 +309,44 @@ const Contact = () => {
             </p>
           </motion.div>
           
-          <motion.div variants={itemVariants}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-primary-text mb-2">
-                  What is the response time for support inquiries?
-                </h3>
-                <p className="text-secondary-text">
-                  We strive to respond to all support inquiries within 24 hours during business days. For urgent matters, our premium support team is available for faster response times.
-                </p>
-              </div>
-              
-              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-primary-text mb-2">
-                  Do you offer refunds?
-                </h3>
-                <p className="text-secondary-text">
-                  Yes, we offer a 14-day money-back guarantee for our subscription plans. If you're not satisfied with our service, contact us within 14 days of your purchase for a full refund.
-                </p>
-              </div>
-              
-              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-primary-text mb-2">
-                  How do I upgrade my subscription?
-                </h3>
-                <p className="text-secondary-text">
-                  You can upgrade your subscription at any time through your account dashboard. The price difference will be prorated for the remainder of your billing cycle.
-                </p>
-              </div>
-              
-              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-primary-text mb-2">
-                  Do you offer enterprise solutions?
-                </h3>
-                <p className="text-secondary-text">
-                  Yes, we offer customized enterprise solutions for larger organizations. Please contact our sales team at sales@linkitup.com to discuss your specific requirements.
-                </p>
-              </div>
+          <motion.div 
+            variants={itemVariants}
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16"
+          >
+            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-primary-text mb-2">
+                How do I get started with the platform?
+              </h3>
+              <p className="text-secondary-text">
+                Simply sign up for an account, choose a subscription plan, and you can immediately start using our services to find LinkedIn profiles.
+              </p>
+            </div>
+            
+            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-primary-text mb-2">
+                Can I upload a CSV file with multiple contacts?
+              </h3>
+              <p className="text-secondary-text">
+                Yes, our platform supports bulk uploads. You can upload a CSV or Excel file with multiple entries and we'll process them all at once.
+              </p>
+            </div>
+            
+            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-primary-text mb-2">
+                How accurate is your LinkedIn profile matching?
+              </h3>
+              <p className="text-secondary-text">
+                Our AI-powered matching system typically achieves over 90% accuracy when provided with accurate name, company, and position information.
+              </p>
+            </div>
+            
+            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-primary-text mb-2">
+                Do you offer enterprise solutions?
+              </h3>
+              <p className="text-secondary-text">
+                Yes, we offer customized enterprise solutions for larger organizations. Please contact our sales team at sales@linkitup.com to discuss your specific requirements.
+              </p>
             </div>
           </motion.div>
         </div>

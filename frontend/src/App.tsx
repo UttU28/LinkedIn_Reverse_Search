@@ -35,7 +35,7 @@ const ProtectedRoute = ({ component: Component }: { component: React.ComponentTy
 };
 
 function App() {
-  const { user, loading, initialized } = useAuthStore();
+  const { user, initialized } = useAuthStore();
   const [location, setLocation] = useLocation();
 
   // Redirect based on auth state

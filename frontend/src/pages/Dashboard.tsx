@@ -1,48 +1,20 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { useAuth } from '../hooks/useAuth';
-import { Link } from 'wouter';
 import { useToast } from '../hooks/use-toast';
 import {
-  Home,
   Search,
-  CreditCard,
   Users,
-  Bell,
-  ChevronRight,
-  User,
-  Building,
-  Briefcase,
   Filter,
-  ExternalLink,
   UserCheck,
   Clock,
-  Calendar,
-  ArrowUp,
-  Filter as FilterIcon,
-  Bookmark,
-  ChevronDown,
-  Download,
   Link as LinkIcon
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue,
-} from '../components/ui/select';
-import { Label } from '../components/ui/label';
-import { Input } from '../components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import SearchCard from '../components/SearchCard';
-import axios from 'axios';
-import LinkedInIcon from '../assets/icons/LinkedInIcon';
 import LeadSearchForm from '../components/LeadSearchForm';
 import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
@@ -52,7 +24,7 @@ import RecentSearches from '../components/RecentSearches';
 import TeamMembersTable from '../components/TeamMembersTable';
 
 const Dashboard: React.FC = () => {
-  const { user, userData } = useAuthStore();
+  const { userData } = useAuthStore();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch' | 'teamMembers'>('profile');
   
@@ -67,22 +39,6 @@ const Dashboard: React.FC = () => {
   // Team members states
   const [teamSearchResults, setTeamSearchResults] = useState<any>(null);
   const [showTeamSearchResults, setShowTeamSearchResults] = useState(false);
-  
-  const positionOptions = [
-    { value: 'recruitment', label: 'Recruitment' },
-    { value: 'investment', label: 'Investment' },
-    { value: 'c-level', label: 'C-Level Executives' }
-  ];
-  
-  // Calculate success rate
-  const getSuccessRate = (): string => {
-    if (!userData) return '0%';
-    
-    if (userData.totalSearched === 0) return '0%';
-    
-    const rate = (userData.totalFound / userData.totalSearched) * 100;
-    return `${Math.round(rate)}%`;
-  };
   
   const containerVariants = {
     hidden: { opacity: 0 },

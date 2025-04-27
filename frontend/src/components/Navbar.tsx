@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { Link, useLocation } from 'wouter';
-import { Link2, LogOut } from 'lucide-react';
+import { Link2, LogOut, Menu, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const Navbar: React.FC = () => {
@@ -22,6 +22,11 @@ const Navbar: React.FC = () => {
     }
   }, [isAvatarClicked]);
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location]);
+
   const getUserInitials = (): string => {
     if (!userData?.name) return '';
     
@@ -34,11 +39,11 @@ const Navbar: React.FC = () => {
 
   return (
     <nav className="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-14 sm:h-16">
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="font-heading font-bold text-xl text-primary-text flex items-center">
-              <Link2 className="text-primary mr-2 h-6 w-6" />
+            <Link to="/" className="font-heading font-bold text-lg sm:text-xl text-primary-text flex items-center">
+              <Link2 className="text-primary mr-1 sm:mr-2 h-5 w-5 sm:h-6 sm:w-6" />
               <span>Link It Up</span>
             </Link>
           </div>
@@ -156,15 +161,14 @@ const Navbar: React.FC = () => {
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-md text-secondary-text hover:text-primary-text focus:outline-none"
+              className="p-2 rounded-md text-secondary-text hover:text-primary-text focus:outline-none hover:bg-background/50 active:bg-background/70 transition-colors"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                {mobileMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
@@ -172,41 +176,51 @@ const Navbar: React.FC = () => {
       
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-card border-t border-border">
-          <div className="px-2 pt-2 pb-3 space-y-1">
-            <Link to="/" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+        <motion.div 
+          className="md:hidden bg-card border-t border-border"
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="px-2 py-3 space-y-1">
+            <Link to="/" className={`block px-3 py-3 rounded-md text-base font-medium ${location === "/" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
               Home
             </Link>
             
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/dashboard" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                <Link to="/dashboard" className={`block px-3 py-3 rounded-md text-base font-medium ${location === "/dashboard" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
                   Dashboard
                 </Link>
-                <Link to="/profile" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/profile" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                <Link to="/profile" className={`block px-3 py-3 rounded-md text-base font-medium ${location === "/profile" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
                   Profile
                 </Link>
-                <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                <Link to="/pricing" className={`block px-3 py-3 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
                   Buy Credits
                 </Link>
-                <Link to="/profile"
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-red-600 hover:bg-red-700 text-white font-bold border-2 border-red-600"
-                >
-                  Profile
-                </Link>
+                <div className="pt-2 mt-3 border-t border-border/30">
+                  <Link to="/profile"
+                    className="block w-full text-left px-3 py-3 rounded-md text-base font-medium bg-primary hover:bg-primary/90 text-white transition-colors"
+                  >
+                    My Account
+                  </Link>
+                </div>
               </>
             ) : (
               <>
-                <Link to="/pricing" className={`block px-3 py-2 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
+                <Link to="/pricing" className={`block px-3 py-3 rounded-md text-base font-medium ${location === "/pricing" ? "bg-primary/10 text-primary" : "text-secondary-text hover:bg-background"}`}>
                   Pricing
                 </Link>
-                <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium bg-primary text-white">
-                  Log In
-                </Link>
+                <div className="pt-2 mt-3 border-t border-border/30">
+                  <Link to="/" className="block px-3 py-3 rounded-md text-base font-medium bg-primary text-white hover:bg-primary/90 transition-colors">
+                    Log In
+                  </Link>
+                </div>
               </>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
     </nav>
   );
