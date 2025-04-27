@@ -38,7 +38,7 @@ const Contact = () => {
       message: "",
     },
   });
-  
+
   // Auto-fill form with user data if logged in
   useEffect(() => {
     if (userData) {
@@ -67,14 +67,14 @@ const Contact = () => {
       
       console.log("Message submitted with ID:", docRef.id);
       
-      toast({
-        title: "Message sent!",
+    toast({
+      title: "Message sent!",
         description: "Thank you! We'll get back to you as soon as possible.",
         variant: "default"
-      });
+    });
       
       // Reset form
-      form.reset();
+    form.reset();
       
       // If user is logged in, restore their data in the form after reset
       if (userData) {
@@ -184,10 +184,10 @@ const Contact = () => {
                 </div>
                 
                 <div className="mt-4 pt-4">
-                  <p className="text-sm text-secondary-text">
-                    For urgent support outside of business hours, please email <span className="text-primary">urgent@linkitup.com</span>
-                  </p>
-                </div>
+                      <p className="text-sm text-secondary-text">
+                        For urgent support outside of business hours, please email <span className="text-primary">urgent@linkitup.com</span>
+                      </p>
+                    </div>
               </div>
             </motion.div>
             
@@ -287,8 +287,8 @@ const Contact = () => {
                           </>
                         ) : (
                           <>
-                            <Send className="h-4 w-4 mr-2" />
-                            Send Message
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Message
                           </>
                         )}
                       </Button>
@@ -313,40 +313,40 @@ const Contact = () => {
             variants={itemVariants}
             className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16"
           >
-            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-primary-text mb-2">
+              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-primary-text mb-2">
                 How do I get started with the platform?
-              </h3>
-              <p className="text-secondary-text">
+                </h3>
+                <p className="text-secondary-text">
                 Simply sign up for an account, choose a subscription plan, and you can immediately start using our services to find LinkedIn profiles.
-              </p>
-            </div>
-            
-            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-primary-text mb-2">
+                </p>
+              </div>
+              
+              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-primary-text mb-2">
                 Can I upload a CSV file with multiple contacts?
-              </h3>
-              <p className="text-secondary-text">
+                </h3>
+                <p className="text-secondary-text">
                 Yes, our platform supports bulk uploads. You can upload a CSV or Excel file with multiple entries and we'll process them all at once.
-              </p>
-            </div>
-            
-            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-primary-text mb-2">
+                </p>
+              </div>
+              
+              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-primary-text mb-2">
                 How accurate is your LinkedIn profile matching?
-              </h3>
-              <p className="text-secondary-text">
+                </h3>
+                <p className="text-secondary-text">
                 Our AI-powered matching system typically achieves over 90% accuracy when provided with accurate name, company, and position information.
-              </p>
-            </div>
-            
-            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-primary-text mb-2">
-                Do you offer enterprise solutions?
-              </h3>
-              <p className="text-secondary-text">
-                Yes, we offer customized enterprise solutions for larger organizations. Please contact our sales team at sales@linkitup.com to discuss your specific requirements.
-              </p>
+                </p>
+              </div>
+              
+              <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-primary-text mb-2">
+                  Do you offer enterprise solutions?
+                </h3>
+                <p className="text-secondary-text">
+                  Yes, we offer customized enterprise solutions for larger organizations. Please contact our sales team at sales@linkitup.com to discuss your specific requirements.
+                </p>
             </div>
           </motion.div>
         </div>

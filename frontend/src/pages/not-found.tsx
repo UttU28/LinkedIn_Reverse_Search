@@ -24,8 +24,8 @@ export default function NotFound() {
             <div className="flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
                 <AlertCircle className="h-8 w-8 text-destructive" />
-              </div>
-              
+          </div>
+
               <h1 className="text-3xl font-heading font-bold text-primary-text mb-2">
                 404
               </h1>
@@ -46,8 +46,8 @@ export default function NotFound() {
                 Back to Home
               </Button>
             </div>
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
       </motion.div>
       
       <Footer />

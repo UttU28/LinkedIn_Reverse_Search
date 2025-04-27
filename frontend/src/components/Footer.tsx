@@ -94,6 +94,18 @@ const Footer: React.FC = () => {
                 </li>
                 <li>
                   <Link 
+                    href="/marketing" 
+                    className={`transition-colors duration-200 text-xs sm:text-sm py-1 block ${
+                      isActiveLink('/marketing') 
+                        ? 'text-primary font-medium' 
+                        : 'text-secondary-text hover:text-accent'
+                    }`}
+                  >
+                    Marketing
+                  </Link>
+                </li>
+                <li>
+                  <Link 
                     href="/contact" 
                     className={`transition-colors duration-200 text-xs sm:text-sm py-1 block ${
                       isActiveLink('/contact') 
