@@ -55,6 +55,7 @@ services:
 
   api:
     <<: *common-service
+    build: apps/api
     environment:
       <<: *common-env
       HOST: "0.0.0.0"
@@ -69,6 +70,7 @@ services:
 
   worker:
     <<: *common-service
+    build: apps/api
     environment:
       <<: *common-env
       FLY_PROCESS_GROUP: worker

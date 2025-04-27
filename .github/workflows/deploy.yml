@@ -32,12 +32,26 @@ jobs:
           cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
           docker compose config -q
 
+      - name: Check if Firecrawl containers are running
+        id: check-firecrawl
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
+          if [ "$(docker compose ps --services --filter "status=running" | grep -c "")" -gt 0 ]; then
+            echo "firecrawl_running=true" >> $GITHUB_OUTPUT
+            echo "✅ Firecrawl containers are already running - skipping rebuild"
+          else
+            echo "firecrawl_running=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Firecrawl containers are not running - will rebuild"
+          fi
+
       - name: Stop and remove existing Firecrawl containers
+        if: steps.check-firecrawl.outputs.firecrawl_running != 'true'
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
           docker compose down --remove-orphans
 
       - name: Rebuild and launch Firecrawl services
+        if: steps.check-firecrawl.outputs.firecrawl_running != 'true'
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
           docker compose pull || true # don't fail if no new image

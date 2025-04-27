@@ -44,4 +44,4 @@ EXPOSE 8080
 # Make sure the entrypoint script has the correct line endings
 RUN sed -i 's/\r$//' /app/docker-entrypoint.sh
 
-ENTRYPOINT "/app/docker-entrypoint.sh"
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
