@@ -4,6 +4,7 @@ import HeroSection from '../components/HeroSection';
 import FeatureList from '../components/FeatureList';
 import Footer from '../components/Footer';
 import { useAuth } from '../hooks/useAuth';
+import { Gift } from 'lucide-react';
 
 const Home: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -27,6 +28,26 @@ const Home: React.FC = () => {
       <main className="flex-grow z-10 relative">
         {/* Hero Section with Auth Form */}
         <HeroSection />
+        
+        {/* Promotion Banner */}
+        {!isAuthenticated && (
+          <motion.div 
+            className="max-w-7xl mx-auto mb-14 px-4 sm:px-6 lg:px-8 mt-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="bg-gradient-to-r from-accent/20 to-primary/20 rounded-xl p-6 border border-accent/30 flex items-center gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-accent/30 rounded-full flex items-center justify-center">
+                <Gift className="text-accent" size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-heading font-medium text-primary-text">New User Bonus!</h3>
+                <p className="text-secondary-text">Register now and receive 50 tokens for free to start finding LinkedIn profiles.</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
         
         {/* Features Section */}
         <FeatureList />

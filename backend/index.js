@@ -558,7 +558,7 @@ app.post('/signup', async (req, res) => {
         success: true,
         userId: 'mock-user-' + Date.now(),
         message: 'Mock signup successful (Firebase not initialized)',
-        linkCredits: 10
+        linkCredits: 50
       });
     }
     
@@ -575,7 +575,7 @@ app.post('/signup', async (req, res) => {
       password, // In a real app, you'd hash this password
       name,
       uid, // Pass the Firebase Auth UID to be used as document ID
-      linkCredits: 10, // Default credits for new users
+      linkCredits: 50, // Default credits for new users
       createdAt: new Date()
     };
     

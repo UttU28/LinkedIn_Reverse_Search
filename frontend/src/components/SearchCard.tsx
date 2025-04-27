@@ -663,14 +663,14 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       <AnimatePresence>
         {(searchResponse || (bulkSearchResults && bulkSearchResults.length > 0)) && (
           <motion.div 
-            className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
+            className="bg-card rounded-xl border border-border/50 p-4 sm:p-6 hover:border-accent/50 transition-all duration-300"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-heading font-medium text-primary-text">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-2">
+              <h3 className="text-lg sm:text-xl font-heading font-medium text-primary-text">
                 Search Results
               </h3>
               <div className="flex items-center gap-3">
@@ -688,7 +688,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="text-secondary-text hover:text-destructive border-secondary-text hover:border-destructive"
+                  className="text-secondary-text hover:text-destructive border-secondary-text hover:border-destructive h-8 w-8 p-0"
                   onClick={() => {
                     setSearchResponse(null);
                     setBulkSearchResults(null);
@@ -705,9 +705,9 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                 {(searchResponse.foundData ?? 0) > 0 ? (
                   <div className="border border-border/30 rounded-lg overflow-hidden bg-card">
                     <div className="p-4 pt-2">
-                      {/* Single result row */}
-                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                      {/* Single result row - improved mobile layout */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full sm:w-1/4">
                           <a 
                             href={searchResponse.linkedinProfileUrl} 
                             target="_blank" 
@@ -725,20 +725,26 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                             {searchResponse.searchName}
                           </a>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{searchResponse.searchCompany}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Company: </span>
+                            {searchResponse.searchCompany}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{searchResponse.searchPosition}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Position: </span>
+                            {searchResponse.searchPosition}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 flex items-center justify-end space-x-2">
+                        <div className="w-full sm:w-1/4 flex items-center justify-start sm:justify-end space-x-2">
                           {searchResponse.linkedinProfileUrl && (
                             <>
                               <a 
                                 href={searchResponse.linkedinProfileUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80 text-sm truncate"
+                                className="text-primary hover:text-primary/80 text-xs sm:text-sm truncate max-w-[150px] sm:max-w-[180px]"
                               >
                                 {searchResponse.linkedinProfileUrl.split('.com/in/')[1].replace(/\/$/, '')}
                               </a>
@@ -766,9 +772,9 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                 ) : (
                   <div className="border border-border/30 rounded-lg overflow-hidden bg-card/90 bg-opacity-80">
                     <div className="p-4 pt-2">
-                      {/* No match result row */}
-                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                      {/* No match result row - improved for mobile */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full sm:w-1/4">
                           <span className="text-secondary-text/70 h-5 w-5">
                             <Linkedin className="h-5 w-5 opacity-50" />
                           </span>
@@ -776,14 +782,20 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                             {searchResponse.searchName}
                           </span>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{searchResponse.searchCompany}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Company: </span>
+                            {searchResponse.searchCompany}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{searchResponse.searchPosition}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Position: </span>
+                            {searchResponse.searchPosition}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 flex items-center justify-end">
-                          <span className="text-destructive text-sm">Not Found</span>
+                        <div className="w-full sm:w-1/4 flex items-center justify-start sm:justify-end">
+                          <span className="text-destructive text-xs sm:text-sm">Not Found</span>
                         </div>
                       </div>
                       
@@ -796,7 +808,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
               </div>
             )}
             
-            {/* Bulk Search Results */}
+            {/* Bulk Search Results - improve scrolling on mobile */}
             {bulkSearchResults && bulkSearchResults.length > 0 && (
               <div className="border border-border/30 rounded-lg overflow-hidden bg-card">
                 <div className="border-t border-border/30 max-h-96 overflow-y-auto">
@@ -805,8 +817,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       key={index} 
                       className={`p-4 ${index !== bulkSearchResults.length - 1 ? 'border-b border-border/30' : ''} ${result.foundData > 0 ? '' : 'bg-destructive/5'}`}
                     >
-                      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2 w-full md:w-1/4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center space-x-2 w-full sm:w-1/4">
                           <a 
                             href={result.linkedinProfileUrl || "#"} 
                             target="_blank" 
@@ -825,7 +837,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                             href={result.linkedinProfileUrl || "#"} 
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`hover:text-primary transition-colors duration-200 ${!result.linkedinProfileUrl && 'pointer-events-none text-secondary-text'}`}
+                            className={`hover:text-primary transition-colors duration-200 text-sm truncate ${!result.linkedinProfileUrl && 'pointer-events-none text-secondary-text'}`}
                             onClick={(e) => {
                               if (!result.linkedinProfileUrl) {
                                 e.preventDefault();
@@ -836,13 +848,19 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                             {result.searchName}
                           </a>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{result.searchCompany}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Company: </span>
+                            {result.searchCompany}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 truncate">
-                          <span className="text-secondary-text">{result.searchPosition}</span>
+                        <div className="w-full sm:w-1/4 truncate">
+                          <span className="text-xs sm:text-sm text-secondary-text">
+                            <span className="sm:hidden">Position: </span>
+                            {result.searchPosition}
+                          </span>
                         </div>
-                        <div className="w-full md:w-1/4 flex items-center justify-end">
+                        <div className="w-full sm:w-1/4 flex items-center justify-start sm:justify-end">
                           {result.foundData > 0 ? (
                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/20 text-success">
                               Found
@@ -871,14 +889,14 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     
       {/* Main Search Form Card */}
     <motion.div 
-      className="bg-card rounded-xl border border-border/50 p-6 hover:border-accent/50 transition-all duration-300"
+      className="bg-card rounded-xl border border-border/50 p-4 sm:p-6 hover:border-accent/50 transition-all duration-300"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
       {/* Heading */}
       <motion.h3 
-        className="text-xl font-heading font-medium text-primary-text mb-6"
+        className="text-lg sm:text-xl font-heading font-medium text-primary-text mb-4 sm:mb-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -886,7 +904,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         Find LinkedIn Profiles
       </motion.h3>
       
-      <form onSubmit={handleSearch} className="space-y-6">
+      <form onSubmit={handleSearch} className="space-y-4 sm:space-y-6">
         {/* Single Search Section */}
         <motion.div 
           className="space-y-4"
@@ -894,93 +912,93 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
           initial="hidden"
           animate="show"
         >
-            <motion.div variants={itemAnimation} className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${isBulkSearchActive ? 'hidden' : 'block'}`}>
-            <div className="space-y-2">
+          <motion.div variants={itemAnimation} className={`grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 ${isBulkSearchActive ? 'hidden' : 'block'}`}>
+            <div className="space-y-1 sm:space-y-2">
               <Label htmlFor="search-name" className="text-sm">
                 Full Name <span className="text-destructive">*</span>
               </Label>
-                <div className="relative">
-              <Input
-                id="search-name"
-                placeholder="John Smith"
-                value={searchForm.name}
-                onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
-                className={validationErrors.name ? 'border-destructive' : ''}
-              />
-                  {searchForm.name && (
-                    <button 
-                      type="button"
-                      tabIndex={-1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
-                      onClick={() => setSearchForm({...searchForm, name: ''})}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+              <div className="relative">
+                <Input
+                  id="search-name"
+                  placeholder="John Smith"
+                  value={searchForm.name}
+                  onChange={(e) => setSearchForm({...searchForm, name: e.target.value})}
+                  className={`h-10 ${validationErrors.name ? 'border-destructive' : ''}`}
+                />
+                {searchForm.name && (
+                  <button 
+                    type="button"
+                    tabIndex={-1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                    onClick={() => setSearchForm({...searchForm, name: ''})}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {validationErrors.name && (
                 <p className="text-xs text-destructive">{validationErrors.name}</p>
               )}
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-1 sm:space-y-2">
               <Label htmlFor="search-company" className="text-sm">
                 Company Name <span className="text-destructive">*</span>
               </Label>
-                <div className="relative">
-              <Input
-                id="search-company"
-                placeholder="Acme Inc"
-                value={searchForm.company}
-                onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
-                className={validationErrors.company ? 'border-destructive' : ''}
-              />
-                  {searchForm.company && (
-                    <button 
-                      type="button"
-                      tabIndex={-1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
-                      onClick={() => setSearchForm({...searchForm, company: ''})}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+              <div className="relative">
+                <Input
+                  id="search-company"
+                  placeholder="Acme Inc"
+                  value={searchForm.company}
+                  onChange={(e) => setSearchForm({...searchForm, company: e.target.value})}
+                  className={`h-10 ${validationErrors.company ? 'border-destructive' : ''}`}
+                />
+                {searchForm.company && (
+                  <button 
+                    type="button"
+                    tabIndex={-1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                    onClick={() => setSearchForm({...searchForm, company: ''})}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {validationErrors.company && (
                 <p className="text-xs text-destructive">{validationErrors.company}</p>
               )}
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-1 sm:space-y-2">
               <Label htmlFor="search-position" className="text-sm">
                 Job Title / Position <span className="text-destructive">*</span>
               </Label>
-                <div className="relative">
-              <Input
-                id="search-position"
-                placeholder="Marketing Director, Software Engineer, etc."
-                value={searchForm.position}
-                onChange={(e) => {
-                  setSearchForm({
-                    ...searchForm, 
-                    position: e.target.value,
-                    // Set title same as position since they're equivalent
-                    title: e.target.value
-                  });
-                }}
-                className={validationErrors.position ? 'border-destructive' : ''}
-              />
-                  {searchForm.position && (
-                    <button 
-                      type="button"
-                      tabIndex={-1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
-                      onClick={() => setSearchForm({...searchForm, position: '', title: ''})}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+              <div className="relative">
+                <Input
+                  id="search-position"
+                  placeholder="Marketing Director, Software Engineer, etc."
+                  value={searchForm.position}
+                  onChange={(e) => {
+                    setSearchForm({
+                      ...searchForm, 
+                      position: e.target.value,
+                      // Set title same as position since they're equivalent
+                      title: e.target.value
+                    });
+                  }}
+                  className={`h-10 ${validationErrors.position ? 'border-destructive' : ''}`}
+                />
+                {searchForm.position && (
+                  <button 
+                    type="button"
+                    tabIndex={-1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-text hover:text-primary-text"
+                    onClick={() => setSearchForm({...searchForm, position: '', title: ''})}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {validationErrors.position && (
                 <p className="text-xs text-destructive">{validationErrors.position}</p>
               )}
@@ -988,142 +1006,142 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
           </motion.div>
           
           {/* OR Divider */}
-            {showCSVUpload && !isBulkSearchActive && (
-          <motion.div variants={itemAnimation} className="relative flex items-center py-4">
-            <div className="flex-grow border-t border-border"></div>
-            <span className="flex-shrink-0 mx-4 text-secondary-text font-medium px-4 py-1 rounded-full bg-background/50">OR</span>
-            <div className="flex-grow border-t border-border"></div>
-          </motion.div>
-            )}
+          {showCSVUpload && !isBulkSearchActive && (
+            <motion.div variants={itemAnimation} className="relative flex items-center py-2 sm:py-4">
+              <div className="flex-grow border-t border-border"></div>
+              <span className="flex-shrink-0 mx-2 sm:mx-4 text-secondary-text font-medium px-3 sm:px-4 py-1 rounded-full bg-background/50 text-xs sm:text-sm">OR</span>
+              <div className="flex-grow border-t border-border"></div>
+            </motion.div>
+          )}
           
-          {/* Bulk Upload Section */}
-            {showCSVUpload && (
-              <motion.div variants={itemAnimation} className={isBulkSearchActive ? 'block' : 'block'}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              id="csv-file-input"
-              className="hidden"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFileSelect}
-            />
-            
-            {!selectedFile ? (
-              <div className="space-y-4">
-                <div 
-                  className="border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
-                    <Upload className="text-accent" size={20} />
-                  </div>
-                  <p className="text-secondary-text text-sm mb-3">Upload a CSV or Excel file having Full Name, Company, and Position/Title columns</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
+          {/* Bulk Upload Section - Improve file upload UI */}
+          {showCSVUpload && (
+            <motion.div variants={itemAnimation} className={isBulkSearchActive ? 'block' : 'block'}>
+              <input
+                type="file"
+                ref={fileInputRef}
+                id="csv-file-input"
+                className="hidden"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileSelect}
+              />
+              
+              {!selectedFile ? (
+                <div className="space-y-4">
+                  <div 
+                    className="border-2 border-dashed border-border rounded-lg p-4 sm:p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Browse Files
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-background/70 rounded-lg p-4">
-                  <div className="flex items-center mb-3">
-                    <File className="text-accent mr-3 shrink-0" size={24} />
-                    <div className="flex-grow">
-                      <p className="text-primary-text font-medium">{selectedFile.name}</p>
-                      <p className="text-secondary-text text-sm">{formatFileSize(selectedFile.size)}</p>
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
+                      <Upload className="text-accent h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
-                    <button 
+                    <p className="text-secondary-text text-xs sm:text-sm mb-3">Upload a CSV or Excel file having Full Name, Company, and Position/Title columns</p>
+                    <Button
                       type="button"
-                      className="text-secondary-text hover:text-destructive"
-                      onClick={handleRemoveFile}
+                      size="sm"
+                      className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40 h-9 px-3 sm:px-4"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
                     >
-                      <X size={18} />
-                    </button>
+                      <FileUp className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                      Browse Files
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-background/70 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center mb-3">
+                      <File className="text-accent mr-3 shrink-0 h-5 w-5" />
+                      <div className="flex-grow min-w-0">
+                        <p className="text-primary-text font-medium text-sm truncate">{selectedFile.name}</p>
+                        <p className="text-secondary-text text-xs">{formatFileSize(selectedFile.size)}</p>
+                      </div>
+                      <button 
+                        type="button"
+                        className="text-secondary-text hover:text-destructive ml-2 flex-shrink-0"
+                        onClick={handleRemoveFile}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    
+                    {parsedData.length > 0 && (
+                      <div className="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6 pt-3 sm:pt-4 pb-2 border-t border-border">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
+                            ${columnValidation.name 
+                              ? 'bg-primary/20 border border-primary/60' 
+                              : 'bg-destructive/20 border border-destructive/60'}`}>
+                            {columnValidation.name ? (
+                              <Check size={16} className="text-primary" />
+                            ) : (
+                              <X size={16} className="text-destructive" />
+                            )}
+                          </div>
+                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
+                            Full Name
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
+                            ${columnValidation.company 
+                              ? 'bg-primary/20 border border-primary/60' 
+                              : 'bg-destructive/20 border border-destructive/60'}`}>
+                            {columnValidation.company ? (
+                              <Check size={16} className="text-primary" />
+                            ) : (
+                              <X size={16} className="text-destructive" />
+                            )}
+                          </div>
+                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
+                            Company
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
+                            ${columnValidation.position 
+                              ? 'bg-primary/20 border border-primary/60' 
+                              : 'bg-destructive/20 border border-destructive/60'}`}>
+                            {columnValidation.position ? (
+                              <Check size={16} className="text-primary" />
+                            ) : (
+                              <X size={16} className="text-destructive" />
+                            )}
+                          </div>
+                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
+                            Position/Title
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {parsedData.length > 0 && !columnValidation.isValid && (
+                      <div className="mt-3 p-2 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
+                        <AlertCircle size={14} className="text-destructive shrink-0 mr-2 mt-0.5" />
+                        <span className="text-xs text-destructive">
+                          Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   {parsedData.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 pt-4 pb-2 border-t border-border">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.name 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.name ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Full Name
-                        </span>
+                    <div className="bg-background/50 rounded-lg overflow-hidden">
+                      <div className="p-2 sm:p-3 border-b border-border">
+                        <p className="text-xs sm:text-sm text-primary-text font-medium">
+                          Preview: {parsedData.length} records detected
+                        </p>
                       </div>
                       
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.company 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.company ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Company
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center shadow-md 
-                          ${columnValidation.position 
-                            ? 'bg-primary/20 border border-primary/60' 
-                            : 'bg-destructive/20 border border-destructive/60'}`}>
-                          {columnValidation.position ? (
-                            <Check size={18} className="text-primary" />
-                          ) : (
-                            <X size={18} className="text-destructive" />
-                          )}
-                        </div>
-                        <span className={`text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
-                          Position/Title
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {parsedData.length > 0 && !columnValidation.isValid && (
-                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
-                      <AlertCircle size={16} className="text-destructive shrink-0 mr-2 mt-0.5" />
-                      <span className="text-xs sm:text-sm text-destructive">
-                        Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                {parsedData.length > 0 && (
-                  <div className="bg-background/50 rounded-lg overflow-hidden">
-                    <div className="p-3 border-b border-border">
-                      <p className="text-sm text-primary-text font-medium">
-                        Preview: {parsedData.length} records detected
-                      </p>
-                    </div>
-                    
-                    <div className="p-2 overflow-x-auto max-h-48 custom-scrollbar">
-                      <div className="w-full inline-block align-middle">
-                        <div className="min-w-full overflow-hidden">
-                          <table className="min-w-full table-fixed divide-y divide-border text-sm">
+                      {/* Make the table scrollable horizontally on small screens */}
+                      <div className="p-2 max-h-48 overflow-y-auto custom-scrollbar">
+                        <div className="overflow-x-auto -mx-2 px-2">
+                          <table className="min-w-full divide-y divide-border text-xs sm:text-sm">
                             <thead className="bg-background/70">
                               <tr>
                                 {Object.keys(parsedData[0] || {}).map((header, index) => {
@@ -1142,8 +1160,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                                   return (
                                     <th 
                                       key={index} 
-                                      className="px-3 py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
-                                      style={{ width: colWidth, minWidth: "120px" }}
+                                      className="px-2 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-secondary-text uppercase tracking-wider sticky top-0 bg-background/90 backdrop-blur-sm"
+                                      style={{ width: colWidth, minWidth: "100px" }}
                                     >
                                       {header}
                                     </th>
@@ -1161,10 +1179,9 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                                     return (
                                       <td 
                                         key={cellIndex} 
-                                        className="px-3 py-2 text-primary-text overflow-hidden text-ellipsis"
-                                        style={{ maxWidth: "1px" }} // This forces text-ellipsis to work with table layout
+                                        className="px-2 py-1 sm:px-3 sm:py-2 text-primary-text overflow-hidden text-ellipsis whitespace-nowrap"
                                       >
-                                        <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                                        <div className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[150px] sm:max-w-full">
                                           {value as string || '-'}
                                         </div>
                                       </td>
@@ -1174,7 +1191,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                               ))}
                               {parsedData.length > 5 && (
                                 <tr>
-                                  <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-3 py-2 text-center text-secondary-text italic">
+                                  <td colSpan={Object.keys(parsedData[0] || {}).length} className="px-2 py-1 sm:px-3 sm:py-2 text-center text-secondary-text italic text-xs">
                                     + {parsedData.length - 5} more records
                                   </td>
                                 </tr>
@@ -1184,52 +1201,51 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                
-                {parsedData.length > 0 && columnValidation.isValid && (
-                  <div className="bg-success/10 rounded-lg p-3 border border-success/20">
-                    <div className="flex items-start">
-                      <Check className="text-success shrink-0 mt-0.5 mr-2 h-4 w-4" />
-                      <p className="text-xs sm:text-sm text-secondary-text">
-                        Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
-                        This will use <span className="text-primary font-medium">₹ {parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
-                      </p>
+                  )}
+                  
+                  {parsedData.length > 0 && columnValidation.isValid && (
+                    <div className="bg-success/10 rounded-lg p-2 sm:p-3 border border-success/20">
+                      <div className="flex items-start">
+                        <Check className="text-success shrink-0 mt-0.5 mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                        <p className="text-xs text-secondary-text">
+                          Ready to process <span className="text-primary font-medium">{parsedData.length} record{parsedData.length !== 1 ? 's' : ''}</span>.
+                          This will use <span className="text-primary font-medium">₹ {parsedData.length} credit{parsedData.length !== 1 ? 's' : ''}</span> from your account.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </motion.div>
-            )}
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
         </motion.div>
         
-        {/* Search Button */}
+        {/* Search Button - improve touch target */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-            className="flex items-center gap-2"
+          className="flex items-center gap-2"
         >
           <Button
             type="submit"
-            className="bg-primary hover:bg-accent-hover w-full"
+            className="bg-primary hover:bg-accent-hover w-full h-10 sm:h-11"
             disabled={isSearchButtonDisabled()}
           >
             {getButtonText()}
           </Button>
-            
-            {isSingleSearchActive && (
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-shrink-0"
-                onClick={clearSearchFormOnly}
-                title="Clear form"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+          
+          {isSingleSearchActive && (
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-shrink-0 h-10 sm:h-11 w-10 p-0"
+              onClick={clearSearchFormOnly}
+              title="Clear form"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </motion.div>
       </form>
     </motion.div>
