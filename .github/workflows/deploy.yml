@@ -27,17 +27,33 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
-      - name: Validate Docker Compose file
+      - name: Validate Firecrawl Docker Compose file
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
+          docker compose config -q
+
+      - name: Stop and remove existing Firecrawl containers
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
+          docker compose down --remove-orphans
+
+      - name: Rebuild and launch Firecrawl services
+        run: |
+          cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
+          docker compose pull || true # don't fail if no new image
+          docker compose up -d --build
+
+      - name: Validate Main Docker Compose file
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
           docker compose config -q
 
-      - name: Stop and remove existing containers
+      - name: Stop and remove existing Main containers
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
           docker compose down --remove-orphans
 
-      - name: Rebuild and launch services
+      - name: Rebuild and launch Main services
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
           docker compose pull || true # don't fail if no new image
