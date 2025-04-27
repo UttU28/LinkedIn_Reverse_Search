@@ -4,8 +4,8 @@ This document explains the setup of the Nginx reverse proxy with SSL to serve bo
 
 ## Architecture Overview
 
-- **Frontend**: Runs on port 3004, served at the root path (`api.amitluhar.com/`)
-- **Backend**: Runs on port 3005, served at the `/api` path (`api.amitluhar.com/api/`)
+- **Frontend**: Runs on port 3009, served at the root path (`api.amitluhar.com/`)
+- **Backend**: Runs on port 3008, served at the `/api` path (`api.amitluhar.com/api/`)
 
 ## Nginx Configuration
 
@@ -17,7 +17,7 @@ server {
 
     # Frontend routes (serve at the root)
     location / {
-        proxy_pass http://localhost:3004;  # Frontend runs on port 3004
+        proxy_pass http://localhost:3009;  # Frontend runs on port 3009
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -30,7 +30,7 @@ server {
 
     # Backend API routes (under /api path)
     location /api/ {
-        proxy_pass http://localhost:3005/;  # Trailing slash removes /api from path
+        proxy_pass http://localhost:3008/;  # Trailing slash removes /api from path
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -95,10 +95,10 @@ server {
 
 ## How the Routing Works
 
-- All requests to `https://api.amitluhar.com/` are routed to the frontend application running on port 3004
-- All requests to `https://api.amitluhar.com/api/*` are routed to the backend application running on port 3005
-- The trailing slash in `proxy_pass http://localhost:3005/;` removes the `/api` prefix from the URL before passing it to the backend
-  - Example: A request to `https://api.amitluhar.com/api/login` is forwarded to `http://localhost:3005/login`
+- All requests to `https://api.amitluhar.com/` are routed to the frontend application running on port 3009
+- All requests to `https://api.amitluhar.com/api/*` are routed to the backend application running on port 3008
+- The trailing slash in `proxy_pass http://localhost:3008/;` removes the `/api` prefix from the URL before passing it to the backend
+  - Example: A request to `https://api.amitluhar.com/api/login` is forwarded to `http://localhost:3008/login`
 
 ## Testing the Setup
 
@@ -126,5 +126,5 @@ server {
 ## Troubleshooting
 
 - If you change the configuration, test it with `sudo nginx -t` and reload with `sudo systemctl reload nginx`
-- Make sure ports 3004 and 3005 are accessible locally
+- Make sure ports 3009 and 3008 are accessible locally
 - Verify both applications are running with `netstat -tulpn | grep LISTEN`

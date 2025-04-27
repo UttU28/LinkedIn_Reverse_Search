@@ -3,7 +3,7 @@ import { auth, db, getUserData, UserData } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 // Backend API url
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
 
 interface AuthState {
   user: User | null;

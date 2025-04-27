@@ -21,7 +21,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Backend API url
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
 
 // Auth functions
 export const registerUser = async (

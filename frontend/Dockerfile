@@ -12,7 +12,7 @@ RUN npm i
 COPY . .
 
 # Expose the port
-EXPOSE 3004
+EXPOSE 3009
 
 # Set the command to run the application with host binding 
 CMD ["npm", "run", "dev:docker"] 
