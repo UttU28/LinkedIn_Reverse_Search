@@ -10,7 +10,7 @@ import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
 // API URL from environment variables
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3005";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
 
 interface UserData {
   credits?: number;
@@ -138,7 +138,7 @@ const PaymentSuccess = () => {
             });
           }
         }
-      }, 3005);
+      }, 3008);
       
       // Clean up interval on component unmount
       return () => clearInterval(pollInterval);

@@ -1,5 +1,5 @@
 const { log, GoogleCustomSearch, extractEssentialData, callOpenAI, extractUrlFromResponse } = require('./utils');
-const { SYSTEM_PROMPT, USER_PROMPT } = require('./prompts');
+const { SINGLE_BULK_SYSTEM_PROMPT, SINGLE_BULK_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 
 /**
@@ -57,7 +57,7 @@ async function findSingleLinkedinContact(fullName, company, position) {
       search_results: essentialData
     };
     
-    const aiResponse = await callOpenAI(jsonData, SYSTEM_PROMPT, USER_PROMPT);
+    const aiResponse = await callOpenAI(jsonData, SINGLE_BULK_SYSTEM_PROMPT, SINGLE_BULK_USER_PROMPT);
     
     if (aiResponse !== null) {
       const extractedUrl = extractUrlFromResponse(aiResponse);

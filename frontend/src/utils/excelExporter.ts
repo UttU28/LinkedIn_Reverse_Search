@@ -56,10 +56,20 @@ export const fetchSearchResultData = async (resultIds: string[]): Promise<Search
         // Create a result object with properly extracted fields
         const resultItem: SearchResultData = {
           id: doc.id,
+          // Check for name in different possible field locations
           name: inputData.name || '',
+          
+          // Check for company in different possible field locations
           company: inputData.company || '',
-          title: inputData.title || '',
-          linkedin: data.linkedinUrl || '',  // LinkedIn URL is stored at the root level
+          
+          // Check for position/title in different possible field locations
+          // For team searches, it's stored as 'position', for others it's 'title'
+          title: inputData.position || inputData.title || '',
+          
+          // For LinkedIn URL, check multiple possible fields
+          // In team searches, it might be stored as 'linkedin' instead of 'linkedinUrl'
+          linkedin: data.linkedinUrl || data.linkedin || inputData.linkedin || '',
+          
           createdAt: data.createdAt?.toDate() || new Date(),
         };
         
@@ -119,6 +129,12 @@ export const exportToExcel = async (
     detailedData.forEach(item => {
       const row = headers.map(header => {
         const fieldName = fieldMap[header as keyof typeof fieldMap];
+        
+        // Special case for LinkedIn URLs - ensure we get the value from the correct field
+        if (header === 'LinkedIn') {
+          return item[fieldName] || item.linkedinUrl || item.linkedin || '';
+        }
+        
         return item[fieldName] || '';
       });
       wsData.push(row);

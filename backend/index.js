@@ -5,12 +5,13 @@ require('dotenv').config();
 const { firebaseInitialized } = require('./firebase');
 const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
 const { findRecruitersAtCompany } = require('./leadGenerator');
+const { findTeamMembersFromWebsite } = require('./teamMembers');
 const dbService = require('./dbService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
 
 const app = express();
-const PORT = process.env.PORT || 3005;
+const PORT = process.env.PORT || 3008;
 
 // Important: The webhook route needs raw body for signature verification
 // This route must be defined before JSON body parser middleware
@@ -848,95 +849,58 @@ app.post('/findTeamMembers', async (req, res) => {
   console.log('Company Search ID:', companySearchId);
   console.log('================================================\n');
   
-  // Generate dummy team member data - moved outside the try block so it's accessible in the response
-  const teamMembers = [
-    { id: 1, name: 'John Smith', position: 'CEO', linkedinUrl: 'https://linkedin.com/in/john-smith' },
-    { id: 2, name: 'Emily Johnson', position: 'CTO', linkedinUrl: 'https://linkedin.com/in/emily-johnson' },
-    { id: 3, name: 'Michael Chen', position: 'VP of Engineering', linkedinUrl: 'https://linkedin.com/in/michael-chen' },
-    { id: 4, name: 'Sophia Garcia', position: 'Head of Marketing', linkedinUrl: 'https://linkedin.com/in/sophia-garcia' },
-    { id: 5, name: 'David Kim', position: 'CFO', linkedinUrl: 'https://linkedin.com/in/david-kim' }
-  ];
-  
-  console.log('TEAM MEMBER SEARCH RESULT:');
-  console.log(`Found ${teamMembers.length} team members for ${url}`);
-  console.log('================================================\n');
-  
-  // Add to search history first to get the history ID - handle the response gracefully if it fails
-  let historyId = null;
   try {
-    historyId = await dbService.addSearchHistory(userID, {
-      type: "team",
-      status: "pending", // Start as pending
-      inputMeta: {
-        companyUrl: url
-      },
-      totalRecords: 0, // Will update this once we know the count
-      resultRefPath: "searchResults", // Reference to global collection
-      startedAt: new Date()
+    // Call the findTeamMembersFromWebsite function from teamMembers.js
+    const results = await findTeamMembersFromWebsite(url, userID);
+    
+    console.log('TEAM MEMBER SEARCH RESULT:');
+    console.log(`Found ${results.data.length} team members for ${url}`);
+    console.log('================================================\n');
+    
+    /* 
+    // Note: Database operations are now handled directly in the teamMembers.js module
+    // No need to duplicate the database operations here since they're already performed
+    // inside the findTeamMembersFromWebsite function
+    */
+    
+    // Format the team members for the frontend
+    const teamMembers = results.data.map((member, index) => ({
+      id: index + 1,
+      name: member.name,
+      position: member.position || "",
+      linkedinUrl: member.linkedin || ""
+    }));
+    
+    // Return the actual data with history ID from the teamMembers module
+    res.json({ 
+      status: 'success',
+      message: results.message || 'Team members found successfully',
+      data: { 
+        userID, 
+        url, 
+        teamId, 
+        companySearchId,
+        teamMembers: teamMembers,
+        historyId: results.historyId // Get historyId from the results
+      } 
     });
+  } catch (error) {
+    console.error(`Error in team members search: ${error.message}`);
     
-    console.log(`Created search history entry with ID: ${historyId}`);
-    
-    // If history ID was created successfully, store team members in searchResults collection
-    if (historyId) {
-      // Array to collect all resultIds
-      const resultIds = [];
-      
-      // Loop through team members and store them
-      for (const member of teamMembers) {
-        // Format the search data
-        const searchData = {
-          name: member.name,
-          company: url, // Use the URL as company name as requested
-          position: member.position
-        };
-        
-        // Store in searchResults collection
-        const resultId = await dbService.addSearchResult(
-          userID, 
-          historyId, 
-          "team",  // Type is "team"
-          searchData,
-          member.linkedinUrl
-        );
-        
-        // Store the resultId in our array if it exists
-        if (resultId) {
-          resultIds.push(resultId);
-        }
-        
-        console.log(`Stored team member with ID: ${resultId}`);
+    // Return error response
+    res.status(500).json({
+      status: 'error',
+      message: `Error finding team members: ${error.message}`,
+      data: { 
+        userID, 
+        url, 
+        teamId, 
+        companySearchId,
+        teamMembers: [],
+        historyId: error.historyId || null // Try to get historyId from error if available
       }
-      
-      // Update the search history with resultIds array and set status to completed
-      await dbService.updateSearchHistory(userID, historyId, {
-        status: "completed",
-        totalRecords: teamMembers.length,
-        resultsCount: teamMembers.length,
-        resultIds: resultIds, // Store the array of resultIds in the database
-        completedAt: new Date()
-      });
-      
-      console.log(`Updated search history with ${resultIds.length} result IDs`);
-    }
-  } catch (err) {
-    console.error('Error in team members search:', err);
-    // Continue processing - don't fail the whole request
+    });
   }
-  
-  // For now, just return the data as is with dummy team member data
-  res.json({ 
-    status: 'success',
-    message: 'Team members search request received',
-    data: { 
-      userID, 
-      url, 
-      teamId, 
-      companySearchId,
-      teamMembers: teamMembers, // Now it's accessible here
-      historyId // This will be null if history creation failed
-    } 
-  });
 });
 
 // Error handling middleware

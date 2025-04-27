@@ -16,7 +16,7 @@ export const convertToCSV = (data: SearchResultData[]): string => {
   const fieldMap = {
     'Full Name': 'name',
     'Company': 'company',
-    'Position': 'title',
+    'Position': 'title', // 'title' from excelExporter will contain either the title or position field
     'LinkedIn': 'linkedin'
   };
   
@@ -28,7 +28,14 @@ export const convertToCSV = (data: SearchResultData[]): string => {
     const row = headers.map(header => {
       // Get the corresponding field name from our map
       const fieldName = fieldMap[header as keyof typeof fieldMap];
-      const value = item[fieldName];
+      
+      // Get the value, with special handling for LinkedIn field
+      let value = item[fieldName];
+      
+      // Special case for LinkedIn URLs - ensure we get the value from the correct field
+      if (header === 'LinkedIn' && !value) {
+        value = item.linkedinUrl || item.linkedin || '';
+      }
       
       // Handle different data types
       if (value === null || value === undefined) {

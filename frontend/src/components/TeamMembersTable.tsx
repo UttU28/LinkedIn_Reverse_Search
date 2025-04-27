@@ -17,6 +17,18 @@ interface TeamMembersTableProps {
   className?: string;
 }
 
+// Function to extract LinkedIn username from URL
+const extractLinkedInUsername = (url: string): string => {
+  if (!url) return '';
+  
+  // Match everything after .com/in/ or .com/company/
+  const match = url.match(/linkedin\.com\/(in|company)\/([^/]+)/);
+  if (match && match[2]) {
+    return match[2];
+  }
+  return '';
+};
+
 const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
   teamMembers,
   companyUrl,
@@ -57,7 +69,7 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
                 Position
               </th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-secondary-text uppercase tracking-wider">
-                Company
+                LinkedIn
               </th>
             </tr>
           </thead>
@@ -96,16 +108,23 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
                   </div>
                 </td>
                 <td className="px-6 py-4 align-middle text-right">
-                  <div className="text-sm text-secondary-text max-w-xs ml-auto truncate">
-                    <a 
-                      href={companyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      {companyUrl}
-                    </a>
-                  </div>
+                  {member.linkedinUrl ? (
+                    <div className="text-sm text-secondary-text max-w-xs ml-auto truncate">
+                      <a 
+                        href={member.linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline flex items-center justify-end"
+                      >
+                        <span>{extractLinkedInUsername(member.linkedinUrl)}</span>
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-secondary-text/50 max-w-xs ml-auto truncate italic">
+                      Not available
+                    </div>
+                  )}
                 </td>
               </motion.tr>
             ))}
