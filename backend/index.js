@@ -963,10 +963,14 @@ app.get('/cache-stats', async (req, res) => {
     const recentResults = recentQuery.docs.map(doc => {
       const data = doc.data();
       return {
+        id: doc.id,
         name: data.name || 'Unknown',
         company: data.company || 'Unknown',
         position: data.position || '',
-        createdAt: data.createdAt?.toDate() || null
+        type: data.type || 'unknown',
+        createdAt: data.createdAt?.toDate() || null,
+        accessCount: data.accessCount || 0,
+        lastAccessed: data.lastAccessed?.toDate() || null
       };
     });
     

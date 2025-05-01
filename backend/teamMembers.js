@@ -5,7 +5,7 @@ const axios = require('axios');
 const { URL } = require('url');
 
 // Configuration
-const FIRECRAWL_URL = 'http://firecrawl-api:3002';
+const FIRECRAWL_URL = process.env.FIRECRAWL_URL || 'http://firecrawl-api:3002';
 const API_BASE = `${FIRECRAWL_URL}/v1`;
 
 /**

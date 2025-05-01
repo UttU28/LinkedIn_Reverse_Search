@@ -73,6 +73,17 @@ class DbService {
       // Add timestamp manually
       const timestamp = new Date();
       
+      // Convert resultIds to resultKeys if present
+      if (historyData.resultIds && !historyData.resultKeys) {
+        historyData.resultKeys = historyData.resultIds;
+        delete historyData.resultIds;
+      }
+      
+      // Initialize empty resultKeys array if not present
+      if (!historyData.resultKeys) {
+        historyData.resultKeys = [];
+      }
+      
       // Add document with auto-generated ID
       const docRef = await searchHistoryRef.add({
         ...historyData,
@@ -111,10 +122,28 @@ class DbService {
       const userRef = this.db.collection('users').doc(userId);
       const historyDocRef = userRef.collection('searchHistory').doc(historyId);
       
-      // Update the document
-      await historyDocRef.update({
-        ...updateData,
-      });
+      // Handle special case for resultKeys array
+      if (updateData.resultKeys && updateData.resultKeys.__proto__.constructor.name === 'FieldValue') {
+        // This is a FieldValue.arrayUnion operation, so we apply it directly
+        await historyDocRef.update({
+          resultKeys: updateData.resultKeys
+        });
+        
+        // Remove from updateData to prevent duplicate update
+        delete updateData.resultKeys;
+      }
+      
+      // Only update if there's data remaining to update
+      if (Object.keys(updateData).length > 0) {
+        // Convert legacy resultIds to resultKeys if present
+        if (updateData.resultIds && !updateData.resultKeys) {
+          updateData.resultKeys = updateData.resultIds;
+          delete updateData.resultIds;
+        }
+        
+        // Update the document
+        await historyDocRef.update(updateData);
+      }
       
       this.log(`Updated search history entry ID: ${historyId} for user: ${userId}`);
       return true;
@@ -152,12 +181,15 @@ class DbService {
       if (status === 'processing') historyStatus = 'pending';
       if (status === 'error') historyStatus = 'failed';
       
-      // Update search history
-      await this.updateSearchHistory(userID, historyId, {
+      // Update search history with status
+      const updatePayload = {
         status: historyStatus,
         completedAt: status === 'completed' || status === 'failed' ? new Date() : null,
         resultsCount: progress?.successful || 0
-      });
+      };
+      
+      // Update search history
+      await this.updateSearchHistory(userID, historyId, updatePayload);
       
       return true;
     } catch (error) {
@@ -173,7 +205,7 @@ class DbService {
    * @param {string} type - Search type (single, bulk, etc.)
    * @param {object} searchData - Search data (name, company, position)
    * @param {string|null} linkedinUrl - LinkedIn profile URL or null if not found
-   * @returns {Promise<string|null>} - Result ID or null if failed
+   * @returns {Promise<string|null>} - Result searchKey or null if failed
    */
   async addSearchResult(userId, historyId, type, searchData, linkedinUrl) {
     try {
@@ -205,28 +237,51 @@ class DbService {
       // Log what we're storing
       this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}, SearchKey: ${searchKey}`);
       
+      // Check if document already exists
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
+      
+      if (doc.exists) {
+        // Document exists, update access stats only
+        await docRef.update({
+          accessCount: admin.firestore.FieldValue.increment(1),
+          lastAccessed: new Date()
+        });
+        
+        // Add this search to the user's search history reference
+        await this.updateSearchHistory(userId, historyId, {
+          resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+        });
+        
+        this.log(`Updated existing search result with key: ${searchKey}`);
+        return searchKey;
+      }
+      
       // Prepare the data in the requested format with flattened structure
       const resultData = {
-        userId: userId,
-        searchId: historyId,
         type: type,
         name: name,
         company: company,
         position: position,
-        // Keep only the searchKey for efficient lookups
-        searchKey: searchKey,
         linkedinUrl: linkedinUrl || null,
-        createdAt: new Date()
+        createdAt: new Date(),
+        lastAccessed: new Date(),
+        accessCount: 1
       };
       
       // Debug log to see what we're trying to store
       console.log('Storing search result:', JSON.stringify(resultData, null, 2));
       
-      // Add document with the search result data
-      const docRef = await searchResultsRef.add(resultData);
+      // Set document with searchKey as the document ID
+      await docRef.set(resultData);
       
-      this.log(`Added search result with ID: ${docRef.id} for history: ${historyId}`);
-      return docRef.id;
+      // Add this search to the user's search history reference
+      await this.updateSearchHistory(userId, historyId, {
+        resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+      });
+      
+      this.log(`Added search result with key: ${searchKey} for history: ${historyId}`);
+      return searchKey;
     } catch (error) {
       this.logError('Error adding search result', error);
       return null;
@@ -254,23 +309,28 @@ class DbService {
       // Create search key without position for more flexible matching
       const searchKey = `${nameNormalized}-${companyNormalized}`;
       
-      // Query searchResults collection
+      // Get document directly by searchKey (used as document ID)
       const searchResultsRef = this.db.collection('searchResults');
-      const query = searchResultsRef.where('searchKey', '==', searchKey);
-      const snapshot = await query.get();
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
       
-      if (snapshot.empty) {
+      if (!doc.exists) {
         this.log(`No existing search result found for ${name} at ${company}`);
         return null;
       }
       
-      const existingResult = snapshot.docs[0];
-      const resultData = existingResult.data();
+      const resultData = doc.data();
+      
+      // Update usage statistics atomically
+      await docRef.update({
+        accessCount: admin.firestore.FieldValue.increment(1),
+        lastAccessed: new Date()
+      });
       
       this.log(`Found existing search result for ${name} at ${company}: ${resultData.linkedinUrl || 'Not found'}`);
       
       return {
-        id: existingResult.id,
+        id: doc.id,
         ...resultData,
         createdAt: resultData.createdAt?.toDate() || new Date()
       };
@@ -517,18 +577,20 @@ class DbService {
       const nameNormalized = name.toLowerCase().trim();
       const companyNormalized = company.toLowerCase().trim();
       
-      // Query searchResults collection
+      // Query searchResults collection for direct company match
       const searchResultsRef = this.db.collection('searchResults');
       
-      // Start with company search as it's likely more specific
-      let query = searchResultsRef.where('company', '==', company)
+      // First look for exact match results with single type
+      let query = searchResultsRef.where('type', '==', 'single')
+                                 .where('company', '==', company)
                                  .limit(limit);
       
       let snapshot = await query.get();
       
       // If no results with company, try with name
       if (snapshot.empty) {
-        query = searchResultsRef.where('name', '==', name)
+        query = searchResultsRef.where('type', '==', 'single')
+                               .where('name', '==', name)
                                .limit(limit);
         snapshot = await query.get();
       }
@@ -580,24 +642,28 @@ class DbService {
       // Create search key
       const searchKey = `leads-${companyNormalized}-${positionTypeNormalized}`;
       
-      // Query searchResults collection
+      // Get document directly by searchKey
       const searchResultsRef = this.db.collection('searchResults');
-      const query = searchResultsRef.where('searchKey', '==', searchKey)
-                                   .where('type', '==', 'leads');
-      const snapshot = await query.get();
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
       
-      if (snapshot.empty) {
+      if (!doc.exists) {
         this.log(`No existing leads found for ${company} (${positionType})`);
         return null;
       }
       
-      const existingResult = snapshot.docs[0];
-      const resultData = existingResult.data();
+      const resultData = doc.data();
+      
+      // Update usage statistics
+      await docRef.update({
+        accessCount: admin.firestore.FieldValue.increment(1),
+        lastAccessed: new Date()
+      });
       
       this.log(`Found existing leads for ${company} (${positionType}): ${resultData.leads?.length || 0} leads`);
       
       return {
-        id: existingResult.id,
+        id: doc.id,
         ...resultData,
         createdAt: resultData.createdAt?.toDate() || new Date()
       };
@@ -628,24 +694,28 @@ class DbService {
       // Create search key
       const searchKey = `team-${normalizedUrl}`;
       
-      // Query searchResults collection
+      // Get document directly by searchKey
       const searchResultsRef = this.db.collection('searchResults');
-      const query = searchResultsRef.where('searchKey', '==', searchKey)
-                                   .where('type', '==', 'team');
-      const snapshot = await query.get();
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
       
-      if (snapshot.empty) {
+      if (!doc.exists) {
         this.log(`No existing team members found for ${companyUrl}`);
         return null;
       }
       
-      const existingResult = snapshot.docs[0];
-      const resultData = existingResult.data();
+      const resultData = doc.data();
+      
+      // Update usage statistics
+      await docRef.update({
+        accessCount: admin.firestore.FieldValue.increment(1),
+        lastAccessed: new Date()
+      });
       
       this.log(`Found existing team members for ${companyUrl}: ${resultData.members?.length || 0} members`);
       
       return {
-        id: existingResult.id,
+        id: doc.id,
         ...resultData,
         createdAt: resultData.createdAt?.toDate() || new Date()
       };
@@ -662,7 +732,7 @@ class DbService {
    * @param {string} company - Company name
    * @param {string} positionType - Position type
    * @param {Array<object>} leads - Array of lead objects
-   * @returns {Promise<string|null>} - Result ID or null if failed
+   * @returns {Promise<string|null>} - Result searchKey or null if failed
    */
   async addCompanyLeads(userId, historyId, company, positionType, leads) {
     try {
@@ -689,23 +759,47 @@ class DbService {
       // Log what we're storing
       this.log(`Storing leads - Company: ${company}, Position Type: ${positionType}, Leads: ${leads.length}`);
       
+      // Check if document already exists
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
+      
+      if (doc.exists) {
+        // Document exists, update access stats only
+        await docRef.update({
+          accessCount: admin.firestore.FieldValue.increment(1),
+          lastAccessed: new Date()
+        });
+        
+        // Add this search to the user's search history reference
+        await this.updateSearchHistory(userId, historyId, {
+          resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+        });
+        
+        this.log(`Updated existing company leads with key: ${searchKey}`);
+        return searchKey;
+      }
+      
       // Prepare the data
       const resultData = {
-        userId: userId,
-        searchId: historyId,
         type: 'leads',
         company: company,
         position: positionType,
-        searchKey: searchKey,
         leads: leads,
-        createdAt: new Date()
+        createdAt: new Date(),
+        lastAccessed: new Date(),
+        accessCount: 1
       };
       
-      // Add document with the search result data
-      const docRef = await searchResultsRef.add(resultData);
+      // Add document with the search result data using the search key as ID
+      await docRef.set(resultData);
       
-      this.log(`Added company leads with ID: ${docRef.id} for history: ${historyId}`);
-      return docRef.id;
+      // Add this search to the user's search history reference
+      await this.updateSearchHistory(userId, historyId, {
+        resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+      });
+      
+      this.log(`Added company leads with key: ${searchKey} for history: ${historyId}`);
+      return searchKey;
     } catch (error) {
       this.logError('Error adding company leads', error);
       return null;
@@ -718,7 +812,7 @@ class DbService {
    * @param {string} historyId - Search history ID
    * @param {string} companyUrl - Company URL
    * @param {Array<object>} members - Array of team member objects
-   * @returns {Promise<string|null>} - Result ID or null if failed
+   * @returns {Promise<string|null>} - Result searchKey or null if failed
    */
   async addTeamMembers(userId, historyId, companyUrl, members) {
     try {
@@ -747,22 +841,46 @@ class DbService {
       // Log what we're storing
       this.log(`Storing team members - URL: ${companyUrl}, Members: ${members.length}`);
       
+      // Check if document already exists
+      const docRef = searchResultsRef.doc(searchKey);
+      const doc = await docRef.get();
+      
+      if (doc.exists) {
+        // Document exists, update access stats only
+        await docRef.update({
+          accessCount: admin.firestore.FieldValue.increment(1),
+          lastAccessed: new Date()
+        });
+        
+        // Add this search to the user's search history reference
+        await this.updateSearchHistory(userId, historyId, {
+          resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+        });
+        
+        this.log(`Updated existing team members with key: ${searchKey}`);
+        return searchKey;
+      }
+      
       // Prepare the data
       const resultData = {
-        userId: userId,
-        searchId: historyId,
         type: 'team',
         company: companyUrl,  // Store the URL in the company field
-        searchKey: searchKey,
         members: members,
-        createdAt: new Date()
+        createdAt: new Date(),
+        lastAccessed: new Date(),
+        accessCount: 1
       };
       
-      // Add document with the search result data
-      const docRef = await searchResultsRef.add(resultData);
+      // Add document with the search result data using the search key as ID
+      await docRef.set(resultData);
       
-      this.log(`Added team members with ID: ${docRef.id} for history: ${historyId}`);
-      return docRef.id;
+      // Add this search to the user's search history reference
+      await this.updateSearchHistory(userId, historyId, {
+        resultKeys: admin.firestore.FieldValue.arrayUnion(searchKey)
+      });
+      
+      this.log(`Added team members with key: ${searchKey} for history: ${historyId}`);
+      return searchKey;
     } catch (error) {
       this.logError('Error adding team members', error);
       return null;
