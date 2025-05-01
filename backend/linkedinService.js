@@ -10,6 +10,23 @@ async function findSingleLinkedinContact(fullName, company, position) {
   try {
     log(`Searching for LinkedIn profile: ${fullName} at ${company}`);
     
+    // Check if we already have this profile in our database
+    const existingResult = await dbService.findExistingSearchResult(fullName, company, position);
+    
+    if (existingResult) {
+      log(`Using existing data for ${fullName} at ${company} from database`);
+      return {
+        success: !!existingResult.linkedinUrl,
+        linkedInUrl: existingResult.linkedinUrl || "",
+        message: "LinkedIn profile from database",
+        fromCache: true,
+        resultId: existingResult.id // Pass the existing result ID
+      };
+    }
+    
+    // If not found in database, proceed with normal API search
+    log(`No existing data found for ${fullName}, performing new search`);
+    
     const API_KEY = process.env.GOOGLE_API_KEY;
     const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
@@ -117,67 +134,111 @@ async function processBatchInBackground(contacts, userID, historyId) {
     const humans = []; // Array to store all result IDs
     let successCount = 0; // Number of LinkedIn profiles actually found
     let processedCount = 0; // Total number of contacts processed
+    let cacheHitCount = 0; // Number of results found in cache
     
     // Process each contact and collect results without updating DB each time
     for (const contact of contacts) {
       const { searchName, searchCompany, searchPosition, contactId } = contact;
       
-      // Search for LinkedIn profile using the core function
-      const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
-      
-      // Create result object
-      const processedContact = {
-        contactId,
-        searchName,
-        searchCompany,
-        searchPosition,
-        linkedinProfileUrl: result.linkedInUrl || "",
-        foundData: result.success ? 1 : 0
-      };
-      
-      // Add to results array
-      results.push(processedContact);
-      
-      // Increment counters
-      processedCount++;
-      // Only increment successCount if a LinkedIn profile was actually found
-      if (result.success) {
-        successCount++;
+      try {
+        // Search for LinkedIn profile using the core function
+        const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
+        
+        // Create result object
+        const processedContact = {
+          contactId,
+          searchName,
+          searchCompany,
+          searchPosition,
+          linkedinProfileUrl: result.linkedInUrl || "",
+          foundData: result.success ? 1 : 0,
+          fromCache: result.fromCache || false
+        };
+        
+        // Add to results array
+        results.push(processedContact);
+        
+        // Increment counters
+        processedCount++;
+        // Only increment successCount if a LinkedIn profile was actually found
+        if (result.success) {
+          successCount++;
+        }
+        
+        // Track cache usage
+        if (result.fromCache) {
+          cacheHitCount++;
+          log(`Used cached result for ${searchName} at ${searchCompany}`);
+          
+          // For cached results, use the existing ID 
+          if (result.resultId) {
+            humans.push(result.resultId);
+            log(`Using existing result ID: ${result.resultId}`);
+          }
+        } else {
+          // Only add new search results if not from cache
+          const resultId = await dbService.addSearchResult(
+            userID, 
+            historyId, 
+            "bulk", 
+            { searchName, searchCompany, searchPosition }, 
+            result.linkedInUrl || null
+          );
+          
+          // Store the ID in humans array if it exists
+          if (resultId) {
+            humans.push(resultId);
+          }
+        }
+        
+        // Log progress and update database periodically (every 5 contacts)
+        if (processedCount % 5 === 0) {
+          log(`Processed ${processedCount}/${contacts.length} contacts, found ${successCount} LinkedIn profiles so far (${cacheHitCount} from cache)`);
+          
+          // Periodic database update
+          await dbService.updateBatchStatus({
+            userID,
+            historyId,
+            status: 'processing',
+            progress: {
+              total: contacts.length,
+              processed: processedCount,
+              successful: successCount,
+              fromCache: cacheHitCount
+            }
+          });
+        }
+      } catch (error) {
+        // Handle individual contact errors without failing the entire batch
+        log(`Error processing contact ${searchName}: ${error.message}`);
+        
+        // Add failed result to the results array
+        results.push({
+          contactId,
+          searchName,
+          searchCompany,
+          searchPosition,
+          linkedinProfileUrl: "",
+          foundData: 0,
+          error: error.message
+        });
+        
+        processedCount++;
       }
       
-      // Store the search result in the searchResults collection 
-      // and get the generated ID
-      const resultId = await dbService.addSearchResult(
-        userID, 
-        historyId, 
-        "bulk", 
-        { searchName, searchCompany, searchPosition }, 
-        result.linkedInUrl || null
-      );
-      
-      // Store the ID in humans array if it exists
-      if (resultId) {
-        humans.push(resultId);
-      }
-      
-      // Log progress but don't update database each time
-      log(`Processed contact ${processedCount}/${contacts.length}, found LinkedIn profile: ${result.success ? "Yes" : "No"}`);
-      
-      // Add a small delay to avoid rate limiting
-      if (processedCount < contacts.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      // No need for additional delay since rate limiting is now handled by the RateLimiter classes
     }
     
     // Final status update
-    log(`Completed batch processing. Found ${successCount}/${contacts.length} LinkedIn profiles`);
+    log(`Completed batch processing. Found ${successCount}/${contacts.length} LinkedIn profiles (${cacheHitCount} from cache)`);
     log(`Stored ${humans.length} result IDs in 'humans' array`);
     
     // Final database update with stored humans array
     await dbService.updateSearchHistory(userID, historyId, {
       status: 'completed',
       resultsCount: successCount, // Number of LinkedIn profiles actually found
-      resultIds: humans // Store the humans array in the database
+      resultIds: humans, // Store the humans array in the database
+      cacheHitCount: cacheHitCount // Add cache hit count to history
     });
     
     // Final batch status update
@@ -188,7 +249,8 @@ async function processBatchInBackground(contacts, userID, historyId) {
       progress: {
         total: contacts.length,
         processed: processedCount,
-        successful: successCount // Number of LinkedIn profiles actually found
+        successful: successCount, // Number of LinkedIn profiles actually found
+        fromCache: cacheHitCount
       },
       results,
       humans // Include the humans array in final status
@@ -198,6 +260,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
       success: true,
       totalContacts: contacts.length,
       foundProfiles: successCount, // Number of LinkedIn profiles actually found
+      cacheHitCount: cacheHitCount, // Number of profiles from cache
       results,
       humans // Return the humans array
     };

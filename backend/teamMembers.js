@@ -31,6 +31,34 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
     
     log(`Created search history with ID: ${historyId}`);
     
+    // Check if we already have results for this company URL
+    const existingTeamMembers = await dbService.findExistingTeamMembers(companyUrl);
+    
+    if (existingTeamMembers && existingTeamMembers.members && existingTeamMembers.members.length > 0) {
+      log(`Using existing team members for ${companyUrl} from database - ${existingTeamMembers.members.length} members found`);
+      
+      // Update history with completed status using existing data
+      await dbService.updateSearchHistory(userID, historyId, {
+        status: "completed",
+        totalRecords: existingTeamMembers.members.length,
+        resultsCount: existingTeamMembers.members.length,
+        resultIds: [existingTeamMembers.id], // Reference the existing data
+        completedAt: new Date(),
+        fromCache: true
+      });
+      
+      return {
+        success: true,
+        message: `Found ${existingTeamMembers.members.length} team members at ${companyUrl} (from cache)`,
+        data: existingTeamMembers.members,
+        historyId: historyId,
+        fromCache: true
+      };
+    }
+    
+    // If no existing results, proceed with scraping
+    log(`No existing team members found for ${companyUrl}, performing new search`);
+    
     // Step 1: Map all URLs from the company website
     const teamPages = await mapUrlsFromCompany(companyUrl);
     
@@ -85,7 +113,7 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       };
     }
     
-    // Step 4: Save results to database and collect resultIds
+    // Step 4: Save individual results to database and collect resultIds
     const resultIds = [];
     const processedResults = [];
     
@@ -123,7 +151,20 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       }
     }
     
-    // Step 5: Update history with completed status
+    // Step 5: Store the entire set of team members as a single cached result
+    const teamResultId = await dbService.addTeamMembers(
+      userID,
+      historyId,
+      companyUrl,
+      processedResults
+    );
+    
+    // Include the team members result ID in the result IDs if it exists
+    if (teamResultId) {
+      resultIds.push(teamResultId);
+    }
+    
+    // Step 6: Update history with completed status
     await dbService.updateSearchHistory(userID, historyId, {
       status: "completed",
       totalRecords: teamMembers.length,

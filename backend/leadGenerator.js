@@ -26,19 +26,6 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
     
     log(`Searching for ${positionTerm} at company: ${companyName}, position type: ${positionTitle}`);
     
-    // API keys from environment variables
-    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-    const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    
-    if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-      log("Error: Missing API credentials in environment variables");
-      return {
-        success: false,
-        message: "API credentials not configured",
-        data: []
-      };
-    }
-    
     // Create historyId first to track this search operation
     const historyId = await dbService.addSearchHistory(userID, {
       type: "recruiters",
@@ -53,6 +40,53 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
     });
     
     log(`Created search history with ID: ${historyId}`);
+    
+    // Check if we already have results for this company and position type
+    const existingLeads = await dbService.findExistingCompanyLeads(companyName, positionTitle);
+    
+    if (existingLeads && existingLeads.leads && existingLeads.leads.length > 0) {
+      log(`Using existing leads for ${companyName} (${positionTitle}) from database - ${existingLeads.leads.length} leads found`);
+      
+      // Update history with completed status using existing data
+      await dbService.updateSearchHistory(userID, historyId, {
+        status: "completed",
+        totalRecords: existingLeads.leads.length,
+        resultsCount: existingLeads.leads.length,
+        resultIds: [existingLeads.id], // Reference the existing data
+        completedAt: new Date(),
+        fromCache: true
+      });
+      
+      return {
+        success: true,
+        message: `Found ${existingLeads.leads.length} ${positionTerm} at ${companyName} (from cache)`,
+        data: existingLeads.leads,
+        historyId: historyId,
+        fromCache: true
+      };
+    }
+    
+    // If no existing results, proceed with API search
+    log(`No existing leads found for ${companyName} (${positionTitle}), performing new search`);
+    
+    // API keys from environment variables
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+    const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
+    
+    if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
+      log("Error: Missing API credentials in environment variables");
+      
+      await dbService.updateSearchHistory(userID, historyId, {
+        status: "failed",
+        errorMessage: "API credentials not configured"
+      });
+      
+      return {
+        success: false,
+        message: "API credentials not configured",
+        data: []
+      };
+    }
     
     // Step 1: Perform Google search for the specified position type
     const searchResults = await searchRecruiters(companyName, GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID, positionTitle);
@@ -89,7 +123,7 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       };
     }
     
-    // Step 4: Save results to database and collect resultIds
+    // Step 4: Save individual results to database and collect resultIds
     const resultIds = [];
     
     for (const person of extractedData) {
@@ -115,7 +149,21 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       }
     }
     
-    // Step 5: Update history with completed status
+    // Step 5: Store the entire set of leads as a single cached result
+    const leadsResultId = await dbService.addCompanyLeads(
+      userID,
+      historyId,
+      companyName,
+      positionTitle,
+      extractedData
+    );
+    
+    // Include the leads result ID in the result IDs if it exists
+    if (leadsResultId) {
+      resultIds.push(leadsResultId);
+    }
+    
+    // Step 6: Update history with completed status
     await dbService.updateSearchHistory(userID, historyId, {
       status: "completed",
       totalRecords: extractedData.length,

@@ -642,6 +642,7 @@ app.post('/findSingleContact', async (req, res) => {
   console.log('LinkedIn Profile URL:', linkedinProfileUrl);
   console.log('Found Data:', foundData);
   console.log('Search Message:', result.message);
+  console.log('From Cache:', result.fromCache ? 'Yes' : 'No');
   console.log('================================================\n');
 
   // Add to search history - handle the response gracefully if it fails
@@ -658,18 +659,21 @@ app.post('/findSingleContact', async (req, res) => {
       },
       totalRecords: 1,
       resultRefPath: "searchResults", // Reference to global collection (placeholder)
-      completedAt: foundData > 0 ? new Date() : null // Only set completed if found
+      completedAt: foundData > 0 ? new Date() : null, // Only set completed if found
+      fromCache: result.fromCache || false
     });
     
-    // Store search result data if we have a history ID
-    if (historyId) {
+    // Store search result data if we have a history ID and it's not from cache
+    let resultId = result.resultId; // Get the ID if it's from cache
+    
+    if (historyId && !result.fromCache) {
       const searchData = {
         name: searchName,
         company: searchCompany,
         position: searchPosition
       };
       
-      await dbService.addSearchResult(userID, historyId, "single", searchData, linkedinProfileUrl);
+      resultId = await dbService.addSearchResult(userID, historyId, "single", searchData, linkedinProfileUrl);
     }
   } catch (err) {
     console.error('Error in search history:', err);
@@ -687,7 +691,8 @@ app.post('/findSingleContact', async (req, res) => {
       searchPosition,
       linkedinProfileUrl,
       foundData,
-      historyId // This will be null if history creation failed
+      historyId, // This will be null if history creation failed
+      fromCache: result.fromCache || false
     }
   });
 });
@@ -778,6 +783,7 @@ app.post('/findTargetedLeads', async (req, res) => {
     
     console.log('LEAD SEARCH RESULT:');
     console.log(`Found ${results.data.length} leads for ${company}`);
+    console.log('From Cache:', results.fromCache ? 'Yes' : 'No');
     
     // Log sample data if available
     if (results.data && results.data.length > 0) {
@@ -810,7 +816,8 @@ app.post('/findTargetedLeads', async (req, res) => {
       results: formattedResults,
       pipelineId,
       leadDocId,
-      historyId: results.historyId
+      historyId: results.historyId,
+      fromCache: results.fromCache || false
     };
     
     // Return the search results
@@ -855,6 +862,7 @@ app.post('/findTeamMembers', async (req, res) => {
     
     console.log('TEAM MEMBER SEARCH RESULT:');
     console.log(`Found ${results.data.length} team members for ${url}`);
+    console.log('From Cache:', results.fromCache ? 'Yes' : 'No');
     console.log('================================================\n');
     
     /* 
@@ -881,7 +889,8 @@ app.post('/findTeamMembers', async (req, res) => {
         teamId, 
         companySearchId,
         teamMembers: teamMembers,
-        historyId: results.historyId // Get historyId from the results
+        historyId: results.historyId, // Get historyId from the results
+        fromCache: results.fromCache || false
       } 
     });
   } catch (error) {
@@ -899,6 +908,118 @@ app.post('/findTeamMembers', async (req, res) => {
         teamMembers: [],
         historyId: error.historyId || null // Try to get historyId from error if available
       }
+    });
+  }
+});
+
+// Get cached search statistics
+app.get('/cache-stats', async (req, res) => {
+  try {
+    if (!firebaseInitialized) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database service unavailable'
+      });
+    }
+    
+    // Query the searchResults collection
+    const db = admin.firestore();
+    const searchResultsRef = db.collection('searchResults');
+    
+    // Get total results
+    const totalSnapshot = await searchResultsRef.count().get();
+    const totalResults = totalSnapshot.data().count;
+    
+    // Get distinct companies count
+    const companiesQuery = await searchResultsRef
+      .select('company')
+      .limit(1000)
+      .get();
+    
+    const uniqueCompanies = new Set();
+    companiesQuery.docs.forEach(doc => {
+      const company = doc.data().company;
+      if (company) uniqueCompanies.add(company);
+    });
+    
+    // Get results by type
+    const typesQuery = await searchResultsRef
+      .select('type')
+      .limit(1000)
+      .get();
+    
+    const typeStats = {};
+    typesQuery.docs.forEach(doc => {
+      const type = doc.data().type;
+      if (type) typeStats[type] = (typeStats[type] || 0) + 1;
+    });
+    
+    // Get most recent results
+    const recentQuery = await searchResultsRef
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
+    
+    const recentResults = recentQuery.docs.map(doc => {
+      const data = doc.data();
+      return {
+        name: data.name || 'Unknown',
+        company: data.company || 'Unknown',
+        position: data.position || '',
+        createdAt: data.createdAt?.toDate() || null
+      };
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        totalResults,
+        uniqueCompanies: uniqueCompanies.size,
+        typeStats,
+        recentResults
+      }
+    });
+  } catch (error) {
+    console.error('Error getting cache stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving cache statistics',
+      error: error.message
+    });
+  }
+});
+
+// Add a similar profiles endpoint
+app.get('/similar-profiles', async (req, res) => {
+  try {
+    const { name, company, position, limit } = req.query;
+    
+    if (!name && !company) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name or company is required'
+      });
+    }
+    
+    const maxLimit = limit ? parseInt(limit) : 5;
+    
+    const similarProfiles = await dbService.findSimilarSearchResults(
+      name || '', 
+      company || '', 
+      position || '', 
+      maxLimit
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: similarProfiles
+    });
+  } catch (error) {
+    console.error('Error finding similar profiles:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error finding similar profiles',
+      error: error.message
     });
   }
 });
@@ -925,4 +1046,6 @@ app.listen(PORT, () => {
   console.log(`- POST /findBatchContact`);
   console.log(`- POST /findTargetedLeads`);
   console.log(`- POST /findTeamMembers`);
+  console.log(`- GET /cache-stats`);
+  console.log(`- GET /similar-profiles`);
 }); 

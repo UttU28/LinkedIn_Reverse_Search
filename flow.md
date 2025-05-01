@@ -343,4 +343,55 @@ Want to reach out or suggest a feature?
 Let's make manual profile searching extinct. 🦖
 
 
+---
+
+I am wokring on creating a simple web app that allows users to signup/login into the webapp, 
+
+for Signup the user will have to provide name, email and password. After signup the user will be redirected to the login page.
+for Login the user will have to provide email and password. After login the user will be redirected to the home page.
+
+
+for the webapp the user will have option to call any of these 4 apis:
+1. Search for LinkedIn URL of a single person by Name, Company and Title
+input: Name, Company and Title
+output: Name, Company, Title and LinkedIn URL (single person)
+2. Search for Batch of LinkedIn URLs of people by Name, Company and Title. The user will have to provide a csv file with the list of names, companies and titles and the csv will be read all the data and send the array of data to the api.
+input: Name, Company and Title
+output: Name, Company, Title and LinkedIn URL (multiple persons, array of objects)
+3. Search for Name, Company, Title and LinkedIn URL of many people by Company and Title
+input: Company and Title
+output: Name, Company, Title and LinkedIn URL (multiple persons, array of objects)
+4. Search for Name, Company, Title and LinkedIn URL of many people by Company
+input: Company 
+output: Name, Company, Title and LinkedIn URL (multiple persons, array of objects)
+
+
+In the backend when the request is received based on the api the request will be processed and the response will be sent to the frontend.
+
+1. Will take Name, Company and Title as input
+Then it will make an Google Custom Search API call to search for the LinkedIn URL of the person.
+And will send the response to the OpenAI API to scrape and validate the LinkedIn URL of the person.
+And will send the Name, Company, Title and LinkedIn URL to the frontend.
+
+2. Will take Name, Company and Title as input for the complete array of objects
+Then it will make an Google Custom Search API call to search for the LinkedIn URL of the person.
+And will send the response to the OpenAI API to scrape and validate the LinkedIn URL of the person.
+And will send the response to the frontend for the complete array of objects.
+
+3. Will take Company and Title as input
+Then it will make an Google Custom Search API call to search for people by Company and Title to find all the people who have worked at the company with the title.
+And will send the response to the OpenAI API to scrape and validate the Name, Company, Title and LinkedIn URL of the person.
+And will send the response to the frontend for the complete array of objects.
+
+4. Will take Company as input
+5. Then it will make a API call to Firecrawl API to scrape the company website for about section and get the list of people who have worked at the company.
+And will send the response to the OpenAI API to scrape and validate the Name, Company, Title and LinkedIn URL of the person.
+And will send the response to the frontend for the complete array of objects.
+
+
+
+Now we are using Database to store all the queries made by the user.
+Also we are storing all the input and output data in the database for future reference and the data model for all the data scraped form the backend will be the same for all 4 apis. Just the input will be different for each api but the end output will be the same. So we wannastore the data in the same model for all the 4 apis in an efficient way.
+
+We want to create a pipeline in the backend that will be used to scrape the batch data for the 2
 

@@ -20,6 +20,10 @@ This backend API provides functionality to search for LinkedIn profiles based on
    
    # OpenAI API for LinkedIn Profile Extraction
    OPENAI_API_KEY=your-openai-api-key
+   
+   # Rate Limiting Configuration (requests per minute)
+   GOOGLE_REQUESTS_PER_MINUTE=10
+   OPENAI_REQUESTS_PER_MINUTE=20
    ```
 
 3. Get API Keys:
@@ -126,6 +130,26 @@ For batch requests, the API:
 2. Processes each contact one by one in the background
 3. Updates the database with progress information
 4. Marks the batch as completed when all contacts are processed
+
+## Rate Limiting
+
+The application includes built-in rate limiting functionality to avoid hitting API rate limits:
+
+1. **Configurable Limits**: Set your desired rate limits in the `.env` file based on your API tier:
+   ```
+   GOOGLE_REQUESTS_PER_MINUTE=10
+   OPENAI_REQUESTS_PER_MINUTE=20
+   ```
+
+2. **Smart Queuing**: API requests are automatically queued and processed at safe intervals.
+
+3. **Exponential Backoff**: If rate limits are hit, the system automatically retries with exponential backoff.
+
+4. **Fault Tolerance**: Individual search errors won't crash the entire batch process.
+
+5. **Progress Updates**: For batch processes, the system now updates the database periodically (every 5 contacts) to show progress.
+
+These features help ensure reliable operation even with large batches of contacts, preventing "too many requests" errors from Google and OpenAI APIs.
 
 ## Development
 

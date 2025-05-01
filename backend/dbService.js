@@ -195,25 +195,26 @@ class DbService {
       const company = type === 'single' ? searchData.company : (searchData.searchCompany || searchData.company);
       const position = type === 'single' ? searchData.position : (searchData.searchPosition || searchData.position);
       
-      // Special case for 'recruiters' type to use the proper structure
-      let inputTitle = position;
-      if (type === 'recruiters') {
-        inputTitle = position; // For recruiters, use position as title
-      }
+      // Create normalized fields for indexing and lookups - only use name and company
+      const nameNormalized = name.toLowerCase().trim();
+      const companyNormalized = company.toLowerCase().trim();
+      
+      // Create a composite search key using only name and company for more consistent matching
+      const searchKey = `${nameNormalized}-${companyNormalized}`;
       
       // Log what we're storing
-      this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}`);
+      this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}, SearchKey: ${searchKey}`);
       
-      // Prepare the data in the requested format - use historyId as searchId
+      // Prepare the data in the requested format with flattened structure
       const resultData = {
         userId: userId,
         searchId: historyId,
         type: type,
-        inputData: {
-          name: name,
-          company: company,
-          title: inputTitle
-        },
+        name: name,
+        company: company,
+        position: position,
+        // Keep only the searchKey for efficient lookups
+        searchKey: searchKey,
         linkedinUrl: linkedinUrl || null,
         createdAt: new Date()
       };
@@ -228,6 +229,53 @@ class DbService {
       return docRef.id;
     } catch (error) {
       this.logError('Error adding search result', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Find existing search result
+   * @param {string} name - Person's name
+   * @param {string} company - Company name
+   * @param {string} position - Position/title
+   * @returns {Promise<object|null>} - Existing result or null if not found
+   */
+  async findExistingSearchResult(name, company, position) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot check for existing results');
+        return null;
+      }
+      
+      // Normalize inputs for consistent searching - only use name and company
+      const nameNormalized = name.toLowerCase().trim();
+      const companyNormalized = company.toLowerCase().trim();
+      
+      // Create search key without position for more flexible matching
+      const searchKey = `${nameNormalized}-${companyNormalized}`;
+      
+      // Query searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      const query = searchResultsRef.where('searchKey', '==', searchKey);
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        this.log(`No existing search result found for ${name} at ${company}`);
+        return null;
+      }
+      
+      const existingResult = snapshot.docs[0];
+      const resultData = existingResult.data();
+      
+      this.log(`Found existing search result for ${name} at ${company}: ${resultData.linkedinUrl || 'Not found'}`);
+      
+      return {
+        id: existingResult.id,
+        ...resultData,
+        createdAt: resultData.createdAt?.toDate() || new Date()
+      };
+    } catch (error) {
+      this.logError('Error finding existing search result', error);
       return null;
     }
   }
@@ -447,6 +495,277 @@ class DbService {
     } catch (error) {
       this.logError('Error getting search history', error);
       return [];
+    }
+  }
+
+  /**
+   * Find similar search results
+   * @param {string} name - Person's name
+   * @param {string} company - Company name
+   * @param {string} position - Position/title (optional)
+   * @param {number} limit - Maximum number of results to return
+   * @returns {Promise<Array<object>>} - Array of similar results
+   */
+  async findSimilarSearchResults(name, company, position = "", limit = 5) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot search for similar results');
+        return [];
+      }
+      
+      // Normalize inputs for consistent searching
+      const nameNormalized = name.toLowerCase().trim();
+      const companyNormalized = company.toLowerCase().trim();
+      
+      // Query searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      
+      // Start with company search as it's likely more specific
+      let query = searchResultsRef.where('company', '==', company)
+                                 .limit(limit);
+      
+      let snapshot = await query.get();
+      
+      // If no results with company, try with name
+      if (snapshot.empty) {
+        query = searchResultsRef.where('name', '==', name)
+                               .limit(limit);
+        snapshot = await query.get();
+      }
+      
+      // If still no results, return empty array
+      if (snapshot.empty) {
+        this.log(`No similar search results found for ${name} or ${company}`);
+        return [];
+      }
+      
+      // Map documents to objects
+      const results = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || 'Unknown',
+          company: data.company || 'Unknown',
+          position: data.position || '',
+          linkedinUrl: data.linkedinUrl || null,
+          createdAt: data.createdAt?.toDate() || new Date()
+        };
+      });
+      
+      this.log(`Found ${results.length} similar search results for ${name} at ${company}`);
+      return results;
+    } catch (error) {
+      this.logError('Error finding similar search results', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find existing company leads
+   * @param {string} company - Company name
+   * @param {string} positionType - Position type (recruitment, investment, etc.)
+   * @returns {Promise<object|null>} - Existing result or null if not found
+   */
+  async findExistingCompanyLeads(company, positionType) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot check for existing leads');
+        return null;
+      }
+      
+      // Normalize inputs for consistent searching
+      const companyNormalized = company.toLowerCase().trim();
+      const positionTypeNormalized = positionType.toLowerCase().trim();
+      
+      // Create search key
+      const searchKey = `leads-${companyNormalized}-${positionTypeNormalized}`;
+      
+      // Query searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      const query = searchResultsRef.where('searchKey', '==', searchKey)
+                                   .where('type', '==', 'leads');
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        this.log(`No existing leads found for ${company} (${positionType})`);
+        return null;
+      }
+      
+      const existingResult = snapshot.docs[0];
+      const resultData = existingResult.data();
+      
+      this.log(`Found existing leads for ${company} (${positionType}): ${resultData.leads?.length || 0} leads`);
+      
+      return {
+        id: existingResult.id,
+        ...resultData,
+        createdAt: resultData.createdAt?.toDate() || new Date()
+      };
+    } catch (error) {
+      this.logError('Error finding existing leads', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find existing team members for a company website
+   * @param {string} companyUrl - Company website URL
+   * @returns {Promise<object|null>} - Existing result or null if not found
+   */
+  async findExistingTeamMembers(companyUrl) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot check for existing team members');
+        return null;
+      }
+      
+      // Normalize URL by removing protocol, www, and trailing slashes
+      let normalizedUrl = companyUrl.toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\/$/, '');
+      
+      // Create search key
+      const searchKey = `team-${normalizedUrl}`;
+      
+      // Query searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      const query = searchResultsRef.where('searchKey', '==', searchKey)
+                                   .where('type', '==', 'team');
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        this.log(`No existing team members found for ${companyUrl}`);
+        return null;
+      }
+      
+      const existingResult = snapshot.docs[0];
+      const resultData = existingResult.data();
+      
+      this.log(`Found existing team members for ${companyUrl}: ${resultData.members?.length || 0} members`);
+      
+      return {
+        id: existingResult.id,
+        ...resultData,
+        createdAt: resultData.createdAt?.toDate() || new Date()
+      };
+    } catch (error) {
+      this.logError('Error finding existing team members', error);
+      return null;
+    }
+  }
+
+  /**
+   * Add company leads to search results
+   * @param {string} userId - User ID
+   * @param {string} historyId - Search history ID
+   * @param {string} company - Company name
+   * @param {string} positionType - Position type
+   * @param {Array<object>} leads - Array of lead objects
+   * @returns {Promise<string|null>} - Result ID or null if failed
+   */
+  async addCompanyLeads(userId, historyId, company, positionType, leads) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - skipping company leads storage');
+        return null;
+      }
+      
+      if (!historyId) {
+        this.log('Cannot add company leads: historyId is missing');
+        return null;
+      }
+      
+      // Create a reference to the searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      
+      // Normalize inputs for consistent searching
+      const companyNormalized = company.toLowerCase().trim();
+      const positionTypeNormalized = positionType.toLowerCase().trim();
+      
+      // Create a composite search key
+      const searchKey = `leads-${companyNormalized}-${positionTypeNormalized}`;
+      
+      // Log what we're storing
+      this.log(`Storing leads - Company: ${company}, Position Type: ${positionType}, Leads: ${leads.length}`);
+      
+      // Prepare the data
+      const resultData = {
+        userId: userId,
+        searchId: historyId,
+        type: 'leads',
+        company: company,
+        position: positionType,
+        searchKey: searchKey,
+        leads: leads,
+        createdAt: new Date()
+      };
+      
+      // Add document with the search result data
+      const docRef = await searchResultsRef.add(resultData);
+      
+      this.log(`Added company leads with ID: ${docRef.id} for history: ${historyId}`);
+      return docRef.id;
+    } catch (error) {
+      this.logError('Error adding company leads', error);
+      return null;
+    }
+  }
+
+  /**
+   * Add team members to search results
+   * @param {string} userId - User ID
+   * @param {string} historyId - Search history ID
+   * @param {string} companyUrl - Company URL
+   * @param {Array<object>} members - Array of team member objects
+   * @returns {Promise<string|null>} - Result ID or null if failed
+   */
+  async addTeamMembers(userId, historyId, companyUrl, members) {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - skipping team members storage');
+        return null;
+      }
+      
+      if (!historyId) {
+        this.log('Cannot add team members: historyId is missing');
+        return null;
+      }
+      
+      // Create a reference to the searchResults collection
+      const searchResultsRef = this.db.collection('searchResults');
+      
+      // Normalize URL by removing protocol, www, and trailing slashes
+      let normalizedUrl = companyUrl.toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\/$/, '');
+      
+      // Create a composite search key
+      const searchKey = `team-${normalizedUrl}`;
+      
+      // Log what we're storing
+      this.log(`Storing team members - URL: ${companyUrl}, Members: ${members.length}`);
+      
+      // Prepare the data
+      const resultData = {
+        userId: userId,
+        searchId: historyId,
+        type: 'team',
+        company: companyUrl,  // Store the URL in the company field
+        searchKey: searchKey,
+        members: members,
+        createdAt: new Date()
+      };
+      
+      // Add document with the search result data
+      const docRef = await searchResultsRef.add(resultData);
+      
+      this.log(`Added team members with ID: ${docRef.id} for history: ${historyId}`);
+      return docRef.id;
+    } catch (error) {
+      this.logError('Error adding team members', error);
+      return null;
     }
   }
 }
