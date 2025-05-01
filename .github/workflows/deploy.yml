@@ -56,7 +56,7 @@ jobs:
         if: steps.firecrawl-status.outputs.firecrawl_running == 'false'
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search/firecrawl
-          docker compose down --remove-orphans
+          docker compose down
           docker compose pull || true
           docker compose up -d --build
           echo "✅ Firecrawl services rebuilt and started."
@@ -75,11 +75,14 @@ jobs:
           docker compose config -q
           echo "✅ Main docker-compose file is valid."
 
-      - name: Stop and Remove Existing Containers
+      - name: Stop and Remove Main Application Containers Only
         run: |
           cd ~/Desktop/LinkedIn_Reverse_Search
-          docker compose down --remove-orphans
-          echo "✅ Stopped and removed existing containers."
+          # List main services to avoid affecting Firecrawl
+          echo "Stopping only main application containers..."
+          # Remove the --remove-orphans flag to avoid affecting containers not in this compose file
+          docker compose down
+          echo "✅ Stopped and removed main application containers only."
 
       - name: Rebuild and Launch Services
         run: |

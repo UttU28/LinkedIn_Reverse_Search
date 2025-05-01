@@ -662,6 +662,8 @@ app.post('/findSingleContact', async (req, res) => {
     });
     
     // Store search result data if we have a history ID
+    let resultId = null;
+    
     if (historyId) {
       const searchData = {
         name: searchName,
@@ -669,7 +671,7 @@ app.post('/findSingleContact', async (req, res) => {
         position: searchPosition
       };
       
-      await dbService.addSearchResult(userID, historyId, "single", searchData, linkedinProfileUrl);
+      resultId = await dbService.addSearchResult(userID, historyId, "single", searchData, linkedinProfileUrl);
     }
   } catch (err) {
     console.error('Error in search history:', err);
@@ -856,12 +858,6 @@ app.post('/findTeamMembers', async (req, res) => {
     console.log('TEAM MEMBER SEARCH RESULT:');
     console.log(`Found ${results.data.length} team members for ${url}`);
     console.log('================================================\n');
-    
-    /* 
-    // Note: Database operations are now handled directly in the teamMembers.js module
-    // No need to duplicate the database operations here since they're already performed
-    // inside the findTeamMembersFromWebsite function
-    */
     
     // Format the team members for the frontend
     const teamMembers = results.data.map((member, index) => ({

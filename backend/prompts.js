@@ -148,7 +148,7 @@ If any field is missing, return an empty string "". **Do not infer or assume any
 
 #### **Text Data:**  
 \`\`\`
-{{googleSearchResults}}
+{json_input.googleSearchResults}
 \`\`\`
 `;
 
@@ -241,7 +241,7 @@ const TEAM_MEMBERS_MARKDOWN_USER_PROMPT = `
 Here is the MARKDOWN input:
 
 ### MARKDOWN Data
-{markdownData}
+{json_input.markdownData}
 
 `;
 

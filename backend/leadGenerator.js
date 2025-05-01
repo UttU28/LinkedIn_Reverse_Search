@@ -186,45 +186,16 @@ async function searchRecruiters(companyName, apiKey, cseId, positionType = 'recr
   log(`Query: ${query}`);
   
   try {
-    return await googleSearch(query, apiKey, cseId);
+    // Use the GoogleCustomSearch class which now includes rate limiting
+    const searchClient = new GoogleCustomSearch(apiKey, cseId);
+    const results = await searchClient.search(query, 10);
+    
+    // Structure results to match the expected format
+    return {
+      items: results
+    };
   } catch (error) {
     throw new Error(`Failed to search for ${positionType} professionals at company "${companyName}": ${error.message}`);
-  }
-}
-
-/**
- * Perform a Google Custom Search
- */
-async function googleSearch(query, apiKey, cseId) {
-  if (!apiKey || !cseId) {
-    throw new Error('Missing Google API credentials. Check your environment variables.');
-  }
-  
-  try {
-    const url = 'https://www.googleapis.com/customsearch/v1';
-    const params = {
-      key: apiKey,
-      cx: cseId,
-      q: query
-    };
-    
-    log(`Searching Google for: "${query}"`);
-    const response = await axios.get(url, { params });
-    
-    if (!response.data || (response.data.items && response.data.items.length === 0)) {
-      log(`Google search returned no results for query: ${query}`);
-    }
-    
-    return response.data;
-  } catch (error) {
-    const statusCode = error.response?.status || 'unknown';
-    const statusText = error.response?.statusText || 'Unknown error';
-    const errorDetails = error.response?.data?.error?.message || error.message;
-    
-    const errorMessage = `Google Search failed (${statusCode} ${statusText}): ${errorDetails}`;
-    log(errorMessage);
-    
-    throw new Error(errorMessage);
   }
 }
 
@@ -268,46 +239,21 @@ async function extractLinkedInData(searchResults) {
   try {
     log('Calling OpenAI API to extract LinkedIn data...');
     
-    // The utils.callOpenAI expects a json_input variable in USER_PROMPT
-    // So we need a different approach
+    // Create a simple JSON object for the callOpenAI function
+    const jsonData = {
+      googleSearchResults: searchResults
+    };
     
-    // Create a direct OpenAI call with our own prompts
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    // Use the callOpenAI function from utils which includes rate limiting
+    const aiResponse = await callOpenAI(
+      jsonData,
+      LINKEDIN_EXTRACTION_SYSTEM_PROMPT,
+      LINKEDIN_EXTRACTION_USER_PROMPT
+    );
     
-    if (!OPENAI_API_KEY) {
-      log("Error: OpenAI API key not found in environment variables");
-      return null;
+    if (!aiResponse) {
+      throw new Error('Failed to get response from OpenAI');
     }
-    
-    // Compile the user prompt with search results
-    const compiledUserPrompt = LINKEDIN_EXTRACTION_USER_PROMPT.replace(
-      "{{googleSearchResults}}", 
-      searchResults
-    );
-    
-    // Make the request directly instead of using the utility
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: LINKEDIN_EXTRACTION_SYSTEM_PROMPT },
-          { role: "user", content: compiledUserPrompt }
-        ],
-        temperature: 0,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        }
-      }
-    );
-    
-    const aiResponse = response.data.choices[0].message.content;
     
     // Parse JSON from response
     try {

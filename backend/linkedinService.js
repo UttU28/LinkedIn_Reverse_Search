@@ -122,51 +122,79 @@ async function processBatchInBackground(contacts, userID, historyId) {
     for (const contact of contacts) {
       const { searchName, searchCompany, searchPosition, contactId } = contact;
       
-      // Search for LinkedIn profile using the core function
-      const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
-      
-      // Create result object
-      const processedContact = {
-        contactId,
-        searchName,
-        searchCompany,
-        searchPosition,
-        linkedinProfileUrl: result.linkedInUrl || "",
-        foundData: result.success ? 1 : 0
-      };
-      
-      // Add to results array
-      results.push(processedContact);
-      
-      // Increment counters
-      processedCount++;
-      // Only increment successCount if a LinkedIn profile was actually found
-      if (result.success) {
-        successCount++;
+      try {
+        // Search for LinkedIn profile using the core function
+        const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
+        
+        // Create result object
+        const processedContact = {
+          contactId,
+          searchName,
+          searchCompany,
+          searchPosition,
+          linkedinProfileUrl: result.linkedInUrl || "",
+          foundData: result.success ? 1 : 0
+        };
+        
+        // Add to results array
+        results.push(processedContact);
+        
+        // Increment counters
+        processedCount++;
+        // Only increment successCount if a LinkedIn profile was actually found
+        if (result.success) {
+          successCount++;
+        }
+        
+        // Add search result to database
+        const resultId = await dbService.addSearchResult(
+          userID, 
+          historyId, 
+          "bulk", 
+          { searchName, searchCompany, searchPosition }, 
+          result.linkedInUrl || null
+        );
+        
+        // Store the ID in humans array if it exists
+        if (resultId) {
+          humans.push(resultId);
+        }
+        
+        // Log progress and update database periodically (every 5 contacts)
+        if (processedCount % 5 === 0) {
+          log(`Processed ${processedCount}/${contacts.length} contacts, found ${successCount} LinkedIn profiles so far`);
+          
+          // Periodic database update
+          await dbService.updateBatchStatus({
+            userID,
+            historyId,
+            status: 'processing',
+            progress: {
+              total: contacts.length,
+              processed: processedCount,
+              successful: successCount
+            }
+          });
+        }
+      } catch (error) {
+        // Handle individual contact errors without failing the entire batch
+        log(`Error processing contact ${searchName}: ${error.message}`);
+        
+        // Add failed result to the results array
+        results.push({
+          contactId,
+          searchName,
+          searchCompany,
+          searchPosition,
+          linkedinProfileUrl: "",
+          foundData: 0,
+          error: error.message
+        });
+        
+        processedCount++;
       }
       
-      // Store the search result in the searchResults collection 
-      // and get the generated ID
-      const resultId = await dbService.addSearchResult(
-        userID, 
-        historyId, 
-        "bulk", 
-        { searchName, searchCompany, searchPosition }, 
-        result.linkedInUrl || null
-      );
-      
-      // Store the ID in humans array if it exists
-      if (resultId) {
-        humans.push(resultId);
-      }
-      
-      // Log progress but don't update database each time
-      log(`Processed contact ${processedCount}/${contacts.length}, found LinkedIn profile: ${result.success ? "Yes" : "No"}`);
-      
-      // Add a small delay to avoid rate limiting
-      if (processedCount < contacts.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      // No need for additional delay since rate limiting is now handled by the RateLimiter classes
     }
     
     // Final status update

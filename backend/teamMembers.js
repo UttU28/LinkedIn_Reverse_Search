@@ -5,7 +5,7 @@ const axios = require('axios');
 const { URL } = require('url');
 
 // Configuration
-const FIRECRAWL_URL = 'http://firecrawl-api:3002';
+const FIRECRAWL_URL = process.env.FIRECRAWL_URL || 'http://firecrawl-api:3002';
 const API_BASE = `${FIRECRAWL_URL}/v1`;
 
 /**
@@ -85,7 +85,7 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       };
     }
     
-    // Step 4: Save results to database and collect resultIds
+    // Step 4: Save individual results to database and collect resultIds
     const resultIds = [];
     const processedResults = [];
     
@@ -123,7 +123,20 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       }
     }
     
-    // Step 5: Update history with completed status
+    // Step 5: Store the entire set of team members as a single cached result
+    const teamResultId = await dbService.addTeamMembers(
+      userID,
+      historyId,
+      companyUrl,
+      processedResults
+    );
+    
+    // Include the team members result ID in the result IDs if it exists
+    if (teamResultId) {
+      resultIds.push(teamResultId);
+    }
+    
+    // Step 6: Update history with completed status
     await dbService.updateSearchHistory(userID, historyId, {
       status: "completed",
       totalRecords: teamMembers.length,
@@ -279,31 +292,22 @@ async function extractTeamMembersFromMarkdown(markdownContent) {
     ? markdownContent.substring(0, MAX_CHARS)
     : markdownContent;
 
-  const compiledUserPrompt = TEAM_MEMBERS_MARKDOWN_USER_PROMPT.replace("{markdownData}", processedMarkdown);
+  // Create a JSON object for callOpenAI function
+  const jsonData = {
+    markdownData: processedMarkdown
+  };
 
+  // Use the callOpenAI function from utils which now includes rate limiting
   try {
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: TEAM_MEMBERS_SYSTEM_PROMPT },
-          { role: "user", content: compiledUserPrompt }
-        ],
-        temperature: 0,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        }
-      }
+    const aiResponse = await callOpenAI(
+      jsonData,
+      TEAM_MEMBERS_SYSTEM_PROMPT,
+      TEAM_MEMBERS_MARKDOWN_USER_PROMPT
     );
 
-    const aiResponse = response.data.choices[0].message.content;
+    if (!aiResponse) {
+      throw new Error('No response from OpenAI API');
+    }
 
     try {
       return JSON.parse(aiResponse);
