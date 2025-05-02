@@ -308,6 +308,51 @@ app.get('/user-credits/:userId', async (req, res) => {
   }
 });
 
+// Refresh user credits - used after searches to update the frontend
+app.get('/refresh-credits/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+    
+    // Get user data from Firestore
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    const userData = userDoc.data();
+    
+    // Return the latest credit information
+    return res.status(200).json({
+      success: true,
+      data: {
+        userId: userId,
+        linkCredits: userData.linkCredits || 0,
+        lastCreditUpdate: userData.lastCreditUpdate?.toDate() || null
+      }
+    });
+  } catch (error) {
+    log('Error refreshing user credits:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error refreshing user credits', 
+      error: error.message 
+    });
+  }
+});
+
 // Get single payment details
 app.get('/payment-details/:paymentId', async (req, res) => {
   try {
@@ -597,6 +642,20 @@ app.post('/signup', async (req, res) => {
 // Update credits route
 app.post('/updateCredits', async (req, res) => {
   try {
+    // This route is now deprecated - credits are handled by updateSearchCost
+    // Returning a message to let clients know
+    return res.status(200).json({
+      success: true,
+      message: 'Credit deduction is now handled automatically per search',
+      data: {
+        linkCredits: null,
+        totalSearched: null,
+        totalFound: null,
+        info: 'This endpoint is deprecated'
+      }
+    });
+    
+    /* DEPRECATED IMPLEMENTATION
     const { uid, creditsUsed, resultsFound } = req.body;
     
     if (!uid) {
@@ -615,6 +674,7 @@ app.post('/updateCredits', async (req, res) => {
       message: 'Credits updated successfully',
       data: updatedData
     });
+    */
   } catch (error) {
     log('Update credits error:', error);
     return res.status(500).json({ success: false, message: 'Server error during credit update' });
@@ -629,8 +689,8 @@ app.post('/findSingleContact', async (req, res) => {
   
   // Use our LinkedIn search functionality to find the actual profile
   try {
-    // Find the LinkedIn contact
-    const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
+    // Find the LinkedIn contact - pass userID to properly track history and credits
+    const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition, userID);
   
     // Log the result status
     if (result.success) {
@@ -638,49 +698,13 @@ app.post('/findSingleContact', async (req, res) => {
     } else {
       log(`Result: Not found`, 'info');
     }
-  
-    // Add to search history - handle the response gracefully if it fails
-    try {
-      // Create search history entry
-      const historyId = await dbService.addSearchHistory(userID, {
-        type: "single",
-        status: "completed",
-        inputMeta: {
-          searchName,
-          searchCompany,
-          searchPosition
-        },
-        totalRecords: 1,
-        resultsCount: result.success ? 1 : 0,
-        resultRefPath: "searchResults",
-        startedAt: new Date(),
-        completedAt: new Date()
-      });
-      
-      // Add the search result with details
-      if (historyId) {
-        await dbService.addSearchResult(
-          userID, 
-          historyId, 
-          "single", 
-          { 
-            name: searchName || "", 
-            company: searchCompany || "", 
-            title: searchPosition || "" 
-          }, 
-          result.linkedInUrl || null
-        );
-      }
-    } catch (err) {
-      log('Error in search history: ' + err.message, 'error');
-      // Continue processing - don't fail the whole request
-    }
     
     // Return the search result
     return res.json({
       success: true,
       linkedInUrl: result.linkedInUrl || "",
-      message: result.message
+      message: result.message,
+      historyId: result.historyId
     });
   } catch (error) {
     // Handle errors

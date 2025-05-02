@@ -96,8 +96,8 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
       
       // Check if the response is successful
       if (response.status === 'success') {
-        // Update credit usage
-        await useAuthStore.getState().updateCreditUsage(1, response.data.results.length);
+        // Refresh credits from backend
+        await useAuthStore.getState().refreshCredits();
         
         // Call the onSearchComplete callback with the results
         if (onSearchComplete) {

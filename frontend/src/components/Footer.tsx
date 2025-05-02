@@ -172,8 +172,8 @@ const Footer: React.FC = () => {
             </div>
             
             <div className="flex justify-center items-center order-1 sm:order-2 mb-4 sm:mb-0">
-              <TridentIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary mr-2" />
-              <p className="text-xs sm:text-sm text-secondary-text font-bold">Yatra Tatra Sarvatra Shiva</p>
+              {/* <TridentIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary mr-2" /> */}
+              {/* <p className="text-xs sm:text-sm text-secondary-text font-bold">Yatra Tatra Sarvatra Shiva</p> */}
               <TridentIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary ml-2" />
             </div>
             

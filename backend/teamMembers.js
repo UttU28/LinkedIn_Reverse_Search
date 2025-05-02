@@ -149,10 +149,16 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       await dbService.updateSearchHistory(userID, historyId, {
         status: "completed",
         totalRecords: teamMembers.length,
-        resultsCount: resultIds.length,
+        resultsCount: processedResults.length,
         resultIds: resultIds,
         completedAt: new Date()
       });
+      
+      // Step 7: Apply cost based on number of team members found
+      // For team member search, charge only if team members were found
+      if (processedResults.length > 0) {
+        await dbService.updateSearchCost(userID, historyId, "team", processedResults.length);
+      }
       
       log(`Found ${processedResults.length} team members at ${companyUrl}`);
       

@@ -1,14 +1,53 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, ChangeEvent, FormEvent, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../hooks/use-toast';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Info, Search, Upload, FileUp, File, X, Check, AlertCircle, ExternalLink, Copy, Linkedin } from 'lucide-react';
+import { 
+  Search, 
+  Upload, 
+  X, 
+  Linkedin, 
+  Copy,
+  FileUp,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  CircleCheck as Check,
+  CircleX as XCircle,
+  FileIcon as FileComponent
+} from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { findSingleContact, findBatchContacts } from '../services/apiService';
+import { Card } from './ui/card';
+import { Badge } from './ui/badge';
+
+// Temporary type definitions until the real files are created
+interface SearchResponse {
+  data: any;
+  status: string;
+}
+
+interface SearchResult {
+  linkedinProfileUrl?: string;
+  searchName?: string;
+  searchCompany?: string;
+  searchPosition?: string;
+  foundData?: number;
+}
+
+// Temporary utility functions until the real files are created
+const parseCSVorExcel = (file: File) => {
+  // This is just a stub - implement or import the real function
+  return Promise.resolve([]);
+};
+
+const generateId = () => {
+  return `id-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+};
 
 interface CSVRow {
   Name?: string;
@@ -180,14 +219,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         searchPosition: searchForm.position
       });
       
-      // Update credits only if profiles were found
-      if (result.data.foundData > 0) {
-        // Deduct credits equal to foundData value
-        await updateCreditUsage(result.data.foundData, result.data.foundData);
-        
-        // Clear form inputs but keep results displayed
-        clearSearchFormOnly();
-      }
+      // Refresh credits from backend to get the real value
+      await useAuthStore.getState().refreshCredits();
       
       // Clear bulk search results when setting new single search response
       setBulkSearchResults(null);
@@ -455,74 +488,60 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     return combinedId;
   };
 
-  const handleCSVSubmit = async () => {
-    if (!selectedFile || parsedData.length === 0 || !columnValidation.isValid) {
-      toast({
-        title: "No valid data",
-        description: "Please upload a valid CSV file with name, company, and position columns",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if user has enough credits
-    if (userData?.linkCredits === undefined || userData.linkCredits < parsedData.length) {
-      toast({
-        title: "Insufficient credits",
-        description: `You need ${parsedData.length} credits for this batch, but only have ₹ ${userData?.linkCredits || 0}`,
-        variant: "destructive"
-      });
-      return;
-    }
-
+  // Use a function to handle bulk search after file validation is complete
+  const handleBulkSearch = async () => {
+    if (!selectedFile || !parsedData.length) return;
+    
+    // Get user ID from auth store
+    const userID = useAuthStore.getState().user?.uid || 'unknown';
+    
+    // Generate a unique batch ID
+    const batchId = `batch-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    
+    // Get available headers from the first row
+    const headers = Object.keys(parsedData[0]);
+    
+    // Try to intelligently find appropriate columns by name
+    const nameField = headers.find(h => 
+      h.toLowerCase() === 'name' || 
+      h.toLowerCase() === 'fullname' || 
+      h.toLowerCase() === 'full name' || 
+      h.toLowerCase() === 'full_name' || 
+      h.toLowerCase().includes('name')
+    );
+    
+    const companyField = headers.find(h => 
+      h.toLowerCase() === 'company' || 
+      h.toLowerCase() === 'companyname' || 
+      h.toLowerCase() === 'company name' || 
+      h.toLowerCase() === 'company_name' || 
+      h.toLowerCase().includes('company')
+    );
+    
+    const positionField = headers.find(h => 
+      h.toLowerCase() === 'position' || 
+      h.toLowerCase() === 'title' || 
+      h.toLowerCase() === 'jobtitle' || 
+      h.toLowerCase() === 'job title' || 
+      h.toLowerCase() === 'job_title' || 
+      h.toLowerCase() === 'currentposition' || 
+      h.toLowerCase() === 'current position' || 
+      h.toLowerCase() === 'current_title' || 
+      h.toLowerCase().includes('position') || 
+      h.toLowerCase().includes('title')
+    );
+    
+    // Format contacts for batch processing
+    const contacts = parsedData.map((row, index) => ({
+      searchName: nameField ? row[nameField] || "" : "",
+      searchCompany: companyField ? row[companyField] || "" : "",
+      searchPosition: positionField ? row[positionField] || "" : "",
+      contactId: `temp-${index}` // Use temporary IDs
+    }));
+    
     setIsProcessingCSV(true);
-
+    
     try {
-      // Get user ID from auth store
-      const userID = useAuthStore.getState().user?.uid || 'unknown';
-
-      // Generate a unique batch ID
-      const batchId = generateBatchId(userID);
-
-      // Find the actual column names that matched our patterns
-      const headers = Object.keys(parsedData[0]);
-      const nameField = headers.find(h => 
-        h.toLowerCase() === 'name' || 
-        h.toLowerCase() === 'fullname' || 
-        h.toLowerCase() === 'full name' || 
-        h.toLowerCase() === 'full_name' || 
-        h.toLowerCase().includes('name')
-      );
-      
-      const companyField = headers.find(h => 
-        h.toLowerCase() === 'company' || 
-        h.toLowerCase() === 'companyname' || 
-        h.toLowerCase() === 'company name' || 
-        h.toLowerCase() === 'company_name' || 
-        h.toLowerCase().includes('company')
-      );
-      
-      const positionField = headers.find(h => 
-        h.toLowerCase() === 'position' || 
-        h.toLowerCase() === 'title' || 
-        h.toLowerCase() === 'jobtitle' || 
-        h.toLowerCase() === 'job title' || 
-        h.toLowerCase() === 'job_title' || 
-        h.toLowerCase() === 'currentposition' || 
-        h.toLowerCase() === 'current position' || 
-        h.toLowerCase() === 'current_title' || 
-        h.toLowerCase().includes('position') || 
-        h.toLowerCase().includes('title')
-      );
-      
-      // Format contacts for batch processing
-      const contacts = parsedData.map((row, index) => ({
-        searchName: nameField ? row[nameField] || "" : "",
-        searchCompany: companyField ? row[companyField] || "" : "",
-        searchPosition: positionField ? row[positionField] || "" : "",
-        contactId: `temp-${index}` // Use temporary IDs
-      }));
-      
       // Call the API service with the data
       const result = await findBatchContacts({
         userID,
@@ -541,10 +560,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       // Get found count
       const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
       
-      // Update credits
-      if (successCount > 0) {
-        await updateCreditUsage(successCount, successCount);
-      }
+      // Refresh credits directly from backend
+      await useAuthStore.getState().refreshCredits();
       
       // Show toast message
       toast({
@@ -560,7 +577,6 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       if (onSearchComplete) {
         onSearchComplete();
       }
-      
     } catch (error) {
       console.error('Batch search error:', error);
       toast({
@@ -580,7 +596,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     if (isSingleSearchActive && !isBulkSearchActive) {
       handleSingleSubmit(e);
     } else if (isBulkSearchActive && columnValidation.isValid) {
-      handleCSVSubmit();
+      handleBulkSearch();
     }
   };
 
@@ -1045,7 +1061,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                         fileInputRef.current?.click();
                       }}
                     >
-                      <FileUp className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                      <FileComponent className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                       Browse Files
                     </Button>
                   </div>
@@ -1054,7 +1070,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                 <div className="space-y-4">
                   <div className="bg-background/70 rounded-lg p-3 sm:p-4">
                     <div className="flex items-center mb-3">
-                      <File className="text-accent mr-3 shrink-0 h-5 w-5" />
+                      <FileComponent className="text-accent mr-3 shrink-0 h-5 w-5" />
                       <div className="flex-grow min-w-0">
                         <p className="text-primary-text font-medium text-sm truncate">{selectedFile.name}</p>
                         <p className="text-secondary-text text-xs">{formatFileSize(selectedFile.size)}</p>

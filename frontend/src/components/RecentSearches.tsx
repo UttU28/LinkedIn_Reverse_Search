@@ -212,6 +212,8 @@ const RecentSearches: React.FC = () => {
                   item.inputMeta?.position || ''
                 ].filter(Boolean).join(' • ');
                 icon = <Search className="h-4 w-4" />;
+                // For single searches, include the direct linkedinUrl if available
+                url = item.linkedinUrl || undefined;
                 break;
                 
               case 'bulk':
@@ -394,6 +396,7 @@ const RecentSearches: React.FC = () => {
     // Check multiple possible locations for LinkedIn URL
     const linkedInUrl = 
       search.url || 
+      (search.originalData?.linkedinUrl) ||  // First check for direct linkedinUrl in search history
       (search.originalData?.inputMeta?.linkedin) ||
       (search.originalData?.linkedin) || 
       (search.originalData?.linkedInUrl) || 

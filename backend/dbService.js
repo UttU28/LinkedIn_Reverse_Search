@@ -74,9 +74,10 @@ class DbService {
       // Add timestamp manually
       const timestamp = new Date();
       
-      // Add document with auto-generated ID
+      // Add document with auto-generated ID, including default cost
       const docRef = await searchHistoryRef.add({
         ...historyData,
+        costCredits: 0, // Initialize cost to 0, will be updated later
         createdAt: timestamp
       });
       
@@ -122,6 +123,99 @@ class DbService {
     } catch (error) {
       this.logError(`Error updating search history`, error);
       return false;
+    }
+  }
+  
+  /**
+   * Update search cost and deduct credits
+   * @param {string} userId - User ID
+   * @param {string} historyId - Search history document ID
+   * @param {string} searchType - Type of search (single, bulk, team, recruiters)
+   * @param {number} resultsCount - Number of results found (for charging)
+   * @returns {Promise<object|null>} - Updated user data or null if failed
+   */
+  async updateSearchCost(userId, historyId, searchType, resultsCount) {
+    try {
+      if (!userId || !historyId) {
+        this.log(`Cannot update search cost: userId or historyId is missing`, 'warn');
+        return null;
+      }
+      
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot update search cost');
+        return null;
+      }
+      
+      // Calculate cost based on search type and results
+      let costCredits = 0;
+      
+      switch (searchType) {
+        case 'single':
+          // Single search costs 1 credit when a result is found
+          costCredits = resultsCount > 0 ? 1 : 0;
+          break;
+        case 'bulk':
+          // Bulk search costs 1 credit per result found
+          costCredits = resultsCount || 0;
+          break;
+        case 'team':
+          // Team member search costs 1 credit per result found
+          costCredits = resultsCount || 0;
+          break;
+        case 'recruiters':
+          // Lead generator costs based on results found
+          costCredits = resultsCount || 0;
+          break;
+        default:
+          // Default behavior - only charge if results found
+          costCredits = resultsCount > 0 ? 1 : 0;
+      }
+      
+      // Update search history with cost information
+      await this.updateSearchHistory(userId, historyId, {
+        costCredits: costCredits
+      });
+      
+      // Only proceed with deducting credits if there's a cost
+      if (costCredits <= 0) {
+        this.log(`No credits to deduct for search ${historyId}`, 'debug');
+        return {
+          deductedCredits: 0
+        };
+      }
+      
+      // Deduct credits from user account
+      const userRef = this.db.collection('users').doc(userId);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        this.log(`User not found: ${userId}`);
+        return null;
+      }
+      
+      const userData = userDoc.data();
+      const currentLinkCredits = userData.linkCredits || 0;
+      
+      // Calculate new credits (don't go below 0)
+      const newLinkCredits = Math.max(0, currentLinkCredits - costCredits);
+      
+      // Update user with new credit balance
+      await userRef.update({
+        linkCredits: newLinkCredits,
+        lastCreditUpdate: new Date()
+      });
+      
+      this.log(`Deducted ${costCredits} credits from user ${userId}. New balance: ${newLinkCredits}`);
+      
+      return {
+        userId,
+        previousCredits: currentLinkCredits,
+        deductedCredits: costCredits,
+        newCredits: newLinkCredits
+      };
+    } catch (error) {
+      this.logError('Error updating search cost', error);
+      return null;
     }
   }
   
@@ -435,13 +529,51 @@ class DbService {
         return [];
       }
       
-      // Map documents to objects
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        completedAt: doc.data().completedAt?.toDate() || null
-      }));
+      // Map documents to objects and process them
+      const searchHistoryItems = [];
+      
+      for (const doc of snapshot.docs) {
+        const historyData = doc.data();
+        const historyItem = {
+          id: doc.id,
+          ...historyData,
+          createdAt: historyData.createdAt?.toDate() || new Date(),
+          completedAt: historyData.completedAt?.toDate() || null
+        };
+        
+        // For single searches, try to fetch the LinkedIn URL from the first result
+        // if it's not already in the history item
+        if (historyItem.type === 'single' && !historyItem.linkedinUrl && 
+            historyItem.resultIds && historyItem.resultIds.length > 0) {
+          try {
+            // Get the first result ID
+            const resultId = historyItem.resultIds[0];
+            // Query the search result
+            const resultRef = this.db.collection('searchResults').doc(resultId);
+            const resultDoc = await resultRef.get();
+            
+            if (resultDoc.exists) {
+              const resultData = resultDoc.data();
+              // Add linkedinUrl to the history item if found
+              if (resultData.linkedinUrl) {
+                historyItem.linkedinUrl = resultData.linkedinUrl;
+                
+                // Also update the history document with the LinkedIn URL for future queries
+                await searchHistoryRef.doc(doc.id).update({
+                  linkedinUrl: resultData.linkedinUrl
+                });
+              }
+            }
+          } catch (resultError) {
+            this.log(`Error retrieving search result for history ${doc.id}: ${resultError.message}`, 'warn');
+            // Continue processing other history items even if this one fails
+          }
+        }
+        
+        searchHistoryItems.push(historyItem);
+      }
+      
+      return searchHistoryItems;
     } catch (error) {
       this.logError('Error getting search history', error);
       return [];

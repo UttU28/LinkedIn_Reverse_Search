@@ -37,6 +37,7 @@ export interface SearchHistoryResult {
   totalRecords: number;
   resultRefPath?: string;
   resultIds?: string[];
+  linkedinUrl?: string | null;
   createdAt: Date;
   completedAt?: Date;
 }
@@ -76,6 +77,7 @@ export const fetchSearchHistory = async (userId: string) => {
             totalRecords: data.totalRecords || 0,
             resultRefPath: data.resultRefPath || '',
             resultIds: data.resultIds || [],
+            linkedinUrl: data.linkedinUrl || null,
             createdAt: data.createdAt?.toDate() || new Date(),
             completedAt: data.completedAt?.toDate() || null
           } as SearchHistoryResult;

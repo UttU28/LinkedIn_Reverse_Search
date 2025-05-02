@@ -8,6 +8,8 @@ const axios = require('axios');
  * Core function to handle professional search
  */
 async function findRecruitersAtCompany(companyName, userID, positionTitle = 'recruitment') {
+  let historyId = null;
+  
   try {
     // Determine the appropriate term based on position type
     let positionTerm;
@@ -40,7 +42,7 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
     }
     
     // Create historyId first to track this search operation
-    const historyId = await dbService.addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "recruiters",
       status: "processing",
       inputMeta: {
@@ -66,7 +68,8 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       return {
         success: false,
         message: `No search results found for ${positionTerm} at this company`,
-        data: []
+        data: [],
+        historyId
       };
     }
     
@@ -85,12 +88,14 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       return {
         success: false,
         message: `No ${positionTerm} found at this company`,
-        data: []
+        data: [],
+        historyId
       };
     }
     
     // Step 4: Save results to database and collect resultIds
     const resultIds = [];
+    const matchedCompanyLeads = []; // Keep track of leads matching the exact company
     
     for (const person of extractedData) {
       // Store only if we have a name and either position or company
@@ -111,6 +116,13 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
         
         if (resultId) {
           resultIds.push(resultId);
+          
+          // Check if this lead matches the exact company name (case-insensitive)
+          const leadCompany = (person.company || '').toLowerCase();
+          const targetCompany = companyName.toLowerCase();
+          if (leadCompany.includes(targetCompany) || targetCompany.includes(leadCompany)) {
+            matchedCompanyLeads.push(resultId);
+          }
         }
       }
     }
@@ -121,8 +133,15 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       totalRecords: extractedData.length,
       resultsCount: resultIds.length,
       resultIds: resultIds,
+      matchedCompanyCount: matchedCompanyLeads.length,
       completedAt: new Date()
     });
+    
+    // Step 6: Apply cost based on results found
+    // For lead generator search, charge ONLY based on company-matching results
+    if (matchedCompanyLeads.length > 0) {
+      await dbService.updateSearchCost(userID, historyId, "recruiters", matchedCompanyLeads.length);
+    }
     
     log(`Found ${extractedData.length} ${positionTerm} at ${companyName}`);
     
@@ -136,9 +155,9 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
   } catch (error) {
     log(`Error finding professionals: ${error.message}`, 'error');
     
-    // Update history with error status if we have a historyId
-    if (arguments[2]) { // historyId would be the third argument if passed
-      await dbService.updateSearchHistory(userID, arguments[2], {
+    // Update history with error status
+    if (historyId) {
+      await dbService.updateSearchHistory(userID, historyId, {
         status: "error",
         errorMessage: error.message
       });
@@ -148,7 +167,8 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       success: false,
       message: `Error finding professionals: ${error.message}`,
       error: error.message,
-      data: []
+      data: [],
+      historyId
     };
   }
 }

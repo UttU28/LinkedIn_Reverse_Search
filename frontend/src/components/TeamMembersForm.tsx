@@ -96,8 +96,8 @@ const TeamMembersForm: React.FC<TeamMembersFormProps> = ({
       
       // Check if the response is successful
       if (response) {
-        // Update credit usage
-        await useAuthStore.getState().updateCreditUsage(1, 0);
+        // Update credit usage by refreshing from backend
+        await useAuthStore.getState().refreshCredits();
         
         // Call the onSearchComplete callback with the results
         if (onSearchComplete) {

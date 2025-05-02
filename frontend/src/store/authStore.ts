@@ -13,6 +13,7 @@ interface AuthState {
   initialized: boolean;
   fetchUserData: () => Promise<void>;
   updateCreditUsage: (creditsUsed: number, resultsFound: number) => Promise<void>;
+  refreshCredits: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -48,37 +49,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user || !userData) return;
     
     try {
-      // Use backend API to update credits
-      const response = await fetch(`${API_URL}/updateCredits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          creditsUsed,
-          resultsFound
-        }),
-      });
+      // The /updateCredits endpoint is now deprecated, so after using it, we'll refresh credits
+      // to get the actual values from the database
+      await get().refreshCredits();
+    } catch (error) {
+      console.error("Error updating credit usage:", error);
+      set({ error: "Failed to update credit usage." });
+    }
+  },
+  
+  refreshCredits: async () => {
+    const { user, userData } = get();
+    if (!user) return;
+    
+    try {
+      // Use the new endpoint to get fresh credit information
+      const response = await fetch(`${API_URL}/refresh-credits/${user.uid}`);
       
       if (!response.ok) {
-        throw new Error('Failed to update credits');
+        throw new Error('Failed to refresh credits');
       }
       
       const result = await response.json();
       
-      // Update local state with values from backend
-      set({
-        userData: {
-          ...userData,
-          linkCredits: result.data.linkCredits,
-          totalSearched: result.data.totalSearched,
-          totalFound: result.data.totalFound
-        }
-      });
+      if (result.success && userData) {
+        // Update only the credits in the userData
+        set({
+          userData: {
+            ...userData,
+            linkCredits: result.data.linkCredits
+          }
+        });
+        console.log("Credits refreshed:", result.data.linkCredits);
+      }
     } catch (error) {
-      console.error("Error updating credit usage:", error);
-      set({ error: "Failed to update credit usage." });
+      console.error("Error refreshing credits:", error);
     }
   }
 }));
