@@ -14,11 +14,20 @@ const API_BASE = `${FIRECRAWL_URL}/v1`;
  * @param {string} userID - User ID for database operations
  */
 async function findTeamMembersFromWebsite(companyUrl, userID) {
+  let historyId = null;
+  
   try {
-    log(`Searching for team members from website: ${companyUrl}`);
+    // Validate URL format
+    try {
+      new URL(companyUrl);
+    } catch (urlError) {
+      throw new Error('Invalid URL format. Please enter a valid website URL.');
+    }
+    
+    log(`Searching for team members: ${companyUrl}`);
     
     // Create historyId to track this search operation
-    const historyId = await dbService.addSearchHistory(userID, {
+    historyId = await dbService.addSearchHistory(userID, {
       type: "team",
       status: "processing",
       inputMeta: {
@@ -29,137 +38,155 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       startedAt: new Date()
     });
     
-    log(`Created search history with ID: ${historyId}`);
+    log(`Created search history: ${historyId}`, 'debug');
     
     // Step 1: Map all URLs from the company website
-    const teamPages = await mapUrlsFromCompany(companyUrl);
-    
-    if (!teamPages || teamPages.length === 0) {
-      await dbService.updateSearchHistory(userID, historyId, {
-        status: "failed",
-        errorMessage: "No team/about pages found on the company website"
-      });
+    try {
+      const teamPages = await mapUrlsFromCompany(companyUrl);
       
-      return {
-        success: false,
-        message: "No team/about pages found on the company website",
-        data: [],
-        historyId
-      };
-    }
-    
-    log(`Found ${teamPages.length} potential team/about pages`);
-    
-    // Step 2: Scrape the first team page
-    const teamPageUrl = teamPages[0];
-    const markdownContent = await scrapePageMarkdown(teamPageUrl);
-    
-    if (!markdownContent) {
-      await dbService.updateSearchHistory(userID, historyId, {
-        status: "failed",
-        errorMessage: "Failed to scrape team page content"
-      });
-      
-      return {
-        success: false,
-        message: "Failed to scrape team page content",
-        data: [],
-        historyId
-      };
-    }
-    
-    // Step 3: Extract team members using OpenAI
-    const teamMembers = await extractTeamMembersFromMarkdown(markdownContent);
-    
-    if (!teamMembers || !Array.isArray(teamMembers) || teamMembers.length === 0) {
-      await dbService.updateSearchHistory(userID, historyId, {
-        status: "failed",
-        errorMessage: "No team members found on the page"
-      });
-      
-      return {
-        success: false,
-        message: "No team members found on the page",
-        data: [],
-        historyId
-      };
-    }
-    
-    // Step 4: Save individual results to database and collect resultIds
-    const resultIds = [];
-    const processedResults = [];
-    
-    for (const member of teamMembers) {
-      // Only store if we have a name
-      if (member.name) {
-        // Extract company name from URL for database
-        const companyDomain = new URL(companyUrl).hostname.replace(/^www\./, '');
+      if (!teamPages || teamPages.length === 0) {
+        await dbService.updateSearchHistory(userID, historyId, {
+          status: "failed",
+          errorMessage: "No team/about pages found on the company website"
+        });
         
-        const searchData = {
-          name: member.name,
-          position: member.position || "",
-          company: companyDomain
+        return {
+          success: false,
+          message: "No team/about pages found on the company website. Try a different URL that includes 'About' or 'Team' pages.",
+          data: [],
+          historyId
         };
+      }
+      
+      log(`Found ${teamPages.length} potential team/about pages`);
+      
+      // Step 2: Scrape the first team page
+      const teamPageUrl = teamPages[0];
+      const markdownContent = await scrapePageMarkdown(teamPageUrl);
+      
+      if (!markdownContent) {
+        await dbService.updateSearchHistory(userID, historyId, {
+          status: "failed",
+          errorMessage: "Failed to scrape team page content"
+        });
         
-        const resultId = await dbService.addSearchResult(
-          userID,
-          historyId,
-          "team",
-          searchData,
-          member.linkedin || null
-        );
+        return {
+          success: false,
+          message: "Failed to extract content from the team page. The page might be using JavaScript to load content or blocking scraping.",
+          data: [],
+          historyId
+        };
+      }
+      
+      // Step 3: Extract team members using OpenAI
+      const teamMembers = await extractTeamMembersFromMarkdown(markdownContent);
+      
+      if (!teamMembers || !Array.isArray(teamMembers) || teamMembers.length === 0) {
+        await dbService.updateSearchHistory(userID, historyId, {
+          status: "failed",
+          errorMessage: "No team members found on the page"
+        });
         
-        if (resultId) {
-          resultIds.push(resultId);
+        return {
+          success: false,
+          message: "No team members could be identified on the page. The page might not be a typical team/about page.",
+          data: [],
+          historyId
+        };
+      }
+      
+      // Step 4: Save individual results to database and collect resultIds
+      const resultIds = [];
+      const processedResults = [];
+      
+      for (const member of teamMembers) {
+        // Only store if we have a name
+        if (member.name) {
+          // Extract company name from URL for database
+          const companyDomain = new URL(companyUrl).hostname.replace(/^www\./, '');
           
-          // Add to processed results (note: we don't store email in DB as requested)
-          processedResults.push({
+          const searchData = {
             name: member.name,
             position: member.position || "",
-            linkedin: member.linkedin || null
-            // Email is intentionally excluded as requested
-          });
+            company: companyDomain
+          };
+          
+          const resultId = await dbService.addSearchResult(
+            userID,
+            historyId,
+            "team",
+            searchData,
+            member.linkedin || null
+          );
+          
+          if (resultId) {
+            resultIds.push(resultId);
+            
+            // Add to processed results (note: we don't store email in DB as requested)
+            processedResults.push({
+              name: member.name,
+              position: member.position || "",
+              linkedin: member.linkedin || null
+            });
+          }
         }
       }
+      
+      // Step 5: Store the entire set of team members as a single cached result
+      const teamResultId = await dbService.addTeamMembers(
+        userID,
+        historyId,
+        companyUrl,
+        processedResults
+      );
+      
+      // Include the team members result ID in the result IDs if it exists
+      if (teamResultId) {
+        resultIds.push(teamResultId);
+      }
+      
+      // Step 6: Update history with completed status
+      await dbService.updateSearchHistory(userID, historyId, {
+        status: "completed",
+        totalRecords: teamMembers.length,
+        resultsCount: resultIds.length,
+        resultIds: resultIds,
+        completedAt: new Date()
+      });
+      
+      log(`Found ${processedResults.length} team members at ${companyUrl}`);
+      
+      // Return formatted response
+      return {
+        success: true,
+        message: `Found ${processedResults.length} team members at ${companyUrl}`,
+        data: processedResults,
+        historyId: historyId
+      };
+    } catch (serviceError) {
+      // Handle service-specific errors
+      const errorMessage = serviceError.message || 'Unknown error occurred';
+      
+      // Update the history with the specific error
+      await dbService.updateSearchHistory(userID, historyId, {
+        status: "error",
+        errorMessage: errorMessage
+      });
+      
+      return {
+        success: false,
+        message: errorMessage,
+        error: errorMessage,
+        data: [],
+        historyId
+      };
     }
-    
-    // Step 5: Store the entire set of team members as a single cached result
-    const teamResultId = await dbService.addTeamMembers(
-      userID,
-      historyId,
-      companyUrl,
-      processedResults
-    );
-    
-    // Include the team members result ID in the result IDs if it exists
-    if (teamResultId) {
-      resultIds.push(teamResultId);
-    }
-    
-    // Step 6: Update history with completed status
-    await dbService.updateSearchHistory(userID, historyId, {
-      status: "completed",
-      totalRecords: teamMembers.length,
-      resultsCount: resultIds.length,
-      resultIds: resultIds,
-      completedAt: new Date()
-    });
-    
-    log(`Search completed. Found ${processedResults.length} team members at ${companyUrl}`);
-    
-    // Return formatted response
-    return {
-      success: true,
-      message: `Found ${processedResults.length} team members at ${companyUrl}`,
-      data: processedResults,
-      historyId: historyId
-    };
   } catch (error) {
-    log(`Error finding team members: ${error.message}`);
+    log(`Error finding team members: ${error.message}`, 'error');
     
-    // Update history with error status if historyId exists
-    if (arguments[2]) {
-      await dbService.updateSearchHistory(userID, arguments[2], {
+    // Update history with error status
+    if (historyId) {
+      await dbService.updateSearchHistory(userID, historyId, {
         status: "error",
         errorMessage: error.message
       });
@@ -170,7 +197,7 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
       message: `Error finding team members: ${error.message}`,
       error: error.message,
       data: [],
-      historyId: arguments[2] || null
+      historyId: historyId
     };
   }
 }
@@ -182,27 +209,40 @@ async function findTeamMembersFromWebsite(companyUrl, userID) {
  */
 async function mapUrlsFromCompany(url) {
   try {
-    log(`Mapping URLs from: ${url}`);
+    log(`Mapping URLs from: ${url}`, 'debug');
     
-    const response = await axios.post(
-      `${API_BASE}/map`,
-      { url },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    
-    if (!response.data.success && response.data.status !== 'success') {
-      throw new Error('Failed to map URLs from company website');
+    // Check if FireCrawl API is available
+    try {
+      const response = await axios.post(
+        `${API_BASE}/map`,
+        { url },
+        { 
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30000 // 30 second timeout
+        }
+      );
+      
+      if (!response.data.success && response.data.status !== 'success') {
+        throw new Error('Failed to map URLs from company website');
+      }
+      
+      const allLinks = response.data.links || [];
+      log(`Total URLs mapped: ${allLinks.length}`, 'debug');
+      
+      const teamPages = filterAboutAndTeamPages(allLinks);
+      return teamPages;
+    } catch (apiError) {
+      // Check if this is a connection error to the FireCrawl service
+      if (apiError.code === 'ECONNREFUSED' || apiError.code === 'ETIMEDOUT' || apiError.code === 'ECONNABORTED') {
+        log(`FireCrawl service unavailable: ${apiError.message}`, 'error');
+        throw new Error('Company website mapping service unavailable. Please try again later.');
+      }
+      
+      // Re-throw the original error
+      throw apiError;
     }
-    
-    const allLinks = response.data.links;
-    log(`Total URLs mapped: ${allLinks.length}`);
-    
-    const teamPages = filterAboutAndTeamPages(allLinks);
-    log(`Found ${teamPages.length} About/Team/Leadership pages`);
-    
-    return teamPages;
   } catch (error) {
-    log(`Error mapping URLs: ${error.message}`);
+    log(`Error mapping URLs: ${error.message}`, 'error');
     return [];
   }
 }
@@ -214,22 +254,41 @@ async function mapUrlsFromCompany(url) {
  */
 async function scrapePageMarkdown(url) {
   try {
-    log(`Scraping markdown from: ${url}`);
+    log(`Scraping page: ${url}`, 'debug');
     
-    const response = await axios.post(
-      `${API_BASE}/scrape`,
-      { url, formats: ['markdown'] },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    
-    if (!response.data.success) {
-      throw new Error('Failed to scrape page content');
+    try {
+      const response = await axios.post(
+        `${API_BASE}/scrape`,
+        { url, formats: ['markdown'] },
+        { 
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 45000 // 45 second timeout for scraping which can take longer
+        }
+      );
+      
+      if (!response.data.success) {
+        throw new Error('Failed to scrape page content');
+      }
+      
+      if (!response.data.data || !response.data.data.markdown) {
+        log('No markdown content returned from scraper', 'warn');
+        return null;
+      }
+      
+      const markdownContent = response.data.data.markdown;
+      return removeImagesFromMarkdown(markdownContent);
+    } catch (apiError) {
+      // Check if this is a connection error to the FireCrawl service
+      if (apiError.code === 'ECONNREFUSED' || apiError.code === 'ETIMEDOUT' || apiError.code === 'ECONNABORTED') {
+        log(`FireCrawl service unavailable for scraping: ${apiError.message}`, 'error');
+        throw new Error('Website scraping service unavailable. Please try again later.');
+      }
+      
+      // Re-throw the original error
+      throw apiError;
     }
-    
-    const markdownContent = response.data.data.markdown;
-    return removeImagesFromMarkdown(markdownContent);
   } catch (error) {
-    log(`Error scraping page: ${error.message}`);
+    log(`Error scraping page: ${error.message}`, 'error');
     return null;
   }
 }
@@ -279,14 +338,18 @@ function filterAboutAndTeamPages(urls) {
  * @returns {Promise<Array|null>} - Array of team member objects
  */
 async function extractTeamMembersFromMarkdown(markdownContent) {
-  if (!markdownContent) return null;
+  if (!markdownContent) {
+    log("No markdown content provided to extract team members", 'warn');
+    return [];
+  }
   
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_API_KEY) {
-    log("Error: OpenAI API key not found in environment variables");
-    return null;
+    log("OpenAI API key not found in environment variables", 'error');
+    throw new Error("OpenAI API key not configured. Please check your environment setup.");
   }
 
+  // Truncate the content if it's too long (OpenAI has token limits)
   const MAX_CHARS = 32000;
   let processedMarkdown = markdownContent.length > MAX_CHARS
     ? markdownContent.substring(0, MAX_CHARS)
@@ -297,8 +360,8 @@ async function extractTeamMembersFromMarkdown(markdownContent) {
     markdownData: processedMarkdown
   };
 
-  // Use the callOpenAI function from utils which now includes rate limiting
   try {
+    log("Analyzing page content with OpenAI", 'debug');
     const aiResponse = await callOpenAI(
       jsonData,
       TEAM_MEMBERS_SYSTEM_PROMPT,
@@ -306,21 +369,37 @@ async function extractTeamMembersFromMarkdown(markdownContent) {
     );
 
     if (!aiResponse) {
-      throw new Error('No response from OpenAI API');
+      throw new Error('No response received from OpenAI API');
     }
 
+    // Try to parse the JSON response
     try {
+      // Direct parsing if it's a clean JSON response
       return JSON.parse(aiResponse);
-    } catch {
+    } catch (parseError) {
+      // Look for JSON array within the response
       const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        try {
+          const parsedData = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsedData)) {
+            return parsedData;
+          }
+        } catch (nestedError) {
+          log(`Error parsing extracted JSON: ${nestedError.message}`, 'error');
+        }
       }
-      throw new Error('Failed to parse OpenAI response as JSON');
+      
+      // If we get here, we couldn't parse the response
+      log(`OpenAI response was not valid JSON: ${aiResponse.substring(0, 100)}...`, 'error');
+      throw new Error('Failed to parse team member data from OpenAI response');
     }
   } catch (error) {
-    log(`Error extracting team members: ${error.message}`);
-    return [];
+    log(`Error extracting team members with OpenAI: ${error.message}`, 'error');
+    if (error.message.includes('rate limit') || error.message.includes('quota')) {
+      throw new Error('API rate limit exceeded. Please try again later.');
+    }
+    throw new Error(`Team member extraction failed: ${error.message}`);
   }
 }
 

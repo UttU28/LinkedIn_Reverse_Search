@@ -24,14 +24,14 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
         break;
     }
     
-    log(`Searching for ${positionTerm} at company: ${companyName}, position type: ${positionTitle}`);
+    log(`Searching for ${positionTerm} at: ${companyName}`);
     
     // API keys from environment variables
     const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
     const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-      log("Error: Missing API credentials in environment variables");
+      log("Missing API credentials", 'error');
       return {
         success: false,
         message: "API credentials not configured",
@@ -52,7 +52,7 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       startedAt: new Date()
     });
     
-    log(`Created search history with ID: ${historyId}`);
+    log(`Created search history: ${historyId}`, 'debug');
     
     // Step 1: Perform Google search for the specified position type
     const searchResults = await searchRecruiters(companyName, GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID, positionTitle);
@@ -124,7 +124,7 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       completedAt: new Date()
     });
     
-    log(`Search completed. Found ${extractedData.length} ${positionTerm} at ${companyName}`);
+    log(`Found ${extractedData.length} ${positionTerm} at ${companyName}`);
     
     // Return formatted response
     return {
@@ -134,7 +134,7 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
       historyId: historyId
     };
   } catch (error) {
-    log(`Error finding professionals: ${error.message}`);
+    log(`Error finding professionals: ${error.message}`, 'error');
     
     // Update history with error status if we have a historyId
     if (arguments[2]) { // historyId would be the third argument if passed
@@ -182,8 +182,7 @@ async function searchRecruiters(companyName, apiKey, cseId, positionType = 'recr
       break;
   }
   
-  log(`Searching for ${positionType} professionals at ${companyName}`);
-  log(`Query: ${query}`);
+  log(`Search query: ${positionType} at ${companyName}`, 'debug');
   
   try {
     // Use the GoogleCustomSearch class which now includes rate limiting
@@ -219,25 +218,11 @@ function formatGoogleResultsForExtraction(googleResults) {
 }
 
 /**
- * Replace variables in a template string
- */
-function compileTemplate(template, variables) {
-  let compiledTemplate = template;
-  
-  for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`{{${key}}}`, 'g');
-    compiledTemplate = compiledTemplate.replace(regex, value);
-  }
-  
-  return compiledTemplate;
-}
-
-/**
  * Extract LinkedIn data from search results using OpenAI
  */
 async function extractLinkedInData(searchResults) {
   try {
-    log('Calling OpenAI API to extract LinkedIn data...');
+    log('Extracting LinkedIn data from search results', 'debug');
     
     // Create a simple JSON object for the callOpenAI function
     const jsonData = {
@@ -259,11 +244,11 @@ async function extractLinkedInData(searchResults) {
     try {
       return extractJsonFromResponse(aiResponse);
     } catch (parseError) {
-      log(`JSON parsing error: ${parseError.message}`);
+      log(`JSON parsing error: ${parseError.message}`, 'error');
       throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
     }
   } catch (error) {
-    log(`LinkedIn data extraction failed: ${error.message}`);
+    log(`LinkedIn data extraction failed: ${error.message}`, 'error');
     throw error;
   }
 }

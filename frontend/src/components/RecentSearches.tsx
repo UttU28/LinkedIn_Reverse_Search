@@ -505,11 +505,11 @@ const RecentSearches: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="grid grid-cols-3 items-center p-3 rounded-md bg-background/50 border border-border/30 hover:bg-background transition-colors overflow-hidden cursor-pointer"
+                className="grid grid-cols-5 gap-2 items-center p-3 rounded-md bg-background/50 border border-border/30 hover:bg-background transition-colors overflow-hidden cursor-pointer"
                 onClick={() => handleCardClick(search)}
               >
-                {/* Left Column - Icon and Title */}
-                <div className="flex items-center space-x-3 overflow-hidden">
+                {/* Left Column - Icon and Title (3/5 width) */}
+                <div className="col-span-3 flex items-center space-x-3 overflow-hidden">
                   <div className="flex-shrink-0">
                     <div className="p-2 rounded-full bg-primary/10">
                       {React.cloneElement(search.icon as React.ReactElement, { className: "h-5 w-5" })}
@@ -526,16 +526,16 @@ const RecentSearches: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Middle Column - Subtitle */}
-                <div className="flex justify-center">
-                  <div className="text-sm text-secondary-text truncate max-w-[90%] text-center">
+                {/* Middle Column - Subtitle (1/5 width) */}
+                <div className="col-span-1 overflow-hidden">
+                  <div className="text-sm text-secondary-text truncate">
                     {search.subtitle}
                   </div>
                 </div>
                 
-                {/* Time Ago Column with Status Icon */}
-                <div className="flex items-center justify-end">
-                  <div className="text-sm flex items-center">
+                {/* Right Column - Time Ago with Status Icon (1/5 width) */}
+                <div className="col-span-1 flex items-center justify-end">
+                  <div className="text-sm flex items-center whitespace-nowrap">
                     {search.status === 'completed' ? (
                       <>
                         <CheckCircle className="h-4 w-4 text-green-500 mr-1.5" />

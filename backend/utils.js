@@ -4,11 +4,37 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 /**
- * Standardized logging function
+ * Standardized logging function with log levels
  * @param {string} message - Message to log
+ * @param {string} level - Log level: 'info', 'debug', 'warn', 'error'
  */
-function log(message) {
-  console.log(message);
+function log(message, level = 'info') {
+  // Get log level from environment or default to 'info'
+  const configuredLevel = (process.env.LOG_LEVEL || 'info').toLowerCase();
+  const logLevels = { error: 0, warn: 1, info: 2, debug: 3 };
+  
+  // Skip logs based on configured level
+  if (logLevels[level] > logLevels[configuredLevel]) {
+    return;
+  }
+
+  const timestamp = new Date().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS format
+  
+  // Format: timestamp in brackets, level in uppercase, then message
+  switch(level) {
+    case 'error':
+      console.error(`[${timestamp}] ERROR: ${message}`);
+      break;
+    case 'warn':
+      console.warn(`[${timestamp}] WARN: ${message}`);
+      break;
+    case 'debug':
+      console.log(`[${timestamp}] DEBUG: ${message}`);
+      break;
+    case 'info':
+    default:
+      console.log(`[${timestamp}] INFO: ${message}`);
+  }
 }
 
 /**
@@ -32,14 +58,15 @@ class RateLimiter {
     // If we have a token available, consume it immediately
     if (this.tokens >= 1) {
       this.tokens -= 1;
-      log(`${this.name} rate limiter: Token acquired (${this.tokens.toFixed(2)} remaining)`);
+      // Only log rate limiting at debug level
+      log(`${this.name} token acquired (${this.tokens.toFixed(2)} remaining)`, 'debug');
       return;
     }
     
     // Calculate time until next token is available
     const timeToWait = this._calculateWaitTime();
     
-    log(`${this.name} rate limiter: Rate limited. Waiting ${timeToWait}ms before retry.`);
+    log(`${this.name} rate limited. Waiting ${Math.round(timeToWait/1000)}s before retry.`, 'warn');
     
     // Wait for the required time
     await new Promise(resolve => setTimeout(resolve, timeToWait));
@@ -77,13 +104,13 @@ class RateLimiter {
   // Track errors for exponential backoff
   recordError() {
     this.consecutiveErrors += 1;
-    log(`${this.name} rate limiter: Recorded error #${this.consecutiveErrors}, increasing backoff`);
+    log(`${this.name} error #${this.consecutiveErrors}, increasing backoff`, 'warn');
   }
 
   recordSuccess() {
     if (this.consecutiveErrors > 0) {
       this.consecutiveErrors = 0;
-      log(`${this.name} rate limiter: Reset error count after successful request`);
+      log(`${this.name} recovered after errors`, 'debug');
     }
   }
 }
@@ -125,7 +152,7 @@ class GoogleCustomSearch {
           (error.response.data && error.response.data.error && 
            error.response.data.error.message && 
            error.response.data.error.message.includes('quota')))) {
-        log(`Google Search API rate limit exceeded: ${error.message}`);
+        log(`Google Search API rate limit exceeded: ${error.message}`, 'error');
         this.rateLimiter.recordError();
         
         // Wait with exponential backoff before retrying
@@ -138,7 +165,7 @@ class GoogleCustomSearch {
         return this.search(query, num);
       }
       
-      log(`Search error: ${error.message}`);
+      log(`Google Search error: ${error.message}`, 'error');
       return [];
     }
   }
@@ -171,11 +198,35 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     
     if (!OPENAI_API_KEY) {
-      log("Error: OpenAI API key not found in environment variables");
+      log("OpenAI API key not found in environment variables", 'error');
       return null;
     }
     
-    const userPromptWithData = userPrompt.replace("{json_input}", JSON.stringify(jsonData, null, 2));
+    // New logic to handle nested placeholders like {json_input.googleSearchResults}
+    let userPromptWithData = userPrompt;
+    
+    // Replace simple {json_input} placeholder
+    if (userPromptWithData.includes("{json_input}")) {
+      userPromptWithData = userPromptWithData.replace("{json_input}", JSON.stringify(jsonData, null, 2));
+    }
+    
+    // Replace nested placeholders like {json_input.googleSearchResults}
+    const nestedPlaceholderRegex = /\{json_input\.([^}]+)\}/g;
+    const matches = userPromptWithData.match(nestedPlaceholderRegex);
+    
+    if (matches) {
+      log(`Found nested placeholders: ${matches.join(', ')}`, 'debug');
+      matches.forEach(match => {
+        const propertyPath = match.slice(12, -1); // Extract property path without {json_input. and }
+        log(`Replacing placeholder ${match} with property ${propertyPath}`, 'debug');
+        if (jsonData && jsonData[propertyPath] !== undefined) {
+          userPromptWithData = userPromptWithData.replace(match, jsonData[propertyPath]);
+          log(`Placeholder replaced successfully`, 'debug');
+        } else {
+          log(`Property ${propertyPath} not found in jsonData`, 'warn');
+        }
+      });
+    }
     
     // Acquire a token from the rate limiter before making the request
     await callOpenAI.rateLimiter.acquire();
@@ -212,12 +263,12 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
         error.response.status === 500 || 
         (error.response.data && error.response.data.error && 
          error.response.data.error.type === 'rate_limit_exceeded'))) {
-      log(`OpenAI API rate limit exceeded: ${error.message}`);
+      log(`OpenAI API rate limit exceeded: ${error.message}`, 'error');
       callOpenAI.rateLimiter.recordError();
       
       // Wait with exponential backoff before retrying
       const backoffMs = Math.min(1000 * Math.pow(2, callOpenAI.rateLimiter.consecutiveErrors), 60000);
-      log(`Backing off OpenAI API for ${backoffMs}ms before retry`);
+      log(`Backing off OpenAI API for ${Math.round(backoffMs/1000)}s before retry`, 'warn');
       
       await new Promise(resolve => setTimeout(resolve, backoffMs));
       
@@ -225,7 +276,7 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
       return callOpenAI(jsonData, systemPrompt, userPrompt);
     }
     
-    log(`Error calling OpenAI: ${error.message}`);
+    log(`OpenAI API error: ${error.message}`, 'error');
     return null;
   }
 }

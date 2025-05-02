@@ -72,27 +72,29 @@ const LeadResultsTable: React.FC<LeadResultsTableProps> = ({
                 <td className="px-4 py-4 whitespace-nowrap align-middle">
                   <div className="flex items-center">
                     <a 
-                      href="https://linkedin.com/in/example" 
+                      href={result.linkedinUrl || "#"} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="h-8 w-8 rounded-full bg-primary/20 mr-3 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // In a real app, would use actual LinkedIn URL from API response
-                        window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
+                        if (result.linkedinUrl) {
+                          window.open(result.linkedinUrl, '_blank');
+                        }
                       }}
                     >
                       <LinkedInIcon className="h-4 w-4 text-primary" />
                     </a>
                     <a
-                      href="https://linkedin.com/in/example" 
+                      href={result.linkedinUrl || "#"} 
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-primary-text hover:text-primary cursor-pointer transition-colors duration-200"
                       onClick={(e) => {
                         e.preventDefault();
-                        // In a real app, would use actual LinkedIn URL
-                        window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
+                        if (result.linkedinUrl) {
+                          window.open(result.linkedinUrl, '_blank');
+                        }
                       }}
                     >
                       {result.name}
@@ -136,27 +138,29 @@ const LeadResultsTable: React.FC<LeadResultsTableProps> = ({
                 <td className="px-4 py-4 whitespace-nowrap align-middle">
                   <div className="flex items-center">
                     <a 
-                      href="https://linkedin.com/in/example" 
+                      href={result.linkedinUrl || "#"} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="h-8 w-8 rounded-full bg-accent/20 mr-3 flex items-center justify-center hover:bg-accent/40 transition-colors duration-200"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // In a real app, would use actual LinkedIn URL
-                        window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
+                        if (result.linkedinUrl) {
+                          window.open(result.linkedinUrl, '_blank');
+                        }
                       }}
                     >
                       <LinkedInIcon className="h-4 w-4 text-accent" />
                     </a>
                     <a
-                      href="https://linkedin.com/in/example" 
+                      href={result.linkedinUrl || "#"} 
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-primary-text hover:text-primary cursor-pointer transition-colors duration-200"
                       onClick={(e) => {
                         e.preventDefault();
-                        // In a real app, would use actual LinkedIn URL
-                        window.open(`https://linkedin.com/in/${result.name.toLowerCase().replace(/\s+/g, '-')}`, '_blank');
+                        if (result.linkedinUrl) {
+                          window.open(result.linkedinUrl, '_blank');
+                        }
                       }}
                     >
                       {result.name}

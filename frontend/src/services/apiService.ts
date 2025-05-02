@@ -42,7 +42,7 @@ interface BatchResponse {
     contacts: Array<{
       batchId: string;
       searchName: string;
-      searchCompany: string; 
+      searchCompany: string;
       searchPosition: string;
       linkedinProfileUrl?: string;
       foundData: number;
@@ -85,8 +85,37 @@ export const findSingleContact = async (params: SearchParams): Promise<SearchRes
       throw new Error('Network response was not ok');
     }
     
-    const result = await response.json();
-    console.log('Backend response:', result);
+    const rawResult = await response.json();
+    console.log('Backend single contact response:', rawResult);
+    
+    // Standardize the response format
+    let result: SearchResponse;
+    
+    // Handle newer format with success flag
+    if (rawResult.hasOwnProperty('success')) {
+      result = {
+        status: rawResult.success ? 'success' : 'error',
+        message: rawResult.message || (rawResult.success ? 'Profile found successfully' : 'No profile found'),
+        data: {
+          userID: params.userID,
+          searchName: params.searchName,
+          searchCompany: params.searchCompany,
+          searchPosition: params.searchPosition,
+          linkedinProfileUrl: rawResult.linkedInUrl || '',
+          foundData: rawResult.success ? 1 : 0
+        }
+      };
+    }
+    // Handle older format with status field
+    else if (rawResult.hasOwnProperty('status')) {
+      result = rawResult as SearchResponse;
+    }
+    // Handle unexpected format
+    else {
+      throw new Error('Invalid response format from server');
+    }
+    
+    console.log('Standardized single contact response:', result);
     
     if (result.status !== 'success') {
       throw new Error(result.message || 'Unknown error');
@@ -119,8 +148,42 @@ export const findBatchContacts = async (params: BatchContactsParams): Promise<Ba
       throw new Error('Network response was not ok');
     }
     
-    const result = await response.json();
-    console.log('Batch process response:', result);
+    const rawResult = await response.json();
+    console.log('Batch process raw response:', rawResult);
+    
+    // Standardize the response format
+    let result: BatchResponse;
+    
+    // Handle newer format with success flag
+    if (rawResult.hasOwnProperty('success')) {
+      // Transform to expected format
+      result = {
+        status: rawResult.success ? 'success' : 'error',
+        message: rawResult.message || (rawResult.success ? 'Batch processing started' : 'Batch processing failed'),
+        data: {
+          userID: params.userID,
+          contactsCount: params.contacts.length,
+          contacts: Array.isArray(rawResult.contacts) ? rawResult.contacts.map((contact: any) => ({
+            batchId: params.batchId,
+            searchName: contact.searchName || '',
+            searchCompany: contact.searchCompany || '',
+            searchPosition: contact.searchPosition || '',
+            linkedinProfileUrl: contact.linkedinProfileUrl || contact.linkedInUrl || '',
+            foundData: contact.foundData || (contact.success ? 1 : 0)
+          })) : []
+        }
+      };
+    }
+    // Handle older format with status field
+    else if (rawResult.hasOwnProperty('status')) {
+      result = rawResult as BatchResponse;
+    }
+    // Handle unexpected format
+    else {
+      throw new Error('Invalid response format from server');
+    }
+    
+    console.log('Standardized batch process response:', result);
     
     if (result.status !== 'success') {
       throw new Error(result.message || 'Unknown error');
@@ -153,9 +216,47 @@ export const findTargetedLeads = async (params: TargetedLeadsParams): Promise<an
       throw new Error('Network response was not ok');
     }
     
-    const result = await response.json();
-    console.log('Targeted leads response:', result);
+    const rawResult = await response.json();
+    console.log('Targeted leads raw response:', rawResult);
     
+    // Standardize the response format to match what frontend components expect
+    let result;
+    
+    // Check if we have the newer format with 'success' flag and 'leads' array
+    if (rawResult.hasOwnProperty('success') && Array.isArray(rawResult.leads)) {
+      result = {
+        status: rawResult.success ? 'success' : 'error',
+        message: rawResult.message || (rawResult.success ? 'Found leads successfully' : 'Failed to find leads'),
+        data: {
+          results: rawResult.leads.map((lead: any, index: number) => ({
+            id: `lead-${index}-${Date.now()}`,
+            name: lead.fullName || '',
+            position: lead.position || '',
+            company: lead.company || '',
+            location: '',
+            linkedinUrl: lead.linkedinUrl || '',
+            exactMatch: true
+          })),
+          historyId: rawResult.historyId || null
+        }
+      };
+    } 
+    // Handle the older format which already has status/data structure
+    else if (rawResult.hasOwnProperty('status')) {
+      result = rawResult;
+    }
+    // If neither format is detected, create a default error response
+    else {
+      result = {
+        status: 'error',
+        message: 'Invalid response format from server',
+        data: { results: [] }
+      };
+    }
+    
+    console.log('Standardized leads response:', result);
+    
+    // Check if the result indicates an error
     if (result.status !== 'success') {
       throw new Error(result.message || 'Unknown error');
     }
@@ -187,8 +288,52 @@ export const findTeamMembers = async (params: TeamMembersParams): Promise<any> =
       throw new Error('Network response was not ok');
     }
     
-    const result = await response.json();
-    console.log('Team members response:', result);
+    const rawResult = await response.json();
+    console.log('Team members raw response:', rawResult);
+    
+    // Standardize the response format
+    let result;
+    
+    // Handle newer format with success flag
+    if (rawResult.hasOwnProperty('success')) {
+      // Transform to expected format
+      result = {
+        status: rawResult.success ? 'success' : 'error',
+        message: rawResult.message || (rawResult.success ? 'Team members found' : 'No team members found'),
+        data: {
+          // Ensure the teamMembers array is properly formatted for the component
+          teamMembers: Array.isArray(rawResult.teamMembers) 
+            ? rawResult.teamMembers.map((member: any, index: number) => ({
+                id: member.id || `team-member-${index}-${Date.now()}`,
+                name: member.name || '',
+                position: member.position || '',
+                linkedin: member.linkedin || member.linkedinUrl || null
+              }))
+            : [],
+          originalUrl: params.url
+        }
+      };
+    }
+    // Handle older format with status field
+    else if (rawResult.hasOwnProperty('status')) {
+      // Ensure data structure is consistent
+      if (rawResult.data && Array.isArray(rawResult.data.teamMembers)) {
+        // Map the existing data to ensure field names match
+        rawResult.data.teamMembers = rawResult.data.teamMembers.map((member: any, index: number) => ({
+          id: member.id || `team-member-${index}-${Date.now()}`,
+          name: member.name || '',
+          position: member.position || '',
+          linkedin: member.linkedin || member.linkedinUrl || null
+        }));
+      }
+      result = rawResult;
+    }
+    // Handle unexpected format
+    else {
+      throw new Error('Invalid response format from server');
+    }
+    
+    console.log('Standardized team members response:', result);
     
     if (result.status !== 'success') {
       throw new Error(result.message || 'Unknown error');

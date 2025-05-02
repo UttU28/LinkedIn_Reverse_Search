@@ -1,6 +1,87 @@
-# LinkedIn Reverse Search API
+# LinkedIn Profile Search Backend
 
-This backend API provides functionality to search for LinkedIn profiles based on a person's name, company, and position.
+Backend service for LinkedIn profile search application that uses Google Search and OpenAI to find LinkedIn profiles based on names, companies, and positions.
+
+## Features
+
+- Single contact search
+- Batch contact search from Excel/CSV files
+- Targeted lead generation
+- Team member extraction from company websites
+- Rate limiting to prevent API quota exhaustion
+- Logging system with configurable verbosity
+
+## Environment Variables
+
+The application uses several environment variables for configuration:
+
+```
+# API Configuration
+GOOGLE_API_KEY=your_google_api_key
+GOOGLE_SEARCH_ENGINE_ID=your_search_engine_id
+OPENAI_API_KEY=your_openai_api_key
+
+# Rate Limiting
+GOOGLE_SEARCH_RATE_LIMIT=30
+OPENAI_RATE_LIMIT=30
+
+# Firebase Configuration
+FIREBASE_SERVICE_ACCOUNT_PATH=./firebaseServiceAccountKey.json
+
+# Server Configuration
+PORT=3008
+FIRECRAWL_URL=http://firecrawl-api:3002
+
+# Logging Configuration
+# Options: error, warn, info, debug
+LOG_LEVEL=info
+```
+
+Copy the `.env.example` file to `.env` and fill in your API keys.
+
+## Logging System
+
+The application uses a structured logging system with the following log levels:
+
+- `error`: Critical errors that prevent functionality
+- `warn`: Important warnings that don't stop functionality
+- `info`: General information about application operation (default)
+- `debug`: Detailed debugging information
+
+Set the `LOG_LEVEL` environment variable to control which logs are displayed. For example:
+
+- Production: `LOG_LEVEL=error` (only show errors)
+- Development: `LOG_LEVEL=info` (show info, warnings, and errors)
+- Debugging: `LOG_LEVEL=debug` (show all logs)
+
+### Running With Different Log Levels
+
+```bash
+# Normal development mode (info logs)
+npm run dev
+
+# Debug mode (more verbose)
+npm run debug
+
+# Production mode (use system environment variables)
+npm start
+```
+
+## Rate Limiting
+
+The application includes rate limiting for Google Search and OpenAI API requests to prevent exceeding API quotas. Configure the rate limits in the `.env` file:
+
+```
+GOOGLE_SEARCH_RATE_LIMIT=30  # 30 requests per minute
+OPENAI_RATE_LIMIT=30         # 30 requests per minute
+```
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables
+4. Start the server: `npm run dev`
 
 ## Setup
 

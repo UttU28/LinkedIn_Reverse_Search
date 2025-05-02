@@ -4,10 +4,10 @@ import LinkedInIcon from '../assets/icons/LinkedInIcon';
 
 // Define team member interface based on backend response
 interface TeamMember {
-  id: number;
   name: string;
   position: string;
-  linkedinUrl: string;
+  linkedin?: string | null;
+  id?: number | string;
 }
 
 interface TeamMembersTableProps {
@@ -85,7 +85,7 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap align-middle text-left">
                   <div className="flex items-center">
                     <a 
-                      href={member.linkedinUrl} 
+                      href={member.linkedin} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="h-8 w-8 rounded-full bg-primary/20 mr-3 flex items-center justify-center hover:bg-primary/40 transition-colors duration-200"
@@ -93,7 +93,7 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
                       <LinkedInIcon className="h-4 w-4 text-primary" />
                     </a>
                     <a
-                      href={member.linkedinUrl} 
+                      href={member.linkedin} 
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-primary-text hover:text-primary cursor-pointer transition-colors duration-200"
@@ -108,15 +108,15 @@ const TeamMembersTable: React.FC<TeamMembersTableProps> = ({
                   </div>
                 </td>
                 <td className="px-6 py-4 align-middle text-right">
-                  {member.linkedinUrl ? (
+                  {member.linkedin ? (
                     <div className="text-sm text-secondary-text max-w-xs ml-auto truncate">
                       <a 
-                        href={member.linkedinUrl}
+                        href={member.linkedin}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline flex items-center justify-end"
                       >
-                        <span>{extractLinkedInUsername(member.linkedinUrl)}</span>
+                        <span>{extractLinkedInUsername(member.linkedin)}</span>
                         <ExternalLink className="ml-1 h-3 w-3" />
                       </a>
                     </div>

@@ -18,16 +18,17 @@ class DbService {
     if (this.initialized) {
       log('Database service initialized successfully');
     } else {
-      log('Database service initialized but Firestore is not available');
+      log('Database service initialized but Firestore is not available', 'warn');
     }
   }
   
   /**
    * Log a message with a prefix
    * @param {string} message - The message to log
+   * @param {string} level - Log level
    */
-  log(message) {
-    log(`[DbService] ${message}`);
+  log(message, level = 'info') {
+    log(`[DbService] ${message}`, level);
   }
   
   /**
@@ -36,7 +37,7 @@ class DbService {
    * @param {Error} error - The error object
    */
   logError(message, error) {
-    console.error(`[DbService] ${message}:`, error);
+    log(`[DbService] ${message}: ${error.message}`, 'error');
   }
   
   /**
@@ -56,13 +57,13 @@ class DbService {
   async addSearchHistory(userId, historyData) {
     try {
       if (!userId) {
-        this.log('Cannot add search history: userId is missing');
+        this.log('Cannot add search history: userId is missing', 'warn');
         return null;
       }
       
       // If db is not available, skip adding history
       if (!this.isAvailable()) {
-        this.log('Firestore not available - skipping search history');
+        this.log('Firestore not available - skipping search history', 'warn');
         return null;
       }
       
@@ -97,13 +98,13 @@ class DbService {
   async updateSearchHistory(userId, historyId, updateData) {
     try {
       if (!userId || !historyId) {
-        this.log(`Cannot update search history: userId or historyId is missing`);
+        this.log(`Cannot update search history: userId or historyId is missing`, 'warn');
         return false;
       }
       
       // If db is not available, skip updating history
       if (!this.isAvailable()) {
-        this.log(`Firestore not available - skipping search history update`);
+        this.log(`Firestore not available - skipping search history update`, 'warn');
         return false;
       }
       
@@ -116,7 +117,7 @@ class DbService {
         ...updateData,
       });
       
-      this.log(`Updated search history entry ID: ${historyId} for user: ${userId}`);
+      this.log(`Updated search history entry ID: ${historyId} for user: ${userId}`, 'debug');
       return true;
     } catch (error) {
       this.logError(`Error updating search history`, error);
@@ -134,16 +135,16 @@ class DbService {
       const { userID, historyId, status, progress, error } = updateData;
       
       if (!userID || !historyId) {
-        this.log(`Cannot update batch status: userID or historyId is missing`);
+        this.log(`Cannot update batch status: userID or historyId is missing`, 'warn');
         return false;
       }
       
       // Log the update for debugging
-      this.log(`Batch Update (${status}): Processed: ${progress?.processed || 0}/${progress?.total || 0}`);
+      this.log(`Batch Update (${status}): Processed: ${progress?.processed || 0}/${progress?.total || 0}`, 'debug');
       
       // If database is not initialized, just log the update
       if (!this.isAvailable()) {
-        this.log(`Firestore not available - skipping batch status update`);
+        this.log(`Firestore not available - skipping batch status update`, 'warn');
         return false;
       }
       
@@ -178,31 +179,31 @@ class DbService {
   async addSearchResult(userId, historyId, type, searchData, linkedinUrl) {
     try {
       if (!this.isAvailable()) {
-        this.log('Firestore not available - skipping search result storage');
+        this.log('Firestore not available - skipping search result storage', 'warn');
         return null;
       }
       
       if (!historyId) {
-        this.log('Cannot add search result: historyId is missing');
+        this.log('Cannot add search result: historyId is missing', 'warn');
         return null;
       }
       
       // Create a reference to the searchResults collection
       const searchResultsRef = this.db.collection('searchResults');
       
-      // Map the data based on the type and format expected
-      const name = type === 'single' ? searchData.name : (searchData.searchName || searchData.name);
-      const company = type === 'single' ? searchData.company : (searchData.searchCompany || searchData.company);
-      const position = type === 'single' ? searchData.position : (searchData.searchPosition || searchData.position);
+      // Map the data based on the type and format expected with fallbacks for undefined
+      const name = (type === 'single' ? searchData.name : (searchData.searchName || searchData.name)) || '';
+      const company = (type === 'single' ? searchData.company : (searchData.searchCompany || searchData.company)) || '';
+      const position = (type === 'single' ? searchData.position : (searchData.searchPosition || searchData.position)) || '';
       
       // Special case for 'recruiters' type to use the proper structure
-      let inputTitle = position;
+      let inputTitle = position || '';
       if (type === 'recruiters') {
-        inputTitle = position; // For recruiters, use position as title
+        inputTitle = position || ''; // For recruiters, use position as title
       }
       
       // Log what we're storing
-      this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}`);
+      this.log(`Storing result - Name: ${name}, Company: ${company}, Position: ${position}`, 'debug');
       
       // Prepare the data in the requested format - use historyId as searchId
       const resultData = {
@@ -218,13 +219,10 @@ class DbService {
         createdAt: new Date()
       };
       
-      // Debug log to see what we're trying to store
-      console.log('Storing search result:', JSON.stringify(resultData, null, 2));
-      
       // Add document with the search result data
       const docRef = await searchResultsRef.add(resultData);
       
-      this.log(`Added search result with ID: ${docRef.id} for history: ${historyId}`);
+      this.log(`Added search result with ID: ${docRef.id} for history: ${historyId}`, 'debug');
       return docRef.id;
     } catch (error) {
       this.logError('Error adding search result', error);

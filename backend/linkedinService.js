@@ -8,13 +8,13 @@ const dbService = require('./dbService');
  */
 async function findSingleLinkedinContact(fullName, company, position) {
   try {
-    log(`Searching for LinkedIn profile: ${fullName} at ${company}`);
+    log(`Searching for profile: ${fullName} at ${company}`);
     
     const API_KEY = process.env.GOOGLE_API_KEY;
     const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
     if (!API_KEY || !SEARCH_ENGINE_ID) {
-      log("Error: Missing API credentials in environment variables");
+      log("Missing API credentials in environment variables", 'error');
       return {
         success: false,
         linkedInUrl: "",
@@ -32,6 +32,7 @@ async function findSingleLinkedinContact(fullName, company, position) {
     let results = [];
     
     for (const strategy of searchStrategies) {
+      log(`Trying search strategy: ${strategy}`, 'debug');
       results = await searchClient.search(strategy, 10);
       
       if (results && results.length > 0) {
@@ -40,6 +41,7 @@ async function findSingleLinkedinContact(fullName, company, position) {
     }
     
     if (!results || results.length === 0) {
+      log(`No results found for ${fullName}`, 'debug');
       return {
         success: false,
         linkedInUrl: "",
@@ -63,12 +65,14 @@ async function findSingleLinkedinContact(fullName, company, position) {
       const extractedUrl = extractUrlFromResponse(aiResponse);
       
       if (extractedUrl) {
+        log(`Found LinkedIn URL for ${fullName}: ${extractedUrl}`, 'debug');
         return {
           success: true,
           linkedInUrl: extractedUrl,
           message: "LinkedIn profile found"
         };
       } else {
+        log(`No matching profile for ${fullName}`, 'debug');
         return {
           success: false,
           linkedInUrl: "",
@@ -83,7 +87,7 @@ async function findSingleLinkedinContact(fullName, company, position) {
       message: "Failed to process search results"
     };
   } catch (error) {
-    log(`Error finding LinkedIn contact: ${error.message}`);
+    log(`Error finding LinkedIn contact: ${error.message}`, 'error');
     return {
       success: false,
       linkedInUrl: "",
@@ -99,7 +103,7 @@ async function findSingleLinkedinContact(fullName, company, position) {
  */
 async function processBatchInBackground(contacts, userID, historyId) {
   try {
-    log(`Starting background processing of batch with ${contacts.length} contacts`);
+    log(`Starting batch processing: ${contacts.length} contacts`);
     
     // Update initial status
     await dbService.updateBatchStatus({
@@ -151,7 +155,11 @@ async function processBatchInBackground(contacts, userID, historyId) {
           userID, 
           historyId, 
           "bulk", 
-          { searchName, searchCompany, searchPosition }, 
+          { 
+            name: searchName || "", 
+            company: searchCompany || "", 
+            title: searchPosition || "" 
+          }, 
           result.linkedInUrl || null
         );
         
@@ -160,9 +168,9 @@ async function processBatchInBackground(contacts, userID, historyId) {
           humans.push(resultId);
         }
         
-        // Log progress and update database periodically (every 5 contacts)
-        if (processedCount % 5 === 0) {
-          log(`Processed ${processedCount}/${contacts.length} contacts, found ${successCount} LinkedIn profiles so far`);
+        // Log progress and update database only every 10 contacts or at end
+        if (processedCount % 10 === 0 || processedCount === contacts.length) {
+          log(`Progress: ${processedCount}/${contacts.length} contacts, found ${successCount} profiles`, 'info');
           
           // Periodic database update
           await dbService.updateBatchStatus({
@@ -178,7 +186,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
         }
       } catch (error) {
         // Handle individual contact errors without failing the entire batch
-        log(`Error processing contact ${searchName}: ${error.message}`);
+        log(`Error processing contact ${searchName}: ${error.message}`, 'error');
         
         // Add failed result to the results array
         results.push({
@@ -193,19 +201,16 @@ async function processBatchInBackground(contacts, userID, historyId) {
         
         processedCount++;
       }
-      
-      // No need for additional delay since rate limiting is now handled by the RateLimiter classes
     }
     
     // Final status update
-    log(`Completed batch processing. Found ${successCount}/${contacts.length} LinkedIn profiles`);
-    log(`Stored ${humans.length} result IDs in 'humans' array`);
+    log(`Batch complete: ${successCount}/${contacts.length} LinkedIn profiles found`);
     
     // Final database update with stored humans array
     await dbService.updateSearchHistory(userID, historyId, {
       status: 'completed',
-      resultsCount: successCount, // Number of LinkedIn profiles actually found
-      resultIds: humans // Store the humans array in the database
+      resultsCount: successCount,
+      resultIds: humans 
     });
     
     // Final batch status update
@@ -216,21 +221,21 @@ async function processBatchInBackground(contacts, userID, historyId) {
       progress: {
         total: contacts.length,
         processed: processedCount,
-        successful: successCount // Number of LinkedIn profiles actually found
+        successful: successCount
       },
       results,
-      humans // Include the humans array in final status
+      humans
     });
     
     return {
       success: true,
       totalContacts: contacts.length,
-      foundProfiles: successCount, // Number of LinkedIn profiles actually found
+      foundProfiles: successCount,
       results,
-      humans // Return the humans array
+      humans
     };
   } catch (error) {
-    log(`Error processing batch: ${error.message}`);
+    log(`Batch processing error: ${error.message}`, 'error');
     
     // Update error status in database
     await dbService.updateBatchStatus({
@@ -259,12 +264,10 @@ function startBatchProcessing(contacts, userID, batchInfo, historyId) {
   // Start the background processing without awaiting completion
   processBatchInBackground(contacts, userID, historyId)
     .then(finalResult => {
-      log(`BACKGROUND PROCESSING COMPLETE`);
-      log(`Found ${finalResult.foundProfiles}/${finalResult.totalContacts} LinkedIn profiles`);
-      log(`Stored ${finalResult.humans.length} result IDs in 'humans' array`);
+      log(`Batch processing complete: ${finalResult.foundProfiles}/${finalResult.totalContacts} profiles found`);
     })
     .catch(error => {
-      log(`BACKGROUND PROCESSING ERROR: ${error.message}`);
+      log(`Batch processing error: ${error.message}`, 'error');
     });
   
   // Return immediately with initial status
