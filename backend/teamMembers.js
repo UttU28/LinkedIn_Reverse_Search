@@ -1,4 +1,4 @@
-const { log, callOpenAI } = require('./utils');
+const { log, callOpenAI, extractJsonFromResponse, handleError } = require('./utils');
 const { TEAM_MEMBERS_SYSTEM_PROMPT, TEAM_MEMBERS_USER_PROMPT, TEAM_MEMBERS_MARKDOWN_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 const axios = require('axios');
@@ -248,8 +248,7 @@ async function mapUrlsFromCompany(url) {
       throw apiError;
     }
   } catch (error) {
-    log(`Error mapping URLs: ${error.message}`, 'error');
-    return [];
+    return handleError('mapUrlsFromCompany', error, 'Error mapping URLs from company website', 'error').data || [];
   }
 }
 
@@ -294,8 +293,7 @@ async function scrapePageMarkdown(url) {
       throw apiError;
     }
   } catch (error) {
-    log(`Error scraping page: ${error.message}`, 'error');
-    return null;
+    return handleError('scrapePageMarkdown', error, 'Error scraping page content', 'error').data || null;
   }
 }
 
@@ -378,33 +376,21 @@ async function extractTeamMembersFromMarkdown(markdownContent) {
       throw new Error('No response received from OpenAI API');
     }
 
-    // Try to parse the JSON response
-    try {
-      // Direct parsing if it's a clean JSON response
-      return JSON.parse(aiResponse);
-    } catch (parseError) {
-      // Look for JSON array within the response
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          const parsedData = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(parsedData)) {
-            return parsedData;
-          }
-        } catch (nestedError) {
-          log(`Error parsing extracted JSON: ${nestedError.message}`, 'error');
-        }
-      }
-      
-      // If we get here, we couldn't parse the response
-      log(`OpenAI response was not valid JSON: ${aiResponse.substring(0, 100)}...`, 'error');
+    // Use the centralized JSON extraction function
+    const teamMembers = extractJsonFromResponse(aiResponse);
+    if (!teamMembers) {
       throw new Error('Failed to parse team member data from OpenAI response');
     }
+    
+    return teamMembers;
   } catch (error) {
     log(`Error extracting team members with OpenAI: ${error.message}`, 'error');
+    
+    // Specific error handling for rate limits
     if (error.message.includes('rate limit') || error.message.includes('quota')) {
       throw new Error('API rate limit exceeded. Please try again later.');
     }
+    
     throw new Error(`Team member extraction failed: ${error.message}`);
   }
 }

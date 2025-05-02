@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+const { log } = require('./utils');
 
 let firebaseInitialized = false;
 let db = null;
@@ -11,7 +12,7 @@ try {
   const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
                             path.join(__dirname, './firebaseServiceAccountKey.json');
   
-  console.log(`Attempting to load Firebase service account from: ${serviceAccountPath}`);
+  log(`Attempting to load Firebase service account from: ${serviceAccountPath}`);
   
   let serviceAccount;
   
@@ -19,12 +20,12 @@ try {
   if (fs.existsSync(serviceAccountPath)) {
     try {
       serviceAccount = require(serviceAccountPath);
-      console.log('Firebase service account file loaded successfully');
+      log('Firebase service account file loaded successfully');
     } catch (fileError) {
-      console.error('Error loading Firebase service account file:', fileError.message);
+      log(`Error loading Firebase service account file: ${fileError.message}`, 'error');
     }
   } else {
-    console.warn(`Firebase service account file not found at ${serviceAccountPath}`);
+    log(`Firebase service account file not found at ${serviceAccountPath}`, 'warn');
   }
   
   // If we have a service account, initialize with it
@@ -33,7 +34,7 @@ try {
       credential: admin.credential.cert(serviceAccount)
     });
     firebaseInitialized = true;
-    console.log('Firebase initialized with service account');
+    log('Firebase initialized with service account');
   } 
   // If we have environment variables for Firebase, use those
   else if (process.env.FIREBASE_PROJECT_ID && 
@@ -51,27 +52,27 @@ try {
       })
     });
     firebaseInitialized = true;
-    console.log('Firebase initialized with environment variables');
+    log('Firebase initialized with environment variables');
   } 
   else {
-    console.error('No Firebase credentials available. Cannot initialize Firebase.');
+    log('No Firebase credentials available. Cannot initialize Firebase.', 'error');
     firebaseInitialized = false;
   }
   
   if (firebaseInitialized) {
     try {
       db = admin.firestore();
-      console.log('Firestore database initialized successfully');
+      log('Firestore database initialized successfully');
     } catch (firestoreError) {
-      console.error('Failed to initialize Firestore:', firestoreError);
+      log(`Failed to initialize Firestore: ${firestoreError.message}`, 'error');
       db = null;
       firebaseInitialized = false;
     }
   } else {
-    console.warn('Firestore database was not initialized');
+    log('Firestore database was not initialized', 'warn');
   }
 } catch (error) {
-  console.error('Failed to initialize Firebase:', error);
+  log(`Failed to initialize Firebase: ${error.message}`, 'error');
   firebaseInitialized = false;
 }
 

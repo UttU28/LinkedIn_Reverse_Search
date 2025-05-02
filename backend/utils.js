@@ -301,11 +301,79 @@ function extractUrlFromResponse(response) {
   return "";
 }
 
+/**
+ * Extract JSON from a string response with multiple fallback strategies
+ * @param {string} response - The string containing potential JSON
+ * @returns {object|array|null} - Parsed JSON object/array or null if parsing fails
+ */
+function extractJsonFromResponse(response) {
+  if (!response) return null;
+  
+  try {
+    // First attempt: Try to parse the entire response as JSON
+    return JSON.parse(response);
+  } catch (error) {
+    // Second attempt: Look for JSON within code blocks
+    try {
+      const jsonPattern = /```(?:json)?\s*([\s\S]*?)\s*```/;
+      const match = response.match(jsonPattern);
+      
+      if (match && match[1]) {
+        return JSON.parse(match[1]);
+      }
+    } catch (nestedError) {
+      log(`Failed to parse JSON in code blocks: ${nestedError.message}`, 'debug');
+      // Continue to next attempt
+    }
+    
+    // Third attempt: Look for array/object patterns
+    try {
+      const arrayPattern = /(\[[\s\S]*?\])/;
+      const objectPattern = /(\{[\s\S]*?\})/;
+      
+      const arrayMatch = response.match(arrayPattern);
+      const objectMatch = response.match(objectPattern);
+      
+      if (arrayMatch && arrayMatch[1]) {
+        return JSON.parse(arrayMatch[1]);
+      } else if (objectMatch && objectMatch[1]) {
+        return JSON.parse(objectMatch[1]);
+      }
+    } catch (nestedError) {
+      log(`Failed to parse JSON with pattern matching: ${nestedError.message}`, 'debug');
+    }
+    
+    log(`All JSON parsing attempts failed for response: ${response.substring(0, 100)}...`, 'warn');
+    return null;
+  }
+}
+
+/**
+ * Standard error handler function to centralize error handling
+ * @param {string} context - Context where the error occurred (function/service name)
+ * @param {Error} error - The error object
+ * @param {string} defaultMessage - Default message if error doesn't have one
+ * @param {string} level - Log level: 'error', 'warn', 'info', 'debug'
+ * @returns {object} - Standardized error response object
+ */
+function handleError(context, error, defaultMessage = 'An unexpected error occurred', level = 'error') {
+  const errorMessage = error.message || defaultMessage;
+  log(`[${context}] ${errorMessage}`, level);
+  
+  return {
+    success: false,
+    message: errorMessage,
+    error: errorMessage
+  };
+}
+
 module.exports = {
   log,
   RateLimiter,
   GoogleCustomSearch,
   extractEssentialData,
   callOpenAI,
-  extractUrlFromResponse
+  extractUrlFromResponse,
+  extractJsonFromResponse,
+  handleError
 }; 

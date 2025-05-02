@@ -1,4 +1,4 @@
-const { log, GoogleCustomSearch, extractEssentialData, callOpenAI, extractUrlFromResponse } = require('./utils');
+const { log, GoogleCustomSearch, extractEssentialData, callOpenAI, extractUrlFromResponse, handleError } = require('./utils');
 const { SINGLE_BULK_SYSTEM_PROMPT, SINGLE_BULK_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 
@@ -157,8 +157,8 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
     log(`Error finding LinkedIn contact: ${error.message}`, 'error');
     
     // Update search history if we have userID and historyId
-    if (arguments[3] && arguments[4]) { // userID and historyId would be the 4th and 5th arguments
-      await dbService.updateSearchHistory(arguments[3], arguments[4], {
+    if (userID && historyId) {
+      await dbService.updateSearchHistory(userID, historyId, {
         status: "error",
         errorMessage: error.message,
         completedAt: new Date()
@@ -169,7 +169,7 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
       success: false,
       linkedInUrl: "",
       message: `Error finding LinkedIn profile: ${error.message}`,
-      historyId: arguments[4] || null
+      historyId: historyId || null
     };
   }
 }
@@ -311,7 +311,8 @@ async function processBatchInBackground(contacts, userID, historyId) {
         total: contacts.length,
         processed: processedCount,
         successful: successCount
-      }
+      },
+      resultIds: humans
     });
     
     // Apply credit cost based on successful results found
@@ -338,7 +339,8 @@ async function processBatchInBackground(contacts, userID, historyId) {
       historyId,
       status: 'failed',
       progress: null,
-      error: error.message
+      error: error.message,
+      resultIds: humans || [] // Include any resultIds that were collected before error
     });
     
     // Even on full batch error, charge for any successful searches that were completed

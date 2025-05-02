@@ -102,11 +102,47 @@ const RecentSearches: React.FC = () => {
     // Close the menu
     setExpandedDownloadMenu(null);
     
-    if (!searchResult.originalData?.resultIds?.length) {
+    // For searches that might still be processing, check status
+    if (searchResult.status === 'pending') {
       toast({
-        title: "No data to download",
-        description: "This search doesn't have any result IDs to download.",
-        variant: "destructive"
+        title: "Search in progress",
+        description: `This ${searchResult.type} search is still processing. Please try again when it's complete.`,
+        variant: "default"
+      });
+      return;
+    }
+    
+    // More flexible check for resultIds - they might be directly on the originalData object
+    const resultIds = searchResult.originalData?.resultIds || [];
+    
+    if (resultIds.length === 0) {
+      // Log to console what we found to help debug
+      console.log('No resultIds found for download. Search data:', searchResult.originalData);
+      
+      // Create appropriate messages based on search type
+      let title = "No data available";
+      let description = "No results available to download.";
+      
+      // Set appropriate messages by search type
+      switch(searchResult.type) {
+        case 'bulk':
+          title = "No contacts available";
+          description = "This bulk search doesn't have any contacts available to download yet. Try refreshing the page to get the latest data.";
+          break;
+        case 'recruiters':
+          title = "No leads available";
+          description = "The lead generator search doesn't have any leads available to download yet. Try refreshing the page to get the latest data.";
+          break;
+        case 'team':
+          title = "No team members available";
+          description = "The team members search doesn't have any results available to download yet. Try refreshing the page to get the latest data.";
+          break;
+      }
+      
+      toast({
+        title,
+        description,
+        variant: "default"
       });
       return;
     }
@@ -119,11 +155,17 @@ const RecentSearches: React.FC = () => {
         id: searchResult.id,
         title: searchResult.title,
         timestamp: searchResult.timestamp,
-        resultIds: searchResult.originalData.resultIds
+        resultIds: resultIds
       };
       
       // Log the search info for debugging
       console.log('Download request for search:', searchInfo);
+      
+      // Get appropriate content type name based on search type
+      let contentTypeName = "records";
+      if (searchResult.type === 'recruiters') contentTypeName = "leads";
+      if (searchResult.type === 'team') contentTypeName = "team members";
+      if (searchResult.type === 'bulk') contentTypeName = "contacts";
       
       // Progress callback for toast notifications
       const onProgress = (stage: 'fetching' | 'creating' | 'complete' | 'error', count?: number) => {
@@ -138,7 +180,7 @@ const RecentSearches: React.FC = () => {
         else if (stage === 'complete' && count) {
           toast({
             title: "Download complete",
-            description: `Successfully downloaded ${count} records as ${type.toUpperCase()} file.`,
+            description: `Successfully downloaded ${count} ${contentTypeName} as ${type.toUpperCase()} file.`,
             variant: "default"
           });
         } else if (stage === 'error') {
@@ -336,22 +378,28 @@ const RecentSearches: React.FC = () => {
 
   // Update the rendered button section
   const renderDownloadButton = (search: UnifiedSearchResult) => {
-    // Show download button for 'bulk' or 'team' type searches that have resultIds
-    if ((search.type !== 'bulk' && search.type !== 'team') || !search.originalData?.resultIds?.length) return null;
+    // Show download button for bulk, recruiters, and team type searches with resultIds
+    // Check originalData for resultIds to ensure we can download the data
+    const hasResultIds = search.originalData?.resultIds && Array.isArray(search.originalData.resultIds) && search.originalData.resultIds.length > 0;
+    
+    // Only show download button for supported search types
+    if (!(['bulk', 'recruiters', 'team'].includes(search.type) && (search.type === 'bulk' || hasResultIds))) {
+      return null;
+    }
     
     return (
       <div className="relative ml-2" onClick={(e) => e.stopPropagation()}>
         {/* Main download button */}
         <button
-          className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+          className="p-2 rounded-full bg-primary/15 hover:bg-primary/25 text-primary transition-colors shadow-sm"
           onClick={(e) => toggleDownloadMenu(e, search.id)}
-          title="Download options"
+          title="Download results"
           disabled={downloadLoading !== null}
         >
           {downloadLoading?.id === search.id ? (
-            <Loader className="h-3.5 w-3.5 animate-spin" />
+            <Loader className="h-4 w-4 animate-spin" />
           ) : (
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-4 w-4" />
           )}
         </button>
         

@@ -226,7 +226,7 @@ class DbService {
    */
   async updateBatchStatus(updateData) {
     try {
-      const { userID, historyId, status, progress, error } = updateData;
+      const { userID, historyId, status, progress, error, resultIds } = updateData;
       
       if (!userID || !historyId) {
         this.log(`Cannot update batch status: userID or historyId is missing`, 'warn');
@@ -247,12 +247,21 @@ class DbService {
       if (status === 'processing') historyStatus = 'pending';
       if (status === 'error') historyStatus = 'failed';
       
-      // Update search history
-      await this.updateSearchHistory(userID, historyId, {
+      // Create update object with standard fields
+      const updateObj = {
         status: historyStatus,
         completedAt: status === 'completed' || status === 'failed' ? new Date() : null,
         resultsCount: progress?.successful || 0
-      });
+      };
+
+      // Add resultIds array if provided
+      if (resultIds && Array.isArray(resultIds) && resultIds.length > 0) {
+        updateObj.resultIds = resultIds;
+        this.log(`Including ${resultIds.length} resultIds in update for bulk search`, 'debug');
+      }
+      
+      // Update search history
+      await this.updateSearchHistory(userID, historyId, updateObj);
       
       return true;
     } catch (error) {
@@ -589,7 +598,7 @@ const addCreditsToUser = async (userId, creditsToAdd) => {
   try {
     // Validate inputs
     if (!userId || !creditsToAdd || isNaN(creditsToAdd)) {
-      console.error('Invalid input for addCreditsToUser:', { userId, creditsToAdd });
+      log(`Invalid input for addCreditsToUser: ${JSON.stringify({ userId, creditsToAdd })}`, 'error');
       return null;
     }
 
@@ -603,7 +612,7 @@ const addCreditsToUser = async (userId, creditsToAdd) => {
     const userDoc = await userRef.get();
     
     if (!userDoc.exists) {
-      console.error(`User ${userId} not found for adding credits`);
+      log(`User ${userId} not found for adding credits`, 'error');
       return null;
     }
     
@@ -620,7 +629,7 @@ const addCreditsToUser = async (userId, creditsToAdd) => {
       lastCreditUpdate: admin.firestore.FieldValue.serverTimestamp(),
     });
     
-    console.log(`Added ${creditsToAdd} credits to user ${userId}. New balance: ${newCredits}`);
+    log(`Added ${creditsToAdd} credits to user ${userId}. New balance: ${newCredits}`);
     
     return {
       userId,
@@ -629,7 +638,7 @@ const addCreditsToUser = async (userId, creditsToAdd) => {
       newCredits: newCredits
     };
   } catch (error) {
-    console.error('Error adding credits to user:', error);
+    log(`Error adding credits to user: ${error.message}`, 'error');
     return null;
   }
 };
@@ -645,7 +654,7 @@ const addCreditsToUser = async (userId, creditsToAdd) => {
 const updatePaymentStatus = async (paymentId, status, errorMessage = null, paymentDetails = {}) => {
   try {
     if (!paymentId || !status) {
-      console.error('Invalid input for updatePaymentStatus:', { paymentId, status });
+      log(`Invalid input for updatePaymentStatus: ${JSON.stringify({ paymentId, status })}`, 'error');
       return null;
     }
 
@@ -689,12 +698,12 @@ const updatePaymentStatus = async (paymentId, status, errorMessage = null, payme
     
     if (snapshot.empty) {
       // Payment record doesn't exist yet, create a new one
-      console.log(`Payment record not found for ID: ${paymentId}. Creating new record.`);
+      log(`Payment record not found for ID: ${paymentId}. Creating new record.`);
       
       // Add the new payment record
       const docRef = await paymentResultsRef.add(paymentData);
       paymentResultId = docRef.id;
-      console.log(`Created new payment record with ID: ${paymentResultId}`);
+      log(`Created new payment record with ID: ${paymentResultId}`);
     } else {
       // Payment record exists, update it
       const paymentDoc = snapshot.docs[0];
@@ -707,7 +716,7 @@ const updatePaymentStatus = async (paymentId, status, errorMessage = null, payme
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
-      console.log(`Updated payment status to ${status} for payment ID: ${paymentId}`);
+      log(`Updated payment status to ${status} for payment ID: ${paymentId}`);
     }
     
     // 2. Add to user's paymentHistory subcollection if userId is provided
@@ -731,7 +740,7 @@ const updatePaymentStatus = async (paymentId, status, errorMessage = null, payme
         if (userPaymentSnapshot.empty) {
           // Add new entry to user's payment history
           const historyRef = await paymentHistoryRef.add(paymentHistoryData);
-          console.log(`Added payment to user's history with ID: ${historyRef.id}`);
+          log(`Added payment to user's history with ID: ${historyRef.id}`);
         } else {
           // Update existing entry
           const historyDoc = userPaymentSnapshot.docs[0];
@@ -740,10 +749,10 @@ const updatePaymentStatus = async (paymentId, status, errorMessage = null, payme
             errorMessage: errorMessage || historyDoc.data().errorMessage || '',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          console.log(`Updated payment in user's history with ID: ${historyDoc.id}`);
+          log(`Updated payment in user's history with ID: ${historyDoc.id}`);
         }
       } catch (error) {
-        console.error('Error updating user payment history:', error);
+        log(`Error updating user payment history: ${error.message}`, 'error');
         // Continue with the main function even if this part fails
       }
     }
@@ -753,7 +762,7 @@ const updatePaymentStatus = async (paymentId, status, errorMessage = null, payme
       ...paymentData
     };
   } catch (error) {
-    console.error('Error updating payment status:', error);
+    log(`Error updating payment status: ${error.message}`, 'error');
     return null;
   }
 };

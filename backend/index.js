@@ -9,7 +9,7 @@ const { findTeamMembersFromWebsite } = require('./teamMembers');
 const dbService = require('./dbService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
-const { log } = require('./utils');
+const { log, handleError } = require('./utils');
 
 const app = express();
 const PORT = process.env.PORT || 3008;
@@ -687,8 +687,12 @@ app.post('/findSingleContact', async (req, res) => {
   
   log(`[SINGLE CONTACT] ${searchName} at ${searchCompany}`, 'info');
   
-  // Use our LinkedIn search functionality to find the actual profile
   try {
+    // Validate required parameters
+    if (!searchName || !searchCompany) {
+      return sendErrorResponse(res, 400, 'Name and company are required fields');
+    }
+    
     // Find the LinkedIn contact - pass userID to properly track history and credits
     const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition, userID);
   
@@ -707,11 +711,9 @@ app.post('/findSingleContact', async (req, res) => {
       historyId: result.historyId
     });
   } catch (error) {
-    // Handle errors
-    return res.status(500).json({
-      success: false,
-      message: `Error: ${error.message}`
-    });
+    // Handle errors with standardized pattern
+    log(`Error in single contact search: ${error.message}`, 'error');
+    return sendErrorResponse(res, 500, `Error finding LinkedIn profile: ${error.message}`);
   }
 });
 
@@ -721,44 +723,59 @@ app.post('/findBatchContact', async (req, res) => {
   
   log(`[BATCH CONTACT] ${fileName} with ${contacts?.length || 0} contacts`, 'info');
   
-  // Generate batch info
-  const batchInfo = {
-    fileName: fileName || 'Unknown File',
-    timestamp: timestamp || Date.now()
-  };
-  
-  let historyId = null;
-  
   try {
-    // Create search history entry
-    historyId = await dbService.addSearchHistory(userID, {
-      type: "bulk",
-      status: "pending",
-      inputMeta: {
-        fileName: batchInfo.fileName,
-        totalContacts: contacts?.length || 0
-      },
-      totalRecords: contacts?.length || 0,
-      resultsCount: 0,
-      resultRefPath: "searchResults",
-      startedAt: new Date()
-    });
+    // Validate required parameters
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return sendErrorResponse(res, 400, 'Valid contacts array is required');
+    }
     
-    log(`Created history entry with ID: ${historyId}`, 'debug');
-  } catch (err) {
-    log('Error in search history: ' + err.message, 'error');
-    // Continue processing - don't fail the whole request
+    if (!userID) {
+      return sendErrorResponse(res, 400, 'User ID is required for batch processing');
+    }
+    
+    // Generate batch info
+    const batchInfo = {
+      fileName: fileName || 'Unknown File',
+      timestamp: timestamp || Date.now()
+    };
+    
+    let historyId = null;
+    
+    try {
+      // Create search history entry
+      historyId = await dbService.addSearchHistory(userID, {
+        type: "bulk",
+        status: "pending",
+        inputMeta: {
+          fileName: batchInfo.fileName,
+          totalContacts: contacts?.length || 0
+        },
+        totalRecords: contacts?.length || 0,
+        resultsCount: 0,
+        resultRefPath: "searchResults",
+        startedAt: new Date()
+      });
+      
+      log(`Created history entry with ID: ${historyId}`, 'debug');
+    } catch (historyError) {
+      log(`Error in search history: ${historyError.message}`, 'error');
+      // Continue processing despite history error
+    }
+    
+    // Start batch processing in the background
+    const processingInfo = startBatchProcessing(contacts, userID, batchInfo, historyId);
+    
+    // Return immediate response with processing status
+    return res.json({
+      success: true,
+      message: processingInfo.message,
+      historyId: historyId
+    });
+  } catch (error) {
+    // Handle errors with standardized pattern
+    log(`Error in batch contact processing: ${error.message}`, 'error');
+    return sendErrorResponse(res, 500, `Error processing batch search: ${error.message}`);
   }
-  
-  // Start batch processing in the background
-  const processingInfo = startBatchProcessing(contacts, userID, batchInfo, historyId);
-  
-  // Return immediate response with processing status
-  return res.json({
-    success: true,
-    message: processingInfo.message,
-    historyId: historyId
-  });
 });
 
 // Find targeted leads route
@@ -823,13 +840,22 @@ app.post('/findTeamMembers', async (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  log(err.stack);
+  log(`Server error: ${err.message}`, 'error');
   res.status(500).json({
-    status: 'error',
+    success: false,
     message: 'Something went wrong!',
     error: err.message
   });
 });
+
+// Example of standardized error response pattern (to be replicated throughout)
+function sendErrorResponse(res, status, message, error = null) {
+  return res.status(status).json({
+    success: false, 
+    message: message,
+    error: error || message
+  });
+}
 
 // Start the server
 app.listen(PORT, () => {

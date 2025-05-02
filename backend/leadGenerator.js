@@ -1,4 +1,4 @@
-const { log, GoogleCustomSearch, callOpenAI } = require('./utils');
+const { log, GoogleCustomSearch, callOpenAI, extractJsonFromResponse, handleError } = require('./utils');
 const { LINKEDIN_EXTRACTION_SYSTEM_PROMPT, LINKEDIN_EXTRACTION_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 const axios = require('axios');
@@ -260,58 +260,23 @@ async function extractLinkedInData(searchResults) {
       throw new Error('Failed to get response from OpenAI');
     }
     
-    // Parse JSON from response
-    try {
-      return extractJsonFromResponse(aiResponse);
-    } catch (parseError) {
-      log(`JSON parsing error: ${parseError.message}`, 'error');
-      throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
+    // Use centralized JSON extraction function
+    const extractedData = extractJsonFromResponse(aiResponse);
+    if (!extractedData) {
+      throw new Error('Failed to parse data from OpenAI response');
     }
+    
+    return extractedData;
   } catch (error) {
+    // Use centralized error handling
     log(`LinkedIn data extraction failed: ${error.message}`, 'error');
+    
+    // Check for specific API-related errors
+    if (error.message.includes('rate limit') || error.message.includes('quota')) {
+      throw new Error('API rate limit exceeded. Please try again later.');
+    }
+    
     throw error;
-  }
-}
-
-/**
- * Extract JSON from a string response
- */
-function extractJsonFromResponse(response) {
-  try {
-    // First attempt: Try to parse the entire response as JSON
-    return JSON.parse(response);
-  } catch (error) {
-    // Second attempt: Look for JSON within code blocks
-    try {
-      const jsonPattern = /```(?:json)?\s*(\[[\s\S]*?\]|\{[\s\S]*?\})\s*```/;
-      const match = response.match(jsonPattern);
-      
-      if (match && match[1]) {
-        return JSON.parse(match[1]);
-      }
-    } catch (nestedError) {
-      // Silent fail, continue to next attempt
-    }
-    
-    // Third attempt: Look for array/object patterns
-    try {
-      const arrayPattern = /(\[[\s\S]*?\])/;
-      const objectPattern = /(\{[\s\S]*?\})/;
-      
-      const arrayMatch = response.match(arrayPattern);
-      const objectMatch = response.match(objectPattern);
-      
-      if (arrayMatch && arrayMatch[1]) {
-        return JSON.parse(arrayMatch[1]);
-      } else if (objectMatch && objectMatch[1]) {
-        return JSON.parse(objectMatch[1]);
-      }
-    } catch (nestedError) {
-      // Silent fail
-    }
-    
-    // If all parsing attempts failed, throw an error
-    throw new Error('Failed to parse JSON from response');
   }
 }
 
