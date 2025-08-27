@@ -2,7 +2,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, UserCredential, onAuthStateChanged, User } from "firebase/auth";
 import { getFirestore, doc, getDoc, Timestamp } from "firebase/firestore";
 
-// Use environment variables for Firebase config
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
@@ -12,33 +11,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Log the config being used (excluding sensitive values)
-console.log("Firebase initialized with project:", firebaseConfig.projectId);
-
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Backend API url
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
 
-// Auth functions
 export const registerUser = async (
   email: string,
   password: string,
   fullName: string,
 ): Promise<UserCredential> => {
   try {
-    // Handle Firebase authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     
-    // Update profile with display name
     await updateProfile(userCredential.user, {
       displayName: fullName,
     });
 
-    // Backend will handle database operations
     try {
       await fetch(`${API_URL}/signup`, {
         method: 'POST',
@@ -67,10 +57,8 @@ export const loginUser = async (
   password: string,
 ): Promise<UserCredential> => {
   try {
-    // Handle Firebase authentication
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
-    // Backend handles login tracking
     try {
       await fetch(`${API_URL}/login`, {
         method: 'POST',
@@ -102,7 +90,6 @@ export const logoutUser = async (): Promise<void> => {
 
 export const getUserData = async (userId: string) => {
   try {
-    // Directly use Firestore for user data
     const docRef = doc(db, "users", userId);
     const docSnap = await getDoc(docRef);
     
@@ -113,7 +100,6 @@ export const getUserData = async (userId: string) => {
     }
   } catch (error) {
     console.error("Error fetching user data:", error);
-    // Return some default data to prevent UI from breaking
     return {
       name: auth.currentUser?.displayName || "User",
       email: auth.currentUser?.email || "",
@@ -134,7 +120,6 @@ export interface UserData {
   totalFound: number;
 }
 
-// Export required Firebase functions
 export { 
   auth, 
   db, 

@@ -314,11 +314,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
       }
     });
     
-    // Apply credit cost based on successful results found
-    // For bulk search, only charge if successful results were found
-    if (successCount > 0) {
-      await dbService.updateSearchCost(userID, historyId, "bulk", successCount);
-    }
+    await dbService.updateSearchCost(userID, historyId, "bulk", contacts.length);
     
     log(`Batch processing completed: ${processedCount}/${contacts.length} processed, ${successCount} successful`, 'info');
     
@@ -341,11 +337,9 @@ async function processBatchInBackground(contacts, userID, historyId) {
       error: error.message
     });
     
-    // Even on full batch error, charge for any successful searches that were completed
-    const successCount = (results || []).filter(r => r.foundData === 1).length;
-    if (successCount > 0) {
-      await dbService.updateSearchCost(userID, historyId, "bulk", successCount);
-    }
+    // Even on full batch error, charge for all records that were processed
+    // This ensures users pay for the processing effort, not just successful outcomes
+    await dbService.updateSearchCost(userID, historyId, "bulk", contacts.length);
     
     // Return error info in case this is used as a synchronous function
     return {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "../hooks/useAuth";
+import { useAuthStore } from "../store/authStore";
 import { motion } from "framer-motion";
 import { Check, ArrowRight, CreditCard, AlertTriangle } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -83,6 +84,12 @@ const PaymentSuccess = () => {
             const userData = user as UserData;
             const newCredits = (userData.credits || 0) + parseInt(response.data.data.creditsAdded || 0);
             setUserCredits(newCredits);
+            
+            try {
+              await useAuthStore.getState().refreshCredits();
+            } catch (error) {
+              console.error("Error refreshing credits:", error);
+            }
           }
           
           // Check initial payment status

@@ -58,14 +58,6 @@ interface TargetedLeadsParams {
   leadDocId: string;
 }
 
-interface TeamMembersParams {
-  userID: string;
-  url: string;
-  teamId: string;
-  companySearchId: string;
-}
-
-// Use environment variable for API URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
 
 /**
@@ -271,80 +263,4 @@ export const findTargetedLeads = async (params: TargetedLeadsParams): Promise<an
   }
 };
 
-/**
- * Service for finding team members from a company page
- */
-export const findTeamMembers = async (params: TeamMembersParams): Promise<any> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/findTeamMembers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    
-    const rawResult = await response.json();
-    console.log('Team members raw response:', rawResult);
-    
-    // Standardize the response format
-    let result;
-    
-    // Handle newer format with success flag
-    if (rawResult.hasOwnProperty('success')) {
-      // Transform to expected format
-      result = {
-        status: rawResult.success ? 'success' : 'error',
-        message: rawResult.message || (rawResult.success ? 'Team members found' : 'No team members found'),
-        data: {
-          // Ensure the teamMembers array is properly formatted for the component
-          teamMembers: Array.isArray(rawResult.teamMembers) 
-            ? rawResult.teamMembers.map((member: any, index: number) => ({
-                id: member.id || `team-member-${index}-${Date.now()}`,
-                name: member.name || '',
-                position: member.position || '',
-                linkedin: member.linkedin || member.linkedinUrl || null
-              }))
-            : [],
-          originalUrl: params.url
-        }
-      };
-    }
-    // Handle older format with status field
-    else if (rawResult.hasOwnProperty('status')) {
-      // Ensure data structure is consistent
-      if (rawResult.data && Array.isArray(rawResult.data.teamMembers)) {
-        // Map the existing data to ensure field names match
-        rawResult.data.teamMembers = rawResult.data.teamMembers.map((member: any, index: number) => ({
-          id: member.id || `team-member-${index}-${Date.now()}`,
-          name: member.name || '',
-          position: member.position || '',
-          linkedin: member.linkedin || member.linkedinUrl || null
-        }));
-      }
-      result = rawResult;
-    }
-    // Handle unexpected format
-    else {
-      throw new Error('Invalid response format from server');
-    }
-    
-    console.log('Standardized team members response:', result);
-    
-    if (result.status !== 'success') {
-      throw new Error(result.message || 'Unknown error');
-    }
-    
-    // Refresh search history after successful response
-    refreshSearchHistory();
-    
-    return result;
-  } catch (error) {
-    console.error('Team members error:', error);
-    throw error;
-  }
-}; 
+ 

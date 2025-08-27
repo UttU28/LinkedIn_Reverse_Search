@@ -1,5 +1,4 @@
-import { db } from './firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
 
 // Create a simple event emitter for search history updates
 type Listener = () => void;
@@ -45,7 +44,6 @@ export interface SearchHistoryResult {
 // Function to fetch user's search history
 export const fetchSearchHistory = async (userId: string) => {
   try {
-    console.log(`Fetching search history for user ID: ${userId}`);
     const result = {
       searchHistory: [] as SearchHistoryResult[],
     };
@@ -56,37 +54,62 @@ export const fetchSearchHistory = async (userId: string) => {
       return result;
     }
 
-    // Fetch from consolidated searchHistory collection
+    // Fetch from backend API
     try {
-      const searchHistoryRef = collection(db, 'users', userId, 'searchHistory');
-      const searchHistoryQuery = query(searchHistoryRef, orderBy('createdAt', 'desc'), limit(20));
-      const searchHistorySnapshot = await getDocs(searchHistoryQuery);
+      const response = await fetch(`${API_BASE_URL}/search-history/${userId}`);
       
-      console.log(`Found ${searchHistorySnapshot.docs.length} search history entries`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
-      if (!searchHistorySnapshot.empty) {
-        const searchHistoryData = searchHistorySnapshot.docs.map(doc => {
-          const data = doc.data();
+      const data = await response.json();
+      
+      if (data.success && data.data?.searchHistory) {
+        const searchHistoryData = data.data.searchHistory.map((item: any) => {
+          let createdAt: Date;
+          if (item.createdAt && typeof item.createdAt === 'object') {
+            if (item.createdAt.toDate) {
+              createdAt = item.createdAt.toDate();
+            } else if (item.createdAt.seconds) {
+              createdAt = new Date(item.createdAt.seconds * 1000);
+            } else {
+              createdAt = new Date(item.createdAt);
+            }
+          } else {
+            createdAt = new Date(item.createdAt || Date.now());
+          }
           
-          // Convert to our internal format
+          let completedAt: Date | undefined;
+          if (item.completedAt && typeof item.completedAt === 'object') {
+            if (item.completedAt.toDate) {
+              completedAt = item.completedAt.toDate();
+            } else if (item.completedAt.seconds) {
+              completedAt = new Date(item.completedAt.seconds * 1000);
+            } else {
+              completedAt = new Date(item.completedAt);
+            }
+          } else if (item.completedAt) {
+            completedAt = new Date(item.completedAt);
+          }
+          
           return {
-            id: doc.id,
-            type: data.type || 'single',
-            status: data.status || 'pending',
-            inputMeta: data.inputMeta || {},
-            totalRecords: data.totalRecords || 0,
-            resultRefPath: data.resultRefPath || '',
-            resultIds: data.resultIds || [],
-            linkedinUrl: data.linkedinUrl || null,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            completedAt: data.completedAt?.toDate() || null
+            id: item.id || item._id || '',
+            type: item.type || 'single',
+            status: item.status || 'pending',
+            inputMeta: item.inputMeta || {},
+            totalRecords: item.totalRecords || 0,
+            resultRefPath: item.resultRefPath || '',
+            resultIds: item.resultIds || [],
+            linkedinUrl: item.linkedinUrl || null,
+            createdAt,
+            completedAt
           } as SearchHistoryResult;
         });
         
         result.searchHistory = searchHistoryData;
       }
     } catch (err) {
-      console.error("Error fetching search history:", err);
+      console.error("Error fetching search history from API:", err);
     }
 
     return result;
@@ -98,6 +121,17 @@ export const fetchSearchHistory = async (userId: string) => {
 
 // Function to trigger a refresh of search history
 export const refreshSearchHistory = () => {
-  console.log('Triggering search history refresh');
   searchHistoryEvents.emit();
+};
+
+// Function to manually refresh search history for a specific user
+export const refreshUserSearchHistory = async (userId: string) => {
+  try {
+    const result = await fetchSearchHistory(userId);
+    searchHistoryEvents.emit();
+    return result;
+  } catch (error) {
+    console.error('Error refreshing user search history:', error);
+    throw error;
+  }
 }; 

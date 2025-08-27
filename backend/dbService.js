@@ -130,7 +130,7 @@ class DbService {
    * Update search cost and deduct credits
    * @param {string} userId - User ID
    * @param {string} historyId - Search history document ID
-   * @param {string} searchType - Type of search (single, bulk, team, recruiters)
+   * @param {string} searchType - Type of search (single, bulk, recruiters)
    * @param {number} resultsCount - Number of results found (for charging)
    * @returns {Promise<object|null>} - Updated user data or null if failed
    */
@@ -151,23 +151,15 @@ class DbService {
       
       switch (searchType) {
         case 'single':
-          // Single search costs 1 credit when a result is found
           costCredits = resultsCount > 0 ? 1 : 0;
           break;
         case 'bulk':
-          // Bulk search costs 1 credit per result found
-          costCredits = resultsCount || 0;
-          break;
-        case 'team':
-          // Team member search costs 1 credit per result found
           costCredits = resultsCount || 0;
           break;
         case 'recruiters':
-          // Lead generator costs based on results found
           costCredits = resultsCount || 0;
           break;
         default:
-          // Default behavior - only charge if results found
           costCredits = resultsCount > 0 ? 1 : 0;
       }
       

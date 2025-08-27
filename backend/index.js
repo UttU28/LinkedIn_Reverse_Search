@@ -5,7 +5,7 @@ require('dotenv').config();
 const { firebaseInitialized } = require('./firebase');
 const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
 const { findRecruitersAtCompany } = require('./leadGenerator');
-const { findTeamMembersFromWebsite } = require('./teamMembers');
+
 const dbService = require('./dbService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
@@ -33,6 +33,7 @@ app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) =
     // Extract the object from the event
     const dataObject = event.data.object;
     log(`Processing webhook event: ${event.type}`);
+    log(`Webhook payload:`, JSON.stringify(dataObject, null, 2));
     
     switch (event.type) {
       case 'checkout.session.completed':
@@ -80,6 +81,21 @@ app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) =
           const planName = dataObject.metadata.planName || 'Credit Purchase';
           
           log(`Payment succeeded for user: ${userId}`);
+          log(`Credits to add: ${creditsPurchased}`);
+          log(`Metadata:`, JSON.stringify(dataObject.metadata, null, 2));
+          
+          // CRITICAL: Add credits to user account when payment succeeds
+          if (creditsPurchased > 0) {
+            log(`Attempting to add ${creditsPurchased} credits to user ${userId}...`);
+            const result = await dbService.addCreditsToUser(userId, creditsPurchased);
+            if (result) {
+              log(`Successfully added ${creditsPurchased} credits to user ${userId}. New balance: ${result.newCredits}`);
+            } else {
+              log(`Failed to add credits to user ${userId}`);
+            }
+          } else {
+            log(`No credits to add for user ${userId}`);
+          }
           
           // Update payment status in database with details
           const paymentDetails = {
@@ -200,6 +216,7 @@ app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) =
     res.json({ received: true });
   } catch (err) {
     log(`Webhook Error: ${err.message}`);
+    log(`Webhook Error Details:`, err);
     res.status(400).send(`Webhook Error: ${err.message}`);
   }
 });
@@ -212,6 +229,46 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Root route
 app.get('/', (req, res) => {
   res.send('Hello Duniya');
+});
+
+// Test endpoint to manually add credits (for debugging)
+app.post('/test-add-credits', async (req, res) => {
+  try {
+    const { userId, credits } = req.body;
+    
+    if (!userId || !credits) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'userId and credits are required' 
+      });
+    }
+    
+    log(`Testing credit addition: ${credits} credits for user ${userId}`);
+    
+    const result = await dbService.addCreditsToUser(userId, parseInt(credits));
+    
+    if (result) {
+      log(`Test credit addition successful: ${result.addedCredits} credits added`);
+      return res.status(200).json({
+        success: true,
+        message: 'Credits added successfully',
+        data: result
+      });
+    } else {
+      log(`Test credit addition failed`);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to add credits'
+      });
+    }
+  } catch (error) {
+    log('Error in test credit addition:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error adding credits', 
+      error: error.message 
+    });
+  }
 });
 
 // Get user payment history
@@ -348,6 +405,37 @@ app.get('/refresh-credits/:userId', async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: 'Error refreshing user credits', 
+      error: error.message 
+    });
+  }
+});
+
+// Get user's search history
+app.get('/search-history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+    
+    // Get search history from database
+    const searchHistory = await dbService.getRecentSearchHistory(userId, 20);
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        searchHistory: searchHistory || []
+      }
+    });
+  } catch (error) {
+    log('Error getting search history:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error getting search history', 
       error: error.message 
     });
   }
@@ -791,35 +879,7 @@ app.post('/findTargetedLeads', async (req, res) => {
   }
 });
 
-// Team Members route
-app.post('/findTeamMembers', async (req, res) => {
-  const { userID, url, teamId, companySearchId } = req.body;
-  
-  log(`[TEAM MEMBERS] URL: ${url}`, 'info');
-  
-  try {
-    // Call the findTeamMembersFromWebsite function from teamMembers.js
-    const results = await findTeamMembersFromWebsite(url, userID);
-    
-    log(`Found ${results.data.length} team members`, 'info');
-    
-    // Format the team members for the frontend
-    return res.json({
-      success: true,
-      message: results.message,
-      teamMembers: results.data,
-      historyId: results.historyId
-    });
-  } catch (error) {
-    log(`Error in team members search: ${error.message}`, 'error');
-    
-    // Return error response
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -836,11 +896,12 @@ app.listen(PORT, () => {
   log(`Server running on http://localhost:${PORT}`);
   log(`Available routes:`);
   log(`- GET /`);
+  log(`- GET /search-history/:userId`);
   log(`- POST /login`);
   log(`- POST /signup`);
   log(`- POST /updateCredits`);
   log(`- POST /findSingleContact`);
   log(`- POST /findBatchContact`);
   log(`- POST /findTargetedLeads`);
-  log(`- POST /findTeamMembers`);
+
 });

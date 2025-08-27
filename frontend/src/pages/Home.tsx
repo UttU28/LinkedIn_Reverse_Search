@@ -135,8 +135,7 @@ const Home: React.FC = () => {
                   <Users className="text-accent" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-heading font-medium text-primary-text mb-2">Team Members Finder</h3>
-                  <p className="text-secondary-text">Discover team members from specific companies to enhance your networking and outreach.</p>
+                  
                 </div>
               </div>
             </motion.div>

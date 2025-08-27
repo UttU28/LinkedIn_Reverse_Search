@@ -474,6 +474,23 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
             "Position": positionField ? row[positionField] || "" : ""
           });
         });
+        
+        const recordCount = parsedData.length;
+        const userCredits = userData?.linkCredits || 0;
+        
+        if (userCredits < recordCount) {
+          toast({
+            title: "Insufficient credits for bulk search",
+            description: `You have ₹ ${userCredits} credits but need ₹ ${recordCount} for ${recordCount} records`,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "File ready for bulk search",
+            description: `You have ₹ ${userCredits} credits for ${recordCount} records (₹ ${userCredits - recordCount} remaining)`,
+            variant: "default"
+          });
+        }
       }
     }
   }, [parsedData, toast]);
@@ -491,6 +508,17 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   // Use a function to handle bulk search after file validation is complete
   const handleBulkSearch = async () => {
     if (!selectedFile || !parsedData.length) return;
+    
+    // Check if user has enough credits for bulk search
+    const recordCount = parsedData.length;
+    if (userData?.linkCredits === undefined || userData.linkCredits < recordCount) {
+      toast({
+        title: "Insufficient credits",
+        description: `You need ${recordCount} credits but only have ₹ ${userData?.linkCredits || 0}`,
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Get user ID from auth store
     const userID = useAuthStore.getState().user?.uid || 'unknown';

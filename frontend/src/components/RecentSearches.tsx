@@ -55,7 +55,7 @@ interface SearchResultData {
 
 const RecentSearches: React.FC = () => {
   const { recentSearches } = useSearchStore();
-  const { user } = useAuthStore();
+  const { user, userData, loading: authLoading } = useAuthStore();
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,14 +69,6 @@ const RecentSearches: React.FC = () => {
 
   // Handle click on search card
   const handleCardClick = (searchResult: UnifiedSearchResult) => {
-    // Only check for resultIds array without logging the full data
-    if (searchResult.originalData && searchResult.originalData.resultIds && 
-        searchResult.originalData.resultIds.length > 0) {
-      console.log('resultIds array:', searchResult.originalData.resultIds);
-    } else {
-      console.log('No resultIds array found');
-    }
-    
     // Close any open download menus when clicking the card
     setExpandedDownloadMenu(null);
   };
@@ -121,9 +113,6 @@ const RecentSearches: React.FC = () => {
         timestamp: searchResult.timestamp,
         resultIds: searchResult.originalData.resultIds
       };
-      
-      // Log the search info for debugging
-      console.log('Download request for search:', searchInfo);
       
       // Progress callback for toast notifications
       const onProgress = (stage: 'fetching' | 'creating' | 'complete' | 'error', count?: number) => {
@@ -187,9 +176,7 @@ const RecentSearches: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log("Fetching search history for user:", user.uid);
       const searchHistory = await fetchSearchHistory(user.uid);
-      console.log("Search history response:", searchHistory);
       
       // Convert Firestore search history to unified format
       const unifiedResults: UnifiedSearchResult[] = [];
@@ -226,13 +213,6 @@ const RecentSearches: React.FC = () => {
                 title = `${item.inputMeta?.company || 'Unknown'} Recruiters`;
                 subtitle = `${item.totalRecords || 0} leads found`;
                 icon = <Filter className="h-4 w-4" />;
-                break;
-                
-              case 'team':
-                title = `${item.inputMeta?.company || 'Company'} Team`;
-                subtitle = item.inputMeta?.companyUrl || '';
-                url = item.inputMeta?.companyUrl;
-                icon = <LinkIcon className="h-4 w-4" />;
                 break;
                 
               default:
@@ -272,8 +252,6 @@ const RecentSearches: React.FC = () => {
         });
       });
       
-      console.log("Processed unified search results:", unifiedResults);
-      
       // Sort by timestamp (newest first)
       const sortedResults = unifiedResults.sort((a, b) => b.timestamp - a.timestamp);
       
@@ -286,23 +264,21 @@ const RecentSearches: React.FC = () => {
     }
   }, [user?.uid, recentSearches]);
 
-  // Load search history initially and set up event listener for refreshes
   useEffect(() => {
-    // Only load if we have a user
+    if (authLoading) return;
     if (user?.uid) {
       loadSearchHistory();
-      
-      // Subscribe to search history updates
       const unsubscribe = searchHistoryEvents.subscribe(() => {
-        console.log('Received search history update event, refreshing data');
         loadSearchHistory();
       });
       
       return () => {
         unsubscribe();
       };
+    } else {
+      setLoading(false);
     }
-  }, [user?.uid, loadSearchHistory]);
+  }, [user?.uid, loadSearchHistory, authLoading]);
 
   // Format time ago string with status prefix
   const formatTimeAgo = (timestamp: number, status: string): string => {
@@ -429,7 +405,7 @@ const RecentSearches: React.FC = () => {
   };
 
   // Loading state
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <Card className="bg-card border border-border/50 h-full">
         <CardHeader className="pb-2">
@@ -441,7 +417,9 @@ const RecentSearches: React.FC = () => {
         <CardContent>
           <div className="flex flex-col items-center justify-center h-32 text-center">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-            <p className="text-muted-foreground text-sm">Loading recent searches...</p>
+            <p className="text-muted-foreground text-sm">
+              {authLoading ? 'Authenticating...' : 'Loading recent searches...'}
+            </p>
           </div>
         </CardContent>
       </Card>

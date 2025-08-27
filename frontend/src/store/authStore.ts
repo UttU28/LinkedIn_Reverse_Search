@@ -24,20 +24,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
   
   fetchUserData: async () => {
-    console.log("Fetching user data called");
     const { user } = get();
     if (!user) {
-      console.log("No user found in store, setting userData to null");
       set({ userData: null });
       return;
     }
     
     try {
-      console.log("User found, fetching data for:", user.uid);
       set({ loading: true, error: null });
       const userData = await getUserData(user.uid) as UserData;
-      console.log("User data fetched:", userData);
       set({ userData, loading: false });
+      
+      try {
+        await get().refreshCredits();
+      } catch (error) {
+        console.error("Error refreshing credits after fetch:", error);
+      }
     } catch (error) {
       console.error("Error fetching user data:", error);
       set({ error: "Failed to load user data.", loading: false });
@@ -80,7 +82,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             linkCredits: result.data.linkCredits
           }
         });
-        console.log("Credits refreshed:", result.data.linkCredits);
       }
     } catch (error) {
       console.error("Error refreshing credits:", error);
@@ -90,28 +91,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 // Set up auth state listener
 onAuthStateChanged(auth, async (user) => {
-  console.log("Auth state changed:", user ? "User logged in" : "No user");
   const state = useAuthStore.getState();
   
   if (user) {
-    console.log("Setting user in store and fetching user data");
     useAuthStore.setState({ user, loading: true });
     try {
       await state.fetchUserData();
-      console.log("User data fetched successfully");
     } catch (error) {
       console.error("Error fetching user data:", error);
     } finally {
       useAuthStore.setState({ loading: false });
     }
   } else {
-    console.log("Setting user to null in store");
     useAuthStore.setState({ user: null, userData: null, loading: false });
   }
   
   // Set initialized to true after first auth check
   if (!state.initialized) {
-    console.log("Initializing auth store");
     useAuthStore.setState({ initialized: true });
   }
 });
