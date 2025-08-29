@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../hooks/use-toast';
@@ -23,8 +23,11 @@ const Dashboard: React.FC = () => {
   const { userData, refreshCredits } = useAuthStore();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch'>('profile');
+  const hasRefreshedCredits = useRef(false);
+  
   useEffect(() => {
-    if (userData) {
+    if (userData && !hasRefreshedCredits.current) {
+      hasRefreshedCredits.current = true;
       refreshCredits();
     }
   }, [userData, refreshCredits]);

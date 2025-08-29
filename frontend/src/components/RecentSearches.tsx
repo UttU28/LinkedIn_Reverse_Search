@@ -280,6 +280,28 @@ const RecentSearches: React.FC = () => {
     }
   }, [user?.uid, loadSearchHistory, authLoading]);
 
+  // Polling effect for processing searches
+  useEffect(() => {
+    if (!user?.uid || authLoading) return;
+    
+    // Check if there are any processing searches
+    const hasProcessingSearches = searchResults.some(search => 
+      search.status === 'pending' || search.status === 'processing'
+    );
+    
+    if (!hasProcessingSearches) return;
+    
+    // Set up polling every 5 seconds for processing searches
+    const pollInterval = setInterval(() => {
+      console.log('Polling for search status updates...');
+      loadSearchHistory();
+    }, 5000); // Poll every 5 seconds for faster updates
+    
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [user?.uid, authLoading, searchResults, loadSearchHistory]);
+
   // Format time ago string with status prefix
   const formatTimeAgo = (timestamp: number, status: string): string => {
     try {
@@ -312,8 +334,8 @@ const RecentSearches: React.FC = () => {
 
   // Update the rendered button section
   const renderDownloadButton = (search: UnifiedSearchResult) => {
-    // Show download button for 'bulk' or 'team' type searches that have resultIds
-    if ((search.type !== 'bulk' && search.type !== 'team') || !search.originalData?.resultIds?.length) return null;
+    // Show download button for 'bulk', 'team', or 'recruiters' type searches that have resultIds
+    if ((search.type !== 'bulk' && search.type !== 'team' && search.type !== 'recruiters') || !search.originalData?.resultIds?.length) return null;
     
     return (
       <div className="relative ml-2" onClick={(e) => e.stopPropagation()}>

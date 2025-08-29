@@ -302,7 +302,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
       }
     }
     
-    // Final update
+    // Final update with resultIds
     await dbService.updateBatchStatus({
       userID,
       historyId,
@@ -314,7 +314,14 @@ async function processBatchInBackground(contacts, userID, historyId) {
       }
     });
     
-    await dbService.updateSearchCost(userID, historyId, "bulk", contacts.length);
+    // Update search history with resultIds and ensure status is completed
+    await dbService.updateSearchHistory(userID, historyId, {
+      status: "completed",
+      resultIds: humans,
+      completedAt: new Date()
+    });
+    
+    await dbService.updateSearchCost(userID, historyId, "bulk", successCount);
     
     log(`Batch processing completed: ${processedCount}/${contacts.length} processed, ${successCount} successful`, 'info');
     
@@ -337,9 +344,9 @@ async function processBatchInBackground(contacts, userID, historyId) {
       error: error.message
     });
     
-    // Even on full batch error, charge for all records that were processed
-    // This ensures users pay for the processing effort, not just successful outcomes
-    await dbService.updateSearchCost(userID, historyId, "bulk", contacts.length);
+    // Only charge for successful LinkedIn profile finds, even on error
+    // This ensures users only pay for actual results, not processing effort
+    await dbService.updateSearchCost(userID, historyId, "bulk", successCount || 0);
     
     // Return error info in case this is used as a synchronous function
     return {

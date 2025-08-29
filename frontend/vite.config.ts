@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => {
       port: 3009,
       host: process.env.NODE_ENV === 'development' ? true : false,
       allowedHosts: [
-        'api.amitluhar.com', 
+        'linkitup.thatinsaneguy.com', 
         'localhost',
         'lucky-adjusted-possum.ngrok-free.app',
         '.ngrok-free.app',

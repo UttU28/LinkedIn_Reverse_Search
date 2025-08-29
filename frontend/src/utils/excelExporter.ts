@@ -1,7 +1,5 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 
 // Interface for search result data
 export interface SearchResultData {
@@ -22,64 +20,50 @@ export interface SearchInfo {
 }
 
 /**
- * Fetches search result data from Firestore using result IDs
+ * Fetches search result data from backend API using result IDs
  * @param resultIds - Array of document IDs to fetch from searchResults collection
  * @returns Promise resolving to array of search result data
  */
 export const fetchSearchResultData = async (resultIds: string[]): Promise<SearchResultData[]> => {
   if (!resultIds.length) return [];
   
-  const results: SearchResultData[] = [];
-  
   try {
     console.log('Fetching search results with IDs:', resultIds);
     
-    // Firestore has a limit of 10 items for 'in' queries, so we need to batch
-    const batchSize = 10;
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
     
-    for (let i = 0; i < resultIds.length; i += batchSize) {
-      const batch = resultIds.slice(i, i + batchSize);
-      
-      const searchResultsRef = collection(db, 'searchResults');
-      const q = query(searchResultsRef, where('__name__', 'in', batch));
-      const querySnapshot = await getDocs(q);
-      
-      console.log(`Batch ${i/batchSize + 1}: Found ${querySnapshot.docs.length} documents`);
-      
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        console.log('Document data:', data);
-        
-        // Handle the inputData field structure from the database
-        const inputData = data.inputData || {};
-        
-        // Create a result object with properly extracted fields
-        const resultItem: SearchResultData = {
-          id: doc.id,
-          // Check for name in different possible field locations
-          name: inputData.name || '',
-          
-          // Check for company in different possible field locations
-          company: inputData.company || '',
-          
-          // Check for position/title in different possible field locations
-          // For team searches, it's stored as 'position', for others it's 'title'
-          title: inputData.position || inputData.title || '',
-          
-          // For LinkedIn URL, check multiple possible fields
-          // In team searches, it might be stored as 'linkedin' instead of 'linkedinUrl'
-          linkedin: data.linkedinUrl || data.linkedin || inputData.linkedin || '',
-          
-          createdAt: data.createdAt?.toDate() || new Date(),
-        };
-        
-        console.log('Processed result item:', resultItem);
-        results.push(resultItem);
-      });
+    const response = await fetch(`${API_BASE_URL}/search-results`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ resultIds }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    console.log(`Total results processed: ${results.length}`);
-    return results;
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to fetch search results');
+    }
+    
+    console.log('API response:', result);
+    
+    // Transform the data to match the expected interface
+    const transformedResults: SearchResultData[] = result.data.map((item: any) => ({
+      id: item.id,
+      name: item.name || '',
+      company: item.company || '',
+      title: item.title || '',
+      linkedin: item.linkedin || '',
+      createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+    }));
+    
+    console.log('Transformed results:', transformedResults);
+    return transformedResults;
   } catch (error) {
     console.error('Error fetching search result data:', error);
     throw error;

@@ -879,7 +879,45 @@ app.post('/findTargetedLeads', async (req, res) => {
   }
 });
 
-
+// Get search results by IDs for download
+app.post('/search-results', async (req, res) => {
+  const { resultIds } = req.body;
+  
+  if (!resultIds || !Array.isArray(resultIds) || resultIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'resultIds array is required'
+    });
+  }
+  
+  log(`[SEARCH RESULTS] Fetching ${resultIds.length} search results`, 'info');
+  
+  try {
+    const searchResults = await dbService.getSearchResultsByIds(resultIds);
+    
+    if (!searchResults || searchResults.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No search results found'
+      });
+    }
+    
+    log(`[SEARCH RESULTS] Found ${searchResults.length} results`, 'info');
+    
+    return res.json({
+      success: true,
+      data: searchResults,
+      count: searchResults.length
+    });
+  } catch (error) {
+    log(`Error fetching search results: ${error.message}`, 'error');
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch search results'
+    });
+  }
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -892,7 +930,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   log(`Server running on http://localhost:${PORT}`);
   log(`Available routes:`);
   log(`- GET /`);
@@ -903,5 +941,24 @@ app.listen(PORT, () => {
   log(`- POST /findSingleContact`);
   log(`- POST /findBatchContact`);
   log(`- POST /findTargetedLeads`);
+  log(`- POST /search-results`);
 
+  // Cleanup interrupted searches on startup (with timeout)
+  try {
+    log('Running startup cleanup for pending searches...', 'info');
+    
+    // Set a timeout to prevent hanging the server startup
+    const cleanupPromise = dbService.cleanupInterruptedSearches();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Cleanup timeout after 30 seconds')), 30000)
+    );
+    
+    const cleanedCount = await Promise.race([cleanupPromise, timeoutPromise]);
+    if (cleanedCount > 0) {
+      log(`Startup cleanup completed: ${cleanedCount} pending searches marked as failed`, 'info');
+    }
+  } catch (error) {
+    log(`Error during startup cleanup: ${error.message}`, 'error');
+    log('Server will continue running despite cleanup error', 'warn');
+  }
 });

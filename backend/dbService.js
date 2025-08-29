@@ -571,6 +571,137 @@ class DbService {
       return [];
     }
   }
+
+  /**
+   * Get search results by their IDs
+   * @param {string[]} resultIds - Array of result document IDs
+   * @returns {Promise<Array>} - Array of search result documents
+   */
+  async getSearchResultsByIds(resultIds) {
+    try {
+      if (!resultIds || !Array.isArray(resultIds) || resultIds.length === 0) {
+        this.log('No result IDs provided', 'warn');
+        return [];
+      }
+
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot fetch search results', 'warn');
+        return [];
+      }
+
+      const results = [];
+      
+      // Firestore has a limit of 10 items for 'in' queries, so we need to batch
+      const batchSize = 10;
+      
+      for (let i = 0; i < resultIds.length; i += batchSize) {
+        const batch = resultIds.slice(i, i + batchSize);
+        
+        try {
+          const searchResultsRef = this.db.collection('searchResults');
+          const query = searchResultsRef.where('__name__', 'in', batch);
+          const querySnapshot = await query.get();
+          
+          this.log(`Batch ${Math.floor(i/batchSize) + 1}: Found ${querySnapshot.docs.length} documents`, 'debug');
+          
+          querySnapshot.forEach(doc => {
+            const data = doc.data();
+            
+            // Handle the inputData field structure from the database
+            const inputData = data.inputData || {};
+            
+            // Create a result object with properly extracted fields
+            const resultItem = {
+              id: doc.id,
+              name: inputData.name || '',
+              company: inputData.company || '',
+              title: inputData.position || inputData.title || '',
+              linkedin: data.linkedinUrl || data.linkedin || inputData.linkedin || '',
+              createdAt: data.createdAt || null,
+              type: data.type || 'unknown'
+            };
+            
+            results.push(resultItem);
+          });
+        } catch (batchError) {
+          this.logError(`Error fetching batch ${Math.floor(i/batchSize) + 1}`, batchError);
+        }
+      }
+      
+      this.log(`Successfully fetched ${results.length} search results`, 'debug');
+      return results;
+    } catch (error) {
+      this.logError('Error getting search results by IDs', error);
+      return [];
+    }
+  }
+
+  /**
+   * Cleanup interrupted searches on startup
+   * Marks all pending searches as failed (since they were interrupted by server restart)
+   * @returns {Promise<number>} - Number of searches cleaned up
+   */
+  async cleanupInterruptedSearches() {
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - skipping cleanup of interrupted searches', 'warn');
+        return 0;
+      }
+
+      this.log('Starting cleanup of interrupted searches...', 'info');
+      
+      let totalCleaned = 0;
+      
+      // Get all users
+      const usersRef = this.db.collection('users');
+      const usersSnapshot = await usersRef.get();
+      
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        
+        // Get all search history for this user that are still pending
+        const searchHistoryRef = userDoc.ref.collection('searchHistory');
+        const pendingQuery = searchHistoryRef.where('status', '==', 'pending');
+        const pendingSnapshot = await pendingQuery.get();
+        
+        if (pendingSnapshot.empty) {
+          continue; // No interrupted searches for this user
+        }
+        
+        this.log(`Found ${pendingSnapshot.docs.length} pending searches for user ${userId}`, 'debug');
+        
+        // Update each interrupted search
+        const batch = this.db.batch();
+        
+        pendingSnapshot.docs.forEach(doc => {
+          const searchData = doc.data();
+          batch.update(doc.ref, {
+            status: 'failed',
+            errorMessage: 'Search interrupted by server restart',
+            completedAt: new Date(),
+            updatedAt: new Date()
+          });
+          
+          this.log(`Marking search ${doc.id} (${searchData.type}) as failed due to server restart`, 'debug');
+          totalCleaned++;
+        });
+        
+        // Commit the batch update for this user
+        await batch.commit();
+      }
+      
+      if (totalCleaned > 0) {
+        this.log(`Cleanup completed: marked ${totalCleaned} interrupted searches as failed`, 'info');
+      } else {
+        this.log('No interrupted searches found to cleanup', 'info');
+      }
+      
+      return totalCleaned;
+    } catch (error) {
+      this.logError('Error during cleanup of interrupted searches', error);
+      return 0;
+    }
+  }
 }
 
 // Create and export a singleton instance

@@ -22,6 +22,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { findSingleContact, findBatchContacts } from '../services/apiService';
+import { refreshSearchHistory } from '../lib/searchService';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 
@@ -582,21 +583,19 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       // Clear single search response when setting new bulk results
       setSearchResponse(null);
       
-      // Store bulk search results
-      setBulkSearchResults(result.data.contacts);
+      // Since processing happens in background, we don't have immediate results
+      // Clear any previous bulk search results
+      setBulkSearchResults(null);
       
-      // Get found count
-      const successCount = result.data.contacts.filter(c => c.foundData > 0).length;
-      
-      // Refresh credits directly from backend
-      await useAuthStore.getState().refreshCredits();
-      
-      // Show toast message
+      // Show processing started message
       toast({
-        title: "Batch search complete",
-        description: `Found ${successCount} out of ${contacts.length} profiles`,
+        title: "Batch search started",
+        description: `Processing ${contacts.length} contacts in the background. Check Dashboard History for results.`,
         variant: "default"
       });
+      
+      // Refresh search history to show the new entry
+      refreshSearchHistory();
       
       // Reset the file input
       resetFileUploadOnly();

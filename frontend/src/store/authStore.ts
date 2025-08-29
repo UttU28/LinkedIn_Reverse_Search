@@ -11,6 +11,7 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   initialized: boolean;
+  refreshingCredits: boolean;
   fetchUserData: () => Promise<void>;
   updateCreditUsage: (creditsUsed: number, resultsFound: number) => Promise<void>;
   refreshCredits: () => Promise<void>;
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   error: null,
   initialized: false,
+  refreshingCredits: false,
   
   fetchUserData: async () => {
     const { user } = get();
@@ -61,15 +63,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   refreshCredits: async () => {
-    const { user, userData } = get();
-    if (!user) return;
+    const { user, userData, refreshingCredits } = get();
+    
+    // Prevent concurrent calls
+    if (!user || refreshingCredits) return;
     
     try {
+      set({ refreshingCredits: true });
+      
       // Use the new endpoint to get fresh credit information
       const response = await fetch(`${API_URL}/refresh-credits/${user.uid}`);
       
       if (!response.ok) {
-        throw new Error('Failed to refresh credits');
+        throw new Error(`Failed to refresh credits: ${response.status}`);
       }
       
       const result = await response.json();
@@ -85,6 +91,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error("Error refreshing credits:", error);
+    } finally {
+      set({ refreshingCredits: false });
     }
   }
 }));

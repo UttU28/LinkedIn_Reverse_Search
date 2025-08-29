@@ -4,16 +4,16 @@ This document explains the setup of the Nginx reverse proxy with SSL to serve bo
 
 ## Architecture Overview
 
-- **Frontend**: Runs on port 3009, served at the root path (`api.amitluhar.com/`)
-- **Backend**: Runs on port 3008, served at the `/api` path (`api.amitluhar.com/api/`)
+- **Frontend**: Runs on port 3009, served at the root path (`linkitup.thatinsaneguy.com/`)
+- **Backend**: Runs on port 3008, served at the `/api` path (`linkitup.thatinsaneguy.com/api/`)
 
 ## Nginx Configuration
 
-The following configuration is used in `/etc/nginx/sites-available/api.amitluhar.com`:
+The following configuration is used in `/etc/nginx/sites-available/linkitup.thatinsaneguy.com`:
 
 ```nginx
 server {
-    server_name api.amitluhar.com;
+    server_name linkitup.thatinsaneguy.com;
 
     # Frontend routes (serve at the root)
     location / {
@@ -42,19 +42,19 @@ server {
     }
 
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/api.amitluhar.com/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/api.amitluhar.com/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/linkitup.thatinsaneguy.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/linkitup.thatinsaneguy.com/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
 server {
-    if ($host = api.amitluhar.com) {
+    if ($host = linkitup.thatinsaneguy.com) {
         return 301 https://$host$request_uri;
     } # managed by Certbot
 
     listen 80;
-    server_name api.amitluhar.com;
+    server_name linkitup.thatinsaneguy.com;
     return 404; # managed by Certbot
 }
 ```
@@ -69,12 +69,12 @@ server {
 
 2. Create the site configuration:
    ```bash
-   sudo nano /etc/nginx/sites-available/api.amitluhar.com
+   sudo nano /etc/nginx/sites-available/linkitup.thatinsaneguy.com
    ```
 
 3. Enable the site:
    ```bash
-   sudo ln -s /etc/nginx/sites-available/api.amitluhar.com /etc/nginx/sites-enabled/
+   sudo ln -s /etc/nginx/sites-available/linkitup.thatinsaneguy.com /etc/nginx/sites-enabled/
    ```
 
 4. Test the configuration:
@@ -90,26 +90,26 @@ server {
 6. Install Certbot and get SSL certificate:
    ```bash
    sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d api.amitluhar.com
+   sudo certbot --nginx -d linkitup.thatinsaneguy.com
    ```
 
 ## How the Routing Works
 
-- All requests to `https://api.amitluhar.com/` are routed to the frontend application running on port 3009
-- All requests to `https://api.amitluhar.com/api/*` are routed to the backend application running on port 3008
+- All requests to `https://linkitup.thatinsaneguy.com/` are routed to the frontend application running on port 3009
+- All requests to `https://linkitup.thatinsaneguy.com/api/*` are routed to the backend application running on port 3008
 - The trailing slash in `proxy_pass http://localhost:3008/;` removes the `/api` prefix from the URL before passing it to the backend
-  - Example: A request to `https://api.amitluhar.com/api/login` is forwarded to `http://localhost:3008/login`
+  - Example: A request to `https://linkitup.thatinsaneguy.com/api/login` is forwarded to `http://localhost:3008/login`
 
 ## Testing the Setup
 
 1. Frontend access:
    ```bash
-   curl https://api.amitluhar.com/
+   curl https://linkitup.thatinsaneguy.com/
    ```
 
 2. Backend API access:
    ```bash
-   curl https://api.amitluhar.com/api/
+   curl https://linkitup.thatinsaneguy.com/api/
    ```
 
 3. Remove all Docker Conteners:
