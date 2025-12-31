@@ -27,14 +27,14 @@ const FeatureList: React.FC = () => {
     <>
       {/* What It Does Section */}
       <motion.section 
-        className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-card/30 rounded-3xl mb-20"
+        className="my-16 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-card/30 rounded-3xl mb-20"
         variants={containerVariants}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.2 }}
       >
         <motion.h2 
-          className="text-2xl md:text-3xl font-heading font-semibold text-primary-text mb-12 text-center"
+          className="text-2xl md:text-3xl font-heading font-semibold text-primary-text mb-6 text-center"
           variants={itemVariants}
         >
           What It Does
@@ -58,8 +58,8 @@ const FeatureList: React.FC = () => {
             <div className="w-12 h-12 bg-accent/20 rounded-lg flex items-center justify-center mb-4">
               <Search className="text-accent" size={24} />
             </div>
-            <h3 className="text-xl font-heading font-medium text-primary-text mb-3">Search Single People</h3>
-            <p className="text-secondary-text">Find individual LinkedIn profiles with precision using our intelligent search algorithm.</p>
+            <h3 className="text-xl font-heading font-medium text-primary-text mb-3">Lead Generation</h3>
+            <p className="text-secondary-text">Find individual and bulk LinkedIn profiles with precision using our intelligent search algorithm.</p>
           </motion.div>
           
           <motion.div 
@@ -84,7 +84,7 @@ const FeatureList: React.FC = () => {
         viewport={{ once: true, amount: 0.2 }}
       >
         <motion.h2 
-          className="text-2xl md:text-3xl font-heading font-semibold text-primary-text mb-12 text-center"
+          className="text-2xl md:text-3xl font-heading font-semibold text-primary-text mb-6 text-center"
           variants={itemVariants}
         >
           Why Use Link It Up

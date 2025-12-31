@@ -257,7 +257,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
           { 
             name: searchName || "", 
             company: searchCompany || "", 
-            title: searchPosition || "" 
+            position: searchPosition || "" 
           }, 
           result.linkedInUrl || null
         );

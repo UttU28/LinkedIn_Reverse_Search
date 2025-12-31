@@ -219,7 +219,7 @@ const Marketing = () => {
             >
               Get 50 Free Credits
             </Button>
-            <Link href="/demo">
+            <Link href="/">
               <Button variant="outline" className="border-primary/30 hover:bg-primary/10 text-primary text-lg px-8 py-6" size="lg">
                 See How It Works
               </Button>

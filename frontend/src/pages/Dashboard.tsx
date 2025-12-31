@@ -89,108 +89,105 @@ const Dashboard: React.FC = () => {
       <Navbar />
       
       <motion.main 
-        className="flex-grow z-10 relative pt-4 sm:pt-6 md:pt-8 pb-12 md:pb-20 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full"
+        className="flex-grow z-10 relative pt-8 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
-        {/* Welcome Section */}
-        <motion.section variants={itemVariants} className="mb-4 sm:mb-6 md:mb-8">
-          <div className="flex flex-col items-start justify-between">
-            <div>
-                              <h1 className="text-xl sm:text-2xl md:text-3xl font-heading font-bold text-primary-text">
-                  Welcome back, <span className="text-primary">{userData?.name?.split(' ')[0] || 'User'}</span>!
-                </h1>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm sm:text-base text-secondary-text">
-                  {activeTab === 'profile'
-                    ? "Ready to find some LinkedIn profiles today?"
-                    : "Find targeted professionals for your next opportunity."}
-                </p>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Credits:</span>
-                  <span className="font-bold text-primary">₹ {userData?.linkCredits || 0}</span>
-                </div>
-              </div>
+        {/* Professional Header */}
+        <motion.section variants={itemVariants} className="mb-12">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8">
+            <div className="mb-6 lg:mb-0">
+              <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-3">
+                Welcome back, <span className="text-primary">{userData?.name?.split(' ')[0] || 'User'}</span>!
+              </h1>
+              <p className="text-xl text-muted-foreground max-w-2xl">
+                {activeTab === 'profile'
+                  ? "Ready to discover LinkedIn profiles with AI precision"
+                  : "Find targeted professionals for your networking goals"}
+              </p>
             </div>
-            
-            <div className="w-full mb-4">
-              <Tabs 
-                value={activeTab} 
-                onValueChange={handleContentSwitch}
-                className="w-full"
-              >
-                <TabsList className="grid grid-cols-2 h-auto min-h-12 w-full text-[10px] xxs:text-xs sm:text-sm">
-                  <TabsTrigger 
-                    value="profile" 
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2"
-                  >
-                    <div className="flex items-center justify-center">
-                      <Search className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="ml-1 sm:ml-2">
-                        <span className="xxs:hidden">Profiles</span>
-                        <span className="hidden xxs:inline">Find Profiles</span>
-                      </span>
-                    </div>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="leadSearch" 
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2"
-                  >
-                    <div className="flex items-center justify-center">
-                      <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="ml-1 sm:ml-2">
-                        <span className="xxs:hidden">Leads</span>
-                        <span className="hidden xxs:inline">Lead Generator</span>
-                      </span>
-                    </div>
-                  </TabsTrigger>
-
-                </TabsList>
-              </Tabs>
-            </div>
+          </div>
+          
+          {/* Professional Tab Navigation */}
+          <div className="flex bg-card-elevated rounded-2xl p-2 border border-border-elevated">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+                activeTab === 'profile'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <Search className="h-5 w-5" />
+              <span className="hidden sm:inline">Profile Search</span>
+              <span className="sm:hidden">Profiles</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('leadSearch')}
+              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+                activeTab === 'leadSearch'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="hidden sm:inline">Lead Generator</span>
+              <span className="sm:hidden">Leads</span>
+            </button>
           </div>
         </motion.section>
         
-        {/* Search Forms */}
+        {/* Professional Search Interface */}
         <AnimatePresence mode="wait">
           {activeTab === 'profile' ? (
-            /* Profile Search Card */
             <motion.section 
               key="profile-search"
-              className="mb-6 sm:mb-10 md:mb-16"
+              className="mb-16"
               variants={itemVariants}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             >
-              <SearchCard />
+              <div className="glass-card rounded-3xl border border-border-elevated shadow-xl p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl border border-primary/20">
+                    <Search className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground">Profile Search</h2>
+                    <p className="text-muted-foreground">Find LinkedIn profiles with AI precision</p>
+                  </div>
+                </div>
+                <SearchCard />
+              </div>
             </motion.section>
           ) : activeTab === 'leadSearch' ? (
-            /* Lead Generator Search Card */
             <motion.section 
               key="lead-generator"
-              className="mb-6 sm:mb-10 md:mb-16"
+              className="mb-16"
               variants={itemVariants}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             >
-              <Card className="bg-card border border-border/50 shadow-md overflow-hidden">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-heading font-semibold text-primary-text mb-6 flex items-center">
-                    <Filter className="mr-2 h-5 w-5 text-primary" />
-                    Find Targeted Leads
-                  </h2>
-                  
-                  <LeadSearchForm 
-                    onSearchComplete={handleLeadSearchComplete}
-                    onSearchStart={handleLeadSearchStart}
-                  />
-                </CardContent>
-              </Card>
+              <div className="glass-card rounded-3xl border border-border-elevated shadow-xl p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl border border-primary/20">
+                    <Users className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground">Lead Generator</h2>
+                    <p className="text-muted-foreground">Find targeted professionals at specific companies</p>
+                  </div>
+                </div>
+                <LeadSearchForm 
+                  onSearchComplete={handleLeadSearchComplete}
+                  onSearchStart={handleLeadSearchStart}
+                />
+              </div>
             </motion.section>
           ) : null}
         </AnimatePresence>
@@ -209,19 +206,24 @@ const Dashboard: React.FC = () => {
 
         </AnimatePresence>
 
-        {/* Recent Searches Section */}
+        {/* Professional Dashboard Overview */}
         <motion.section
           className="mb-6"
           variants={itemVariants}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
         >
-          <h2 className="text-xl font-heading font-semibold text-primary-text mb-4 flex items-center">
-            <Clock className="mr-2 h-5 w-5 text-primary" />
-            Dashboard Overview
-          </h2>
-          <div className="w-full">
+          <div className="glass-card rounded-3xl border border-border-elevated shadow-xl p-8">
+            <div className="flex items-center space-x-4 mb-8">
+              <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl border border-primary/20">
+                <Clock className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">Dashboard Overview</h2>
+                <p className="text-muted-foreground">Your recent activity and search history</p>
+              </div>
+            </div>
             <RecentSearches />
           </div>
         </motion.section>

@@ -109,6 +109,10 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     isValid: false
   });
   
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
+  
   // Bulk search response state
   const [bulkSearchResults, setBulkSearchResults] = useState<Array<{
     searchName: string;
@@ -382,6 +386,46 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         
         reader.readAsBinaryString(file);
       }
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev - 1);
+    if (dragCounter <= 1) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    setDragCounter(0);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      // Simulate the file input change event
+      const mockEvent = {
+        target: { files: [file] }
+      } as React.ChangeEvent<HTMLInputElement>;
+      handleFileSelect(mockEvent);
     }
   };
   
@@ -1072,13 +1116,34 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
               {!selectedFile ? (
                 <div className="space-y-4">
                   <div 
-                    className="border-2 border-dashed border-border rounded-lg p-4 sm:p-5 text-center hover:border-accent/50 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center"
+                    className={`border-2 border-dashed rounded-lg p-4 sm:p-5 text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center ${
+                      isDragging 
+                        ? 'border-accent bg-accent/10 scale-105' 
+                        : 'border-border hover:border-accent/50 hover:bg-accent/5'
+                    }`}
                     onClick={() => fileInputRef.current?.click()}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                   >
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent/10 rounded-full flex items-center justify-center mb-3">
-                      <Upload className="text-accent h-4 w-4 sm:h-5 sm:w-5" />
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-3 transition-all duration-200 ${
+                      isDragging 
+                        ? 'bg-accent/20 scale-110' 
+                        : 'bg-accent/10'
+                    }`}>
+                      <Upload className={`h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200 ${
+                        isDragging 
+                          ? 'text-accent scale-110 animate-bounce' 
+                          : 'text-accent'
+                      }`} />
                     </div>
-                    <p className="text-secondary-text text-xs sm:text-sm mb-3">Upload a CSV or Excel file having Full Name, Company, and Position/Title columns</p>
+                    <p className="text-secondary-text text-xs sm:text-sm mb-3">
+                      {isDragging 
+                        ? "Drop your file here to upload" 
+                        : "Drag & drop or click to upload a CSV or Excel file having Full Name, Company, and Position/Title columns"
+                      }
+                    </p>
                     <Button
                       type="button"
                       size="sm"
@@ -1183,7 +1248,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       
                       {/* Make the table scrollable horizontally on small screens */}
                       <div className="p-2 max-h-48 overflow-y-auto custom-scrollbar">
-                        <div className="overflow-x-auto -mx-2 px-2">
+                        <div className="overflow-x-auto custom-scrollbar -mx-2 px-2">
                           <table className="min-w-full divide-y divide-border text-xs sm:text-sm">
                             <thead className="bg-background/70">
                               <tr>

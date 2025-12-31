@@ -140,9 +140,9 @@ const Features = () => {
             >
               Get 50 Free Credits
             </Button>
-            <Link href="/demo">
+            <Link href="/">
               <Button variant="outline" className="border-primary/30 hover:bg-primary/10 text-primary text-lg px-8 py-6" size="lg">
-                View Demo
+                How It Works
               </Button>
             </Link>
           </div>
@@ -200,24 +200,50 @@ const Features = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {advancedFeatures.map((feature, index) => (
-              <motion.div
-                key={index}
-                variants={itemVariants}
-                className="bg-card border border-border/50 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300"
-              >
-                <div className="bg-accent/10 p-3 rounded-lg w-fit mb-4">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-heading font-medium text-primary-text mb-3">
-                  {feature.title}
-                </h3>
-                <p className="text-secondary-text">
-                  {feature.description}
-                </p>
-              </motion.div>
-            ))}
+          <div className="space-y-8">
+            {/* First row - 3 cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {advancedFeatures.slice(0, 3).map((feature, index) => (
+                <motion.div
+                  key={index}
+                  variants={itemVariants}
+                  className="bg-card border border-border/50 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300"
+                >
+                  <div className="bg-accent/10 p-3 rounded-lg w-fit mb-4">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-xl font-heading font-medium text-primary-text mb-3">
+                    {feature.title}
+                  </h3>
+                  <p className="text-secondary-text">
+                    {feature.description}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+            
+            {/* Second row - 2 cards centered */}
+            <div className="flex justify-center">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
+                {advancedFeatures.slice(3, 5).map((feature, index) => (
+                  <motion.div
+                    key={index + 3}
+                    variants={itemVariants}
+                    className="bg-card border border-border/50 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300"
+                  >
+                    <div className="bg-accent/10 p-3 rounded-lg w-fit mb-4">
+                      {feature.icon}
+                    </div>
+                    <h3 className="text-xl font-heading font-medium text-primary-text mb-3">
+                      {feature.title}
+                    </h3>
+                    <p className="text-secondary-text">
+                      {feature.description}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </div>
         </motion.section>
 

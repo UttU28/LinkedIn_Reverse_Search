@@ -68,11 +68,30 @@ const HomeAuthForm: React.FC = () => {
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-lg overflow-hidden">
-      <div className="p-4 sm:p-6">
-        <h2 className="text-xl font-heading font-semibold text-primary-text mb-6">
-          {activeTab === 'login' ? 'Log in to your account' : 'Create an account'}
-        </h2>
+    <div className="w-full">
+      {/* Professional Tab Switch */}
+      <div className="flex bg-card-elevated rounded-2xl p-1 mb-8 border border-border-elevated">
+        <button
+          onClick={() => setActiveTab('login')}
+          className={`flex-1 py-3 px-6 rounded-xl text-sm font-medium transition-all duration-200 ${
+            activeTab === 'login'
+              ? 'bg-primary text-white shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Sign In
+        </button>
+        <button
+          onClick={() => setActiveTab('signup')}
+          className={`flex-1 py-3 px-6 rounded-xl text-sm font-medium transition-all duration-200 ${
+            activeTab === 'signup'
+              ? 'bg-primary text-white shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Create Account
+        </button>
+      </div>
         
         <AnimatePresence mode="wait">
           {activeTab === 'login' ? (
@@ -85,65 +104,88 @@ const HomeAuthForm: React.FC = () => {
               exit="exit"
               variants={formVariants}
             >
-              <div className="space-y-2">
-                <Label htmlFor="home-login-email">Email</Label>
+              <div className="space-y-3">
+                <Label htmlFor="home-login-email" className="text-sm font-medium text-foreground">
+                  Email Address
+                </Label>
                 <Input
                   id="home-login-email"
                   type="email"
                   placeholder="Enter your email address"
                   value={loginForm.emailOrUsername}
                   onChange={(e) => setLoginForm({...loginForm, emailOrUsername: e.target.value})}
-                  className={validationErrors.emailOrUsername || validationErrors.auth ? 'border-destructive' : ''}
+                  className={`input-professional ${validationErrors.emailOrUsername || validationErrors.auth ? 'border-destructive focus:border-destructive focus:ring-destructive' : ''}`}
                 />
                 {validationErrors.emailOrUsername && (
-                  <p className="text-sm text-destructive">{validationErrors.emailOrUsername}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.emailOrUsername}</span>
+                  </p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="home-login-password">Password</Label>
+              <div className="space-y-3">
+                <Label htmlFor="home-login-password" className="text-sm font-medium text-foreground">
+                  Password
+                </Label>
                 <Input
                   id="home-login-password"
                   type="password"
                   placeholder="Enter your password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                  className={validationErrors.password || validationErrors.auth ? 'border-destructive' : ''}
+                  className={`input-professional ${validationErrors.password || validationErrors.auth ? 'border-destructive focus:border-destructive focus:ring-destructive' : ''}`}
                 />
                 {validationErrors.password && (
-                  <p className="text-sm text-destructive">{validationErrors.password}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.password}</span>
+                  </p>
                 )}
               </div>
               
               {validationErrors.auth && (
-                <p className="text-sm text-destructive">{validationErrors.auth}</p>
+                <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+                  <p className="text-sm text-destructive flex items-center space-x-2">
+                    <span>⚠️</span>
+                    <span>{validationErrors.auth}</span>
+                  </p>
+                </div>
               )}
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center space-x-3">
                   <Checkbox 
                     id="home-remember-me" 
                     checked={loginForm.rememberMe}
                     onCheckedChange={(checked) => setLoginForm({...loginForm, rememberMe: checked as boolean})}
+                    className="border-border-elevated"
                   />
                   <label 
                     htmlFor="home-remember-me" 
-                    className="text-xs sm:text-sm text-secondary-text cursor-pointer"
+                    className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                   >
                     Remember me
                   </label>
                 </div>
-                <a href="#" className="text-xs sm:text-sm font-medium text-primary hover:text-primary-hover">
+                <a href="#" className="text-sm font-medium text-primary hover:text-primary-hover transition-colors">
                   Forgot password?
                 </a>
               </div>
               
               <Button 
                 type="submit" 
-                className="w-full bg-primary hover:bg-accent-hover text-primary-text font-medium"
+                className="btn-primary w-full text-base py-4 mt-6"
                 disabled={isProcessing}
               >
-                {isProcessing ? 'Logging in...' : 'Login'}
+                {isProcessing ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <span>Signing in...</span>
+                  </div>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </motion.form>
           ) : (
@@ -156,104 +198,113 @@ const HomeAuthForm: React.FC = () => {
               exit="exit"
               variants={formVariants}
             >
-              <div className="space-y-2">
-                <Label htmlFor="home-signup-fullname">Full Name</Label>
+              <div className="space-y-3">
+                <Label htmlFor="home-signup-fullname" className="text-sm font-medium text-foreground">
+                  Full Name
+                </Label>
                 <Input
                   id="home-signup-fullname"
                   type="text"
                   placeholder="Enter your full name"
                   value={signupForm.fullName}
                   onChange={(e) => setSignupForm({...signupForm, fullName: e.target.value})}
-                  className={validationErrors.fullName ? 'border-destructive' : ''}
+                  className={`input-professional ${validationErrors.fullName ? 'border-destructive focus:border-destructive focus:ring-destructive' : ''}`}
                 />
                 {validationErrors.fullName && (
-                  <p className="text-sm text-destructive">{validationErrors.fullName}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.fullName}</span>
+                  </p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="home-signup-email">Email</Label>
+              <div className="space-y-3">
+                <Label htmlFor="home-signup-email" className="text-sm font-medium text-foreground">
+                  Email Address
+                </Label>
                 <Input
                   id="home-signup-email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="Enter your email address"
                   value={signupForm.email}
                   onChange={(e) => setSignupForm({...signupForm, email: e.target.value})}
-                  className={validationErrors.email ? 'border-destructive' : ''}
+                  className={`input-professional ${validationErrors.email ? 'border-destructive focus:border-destructive focus:ring-destructive' : ''}`}
                 />
                 {validationErrors.email && (
-                  <p className="text-sm text-destructive">{validationErrors.email}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.email}</span>
+                  </p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="home-signup-password">Password</Label>
+              <div className="space-y-3">
+                <Label htmlFor="home-signup-password" className="text-sm font-medium text-foreground">
+                  Password
+                </Label>
                 <Input
                   id="home-signup-password"
                   type="password"
-                  placeholder="Create a password (min. 6 characters)"
+                  placeholder="Create a secure password (min. 6 characters)"
                   value={signupForm.password}
                   onChange={(e) => setSignupForm({...signupForm, password: e.target.value})}
-                  className={validationErrors.password ? 'border-destructive' : ''}
+                  className={`input-professional ${validationErrors.password ? 'border-destructive focus:border-destructive focus:ring-destructive' : ''}`}
                 />
                 {validationErrors.password && (
-                  <p className="text-sm text-destructive">{validationErrors.password}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.password}</span>
+                  </p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <div className="flex items-start space-x-2">
+              <div className="space-y-3 pt-2">
+                <div className="flex items-start space-x-3 p-4 bg-card-elevated rounded-xl border border-border-elevated">
                   <Checkbox 
                     id="home-terms-agree" 
                     checked={signupForm.termsAgreed}
                     onCheckedChange={(checked) => setSignupForm({...signupForm, termsAgreed: checked as boolean})}
-                    className={validationErrors.terms ? 'border-destructive' : ''}
+                    className={`border-border-elevated ${validationErrors.terms ? 'border-destructive' : ''}`}
                   />
                   <label 
                     htmlFor="home-terms-agree" 
-                    className="text-xs sm:text-sm text-secondary-text"
+                    className="text-sm text-muted-foreground leading-relaxed"
                   >
-                    I agree to the <a href="#" className="text-primary hover:text-primary-hover">Terms of Service</a> and <a href="#" className="text-primary hover:text-primary-hover">Privacy Policy</a>
+                    I agree to the{' '}
+                    <a href="#" className="text-primary hover:text-primary-hover font-medium transition-colors">
+                      Terms of Service
+                    </a>
+                    {' '}and{' '}
+                    <a href="#" className="text-primary hover:text-primary-hover font-medium transition-colors">
+                      Privacy Policy
+                    </a>
                   </label>
                 </div>
                 {validationErrors.terms && (
-                  <p className="text-sm text-destructive">{validationErrors.terms}</p>
+                  <p className="text-sm text-destructive flex items-center space-x-1">
+                    <span>⚠️</span>
+                    <span>{validationErrors.terms}</span>
+                  </p>
                 )}
               </div>
               
               <Button 
                 type="submit" 
-                className="w-full bg-primary hover:bg-accent-hover text-primary-text font-medium"
+                className="btn-primary w-full text-base py-4 mt-6"
                 disabled={isProcessing}
               >
-                {isProcessing ? 'Creating Account...' : 'Create Account & Continue to Login'}
+                {isProcessing ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <span>Creating Account...</span>
+                  </div>
+                ) : (
+                  'Create Account'
+                )}
               </Button>
             </motion.form>
           )}
         </AnimatePresence>
-      </div>
-      
-      <div className="bg-background/50 px-4 sm:px-6 py-4 text-center">
-        {activeTab === 'login' ? (
-          <p className="text-secondary-text text-sm">
-            New here? <button 
-              onClick={() => setActiveTab('signup')} 
-              className="text-primary hover:text-primary-hover hover:underline font-medium"
-            >
-              Sign up
-            </button>
-          </p>
-        ) : (
-          <p className="text-secondary-text text-sm">
-            Already have an account? <button 
-              onClick={() => setActiveTab('login')} 
-              className="text-primary hover:text-primary-hover hover:underline font-medium"
-            >
-              Log in
-            </button>
-          </p>
-        )}
-      </div>
     </div>
   );
 };

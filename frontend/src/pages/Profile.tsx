@@ -136,11 +136,17 @@ const Profile = () => {
 
   // Calculate credit metrics
   const availableCredits = userData?.linkCredits || 0;
-  const usedCredits = userData?.totalSearched || 0;
   
-  // Calculate usage percentage out of total allocated
-  const totalAllocation = availableCredits + usedCredits;
-  const usedPercent = totalAllocation > 0 ? Math.min(100, Math.round((usedCredits / totalAllocation) * 100)) : 0;
+  // Calculate total credits purchased from all successful transactions
+  const totalCreditsPurchased = paymentHistory
+    .filter(payment => payment.status === 'completed' || payment.status === 'succeeded')
+    .reduce((sum, payment) => sum + (payment.creditsPurchased || 0), 0);
+  
+  // Calculate used credits as difference between total purchased and current available
+  const usedCredits = Math.max(0, totalCreditsPurchased - availableCredits);
+  
+  // Calculate usage percentage out of total purchased
+  const usedPercent = totalCreditsPurchased > 0 ? Math.min(100, Math.round((usedCredits / totalCreditsPurchased) * 100)) : 0;
 
   // Format date for display
   const formatDate = (dateValue: any) => {
@@ -272,7 +278,8 @@ const Profile = () => {
                     <h2 className="text-base font-heading font-medium text-primary-text">Credits Information</h2>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <motion.div 
                       whileHover={{ scale: 1.02 }}
                       transition={{ type: "spring", stiffness: 400, damping: 10 }}
@@ -301,7 +308,7 @@ const Profile = () => {
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
                               <span className="text-sm text-secondary-text mb-1">Used Credits</span>
-                              <span className="text-3xl font-bold text-purple-500">₹ {userData?.totalSearched || 0}</span>
+                              <span className="text-3xl font-bold text-purple-500">₹ {usedCredits}</span>
                             </div>
                             <div className="bg-purple-500/10 p-2 rounded-full">
                               <Clock className="h-5 w-5 text-purple-500" />
@@ -319,8 +326,8 @@ const Profile = () => {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                              <span className="text-sm text-secondary-text mb-1">Profiles Found</span>
-                              <span className="text-3xl font-bold text-green-500">₹ {userData?.totalFound || 0}</span>
+                              <span className="text-sm text-secondary-text mb-1">Total Credits Purchased</span>
+                              <span className="text-3xl font-bold text-green-500">₹ {totalCreditsPurchased || 0}</span>
                             </div>
                             <div className="bg-green-500/10 p-2 rounded-full">
                               <User className="h-5 w-5 text-green-500" />
@@ -329,6 +336,7 @@ const Profile = () => {
                         </CardContent>
                       </Card>
                     </motion.div>
+                    </div>
                   </div>
                   
                   <motion.div 
@@ -340,7 +348,7 @@ const Profile = () => {
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="text-sm font-medium text-primary-text">Credit Usage</h3>
                       <Badge variant="outline" className="bg-background/50">
-                        ₹ {usedCredits} of ₹ {totalAllocation} used
+                        ₹ {usedCredits} of ₹ {totalCreditsPurchased} used
                       </Badge>
                     </div>
                     <Progress value={usedPercent} className="h-2.5 rounded-full" 
