@@ -99,7 +99,7 @@ const FAQ = () => {
     {
       id: 7,
       question: "What is your pricing model?",
-      answer: "We offer a pay-as-you-go credit system rather than recurring subscriptions. You purchase credit packages based on your needs, starting at $10 for 100 credits. Larger packages include bonus credits, offering better value. Your credits never expire, so you only pay for what you use.",
+      answer: "We offer a pay-as-you-go credit system rather than recurring subscriptions. You purchase credit packages based on your needs, starting at $10 for 150 credits. Larger packages include bonus credits, offering better value. Your credits never expire, so you only pay for what you use.",
       category: "billing"
     },
     {

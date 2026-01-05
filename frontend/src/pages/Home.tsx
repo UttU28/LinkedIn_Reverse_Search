@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import HeroSection from '../components/HeroSection';
 import WhatItDoes from '../components/WhatItDoes';
@@ -6,14 +7,34 @@ import WhyUseIt from '../components/WhyUseIt';
 import HowItWorks from '../components/HowItWorks';
 import Footer from '../components/Footer';
 import { useAuth } from '../hooks/useAuth';
+import { useModalStore } from '../store/modalStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from 'wouter';
-import { ArrowRight, Zap, CheckCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, Zap, CheckCircle, Sparkles, X, Award, Star } from 'lucide-react';
 
 const Home: React.FC = () => {
   const { isAuthenticated } = useAuth();
+  const { openModal } = useModalStore();
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    // Check if banner was dismissed
+    const bannerDismissed = localStorage.getItem('freeCreditsBannerDismissed');
+    if (!bannerDismissed && !isAuthenticated) {
+      setShowBanner(true);
+    }
+  }, [isAuthenticated]);
+
+  const handleDismissBanner = () => {
+    setShowBanner(false);
+    localStorage.setItem('freeCreditsBannerDismissed', 'true');
+  };
+
+  const handleGetStarted = () => {
+    openModal('auth');
+  };
   
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -30,6 +51,59 @@ const Home: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col grainy-bg">
       <Navbar />
+      
+      {/* Free Credits Banner for Logged Out Users */}
+      <AnimatePresence>
+        {showBanner && !isAuthenticated && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-20 px-4 sm:px-6 lg:px-8 pt-4"
+          >
+            <div className="max-w-7xl mx-auto">
+              <Card className="bg-gradient-to-r from-primary/20 via-primary/10 to-accent/10 border-primary/30 shadow-lg">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1">
+                      <div className="bg-primary/20 p-2 sm:p-3 rounded-lg">
+                        <Award className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Star className="h-4 w-4 text-primary fill-primary" />
+                          <h3 className="text-base sm:text-lg font-semibold text-primary-text">
+                            Get 50 Free Credits on Signup
+                          </h3>
+                        </div>
+                        <p className="text-sm sm:text-base text-secondary-text">
+                          Start finding LinkedIn profiles instantly. No credit card required.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Button
+                        onClick={handleGetStarted}
+                        className="bg-primary hover:bg-accent-hover text-white text-sm sm:text-base px-4 sm:px-6 py-2 sm:py-2.5 whitespace-nowrap"
+                      >
+                        Get Started
+                      </Button>
+                      <button
+                        onClick={handleDismissBanner}
+                        className="p-1.5 sm:p-2 hover:bg-background/20 rounded-lg transition-colors"
+                        aria-label="Dismiss banner"
+                      >
+                        <X className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-text" />
+                      </button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Top Welcome Section for Authenticated Users */}
       {isAuthenticated && (

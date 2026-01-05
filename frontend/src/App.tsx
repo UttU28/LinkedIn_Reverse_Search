@@ -13,7 +13,6 @@ import Contact from "./pages/Contact";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import PaymentSuccess from "./pages/PaymentSuccess";
-import Marketing from "./pages/Marketing";
 import { Loader2 } from "lucide-react";
 import ScrollToTop from "./components/ScrollToTop";
 
@@ -81,7 +80,6 @@ function App() {
         <Route path="/contact" component={Contact} />
         <Route path="/privacy" component={Privacy} />
         <Route path="/terms" component={Terms} />
-        <Route path="/marketing" component={Marketing} />
         <Route path="/payment-success" component={PaymentSuccess} />
         <Route component={NotFound} />
       </Switch>

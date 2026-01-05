@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, HelpCircle, Zap, Gift, CreditCard, Star, ChevronRight } from 'lucide-react';
+import { Check, HelpCircle, Zap, Award, CreditCard, Star, ChevronRight } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -75,9 +75,9 @@ const Pricing = () => {
       name: "Starter",
       description: "Perfect for testing the waters",
       price: 10,
-      credits: 100,
+      credits: 150,
       popular: false,
-      buttonText: "Buy 100 credit for $10",
+      buttonText: "Buy 150 credit for $10",
       color: "from-purple-500/20 to-indigo-500/20",
       accent: "bg-indigo-500",
       cardChip: "#7c3aed"
@@ -86,10 +86,10 @@ const Pricing = () => {
       name: "Professional",
       description: "Best value for active users",
       price: 25,
-      credits: 250,
-      bonusCredits: 50,
+      credits: 400,
+      bonusCredits: 100,
       popular: true,
-      buttonText: "Buy 300 credit for $25",
+      buttonText: "Buy 500 credit for $25",
       color: "from-primary/20 to-accent/20",
       accent: "bg-primary",
       cardChip: "#3b82f6"
@@ -98,10 +98,10 @@ const Pricing = () => {
       name: "Premium",
       description: "For power users with high volume needs",
       price: 50,
-      credits: 500,
-      bonusCredits: 150,
+      credits: 900,
+      bonusCredits: 200,
       popular: false,
-      buttonText: "Buy 650 credit for $50",
+      buttonText: "Buy 1100 credit for $50",
       color: "from-amber-500/20 to-rose-500/20",
       accent: "bg-amber-500",
       cardChip: "#f59e0b"
@@ -115,7 +115,7 @@ const Pricing = () => {
     },
     {
       question: "How do credits work?",
-      answer: "Each professional profile search consumes one credit. New users receive 50 credits as a signup bonus. You can purchase additional credits at a rate of 10 credits per dollar, with bonus credits on larger packages offering better value."
+      answer: "Each professional profile search consumes one credit. New users receive 50 credits as a signup bonus. You can purchase additional credits starting at 15 credits per dollar (Starter package), with bonus credits on larger packages offering even better value."
     },
     {
       question: "Can I upload my own contact lists?",
@@ -156,11 +156,11 @@ const Pricing = () => {
             Choose the credit package that fits your needs. No hidden fees, no subscriptions.
           </p>
           <div className="flex items-center justify-center mb-3">
-            <Gift className="h-5 w-5 text-primary mr-2" />
-            <p className="text-lg font-semibold text-primary">₹ 50 free credits with every new account!</p>
+            <Award className="h-5 w-5 text-primary mr-2" />
+            <p className="text-lg font-semibold text-primary">50 free credits with every new account!</p>
           </div>
           <p className="text-secondary-text max-w-2xl mx-auto mb-8">
-            Get ₹ 10 credits for every dollar spent, plus bonus credits on larger packages.
+            Get 15 credits for every dollar spent on the Starter package, with bonus credits on larger packages offering even better value.
           </p>
         </motion.div>
 
