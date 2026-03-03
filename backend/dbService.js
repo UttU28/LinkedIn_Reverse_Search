@@ -1,6 +1,20 @@
+const crypto = require('crypto');
 const { db, firebaseInitialized } = require('./firebase');
 const { log } = require('./utils');
 const admin = require('firebase-admin');
+
+/** Normalize name+company for cache key (lowercase, trim, collapse whitespace) */
+function normalizeCacheKey(name, company) {
+  const n = (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const c = (company || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return `${n}|${c}`;
+}
+
+/** Generate Firestore doc ID for contact cache */
+function contactCacheDocId(name, company) {
+  const key = normalizeCacheKey(name, company);
+  return crypto.createHash('sha256').update(key).digest('hex');
+}
 
 /**
  * Database Service
@@ -52,9 +66,10 @@ class DbService {
    * Add a search history entry
    * @param {string} userId - User ID
    * @param {object} historyData - Search history data
+   * @param {object} [options] - { quiet: true } to log at debug level
    * @returns {Promise<string|null>} - History ID or null if failed
    */
-  async addSearchHistory(userId, historyData) {
+  async addSearchHistory(userId, historyData, options = {}) {
     try {
       if (!userId) {
         this.log('Cannot add search history: userId is missing', 'warn');
@@ -81,7 +96,7 @@ class DbService {
         createdAt: timestamp
       });
       
-      this.log(`Added search history entry with ID: ${docRef.id} for user: ${userId}`);
+      this.log(`Added search history entry with ID: ${docRef.id} for user: ${userId}`, options.quiet ? 'debug' : 'info');
       return docRef.id;
     } catch (error) {
       this.logError('Error adding search history', error);
@@ -132,9 +147,10 @@ class DbService {
    * @param {string} historyId - Search history document ID
    * @param {string} searchType - Type of search (single, bulk, recruiters)
    * @param {number} resultsCount - Number of results found (for charging)
+   * @param {object} [options] - { quiet: true } to log at debug level
    * @returns {Promise<object|null>} - Updated user data or null if failed
    */
-  async updateSearchCost(userId, historyId, searchType, resultsCount) {
+  async updateSearchCost(userId, historyId, searchType, resultsCount, options = {}) {
     try {
       if (!userId || !historyId) {
         this.log(`Cannot update search cost: userId or historyId is missing`, 'warn');
@@ -197,8 +213,8 @@ class DbService {
         lastCreditUpdate: new Date()
       });
       
-      this.log(`Deducted ${costCredits} credits from user ${userId}. New balance: ${newLinkCredits}`);
-      
+      this.log(`Deducted ${costCredits} credits from user ${userId}. New balance: ${newLinkCredits}`, options.quiet ? 'debug' : 'info');
+
       return {
         userId,
         previousCredits: currentLinkCredits,
@@ -313,6 +329,57 @@ class DbService {
     } catch (error) {
       this.logError('Error adding search result', error);
       return null;
+    }
+  }
+
+  /**
+   * Look up a contact in the global cache by name + company.
+   * Only returns cached entry if linkedinUrl is present (we don't cache "not found").
+   * @param {string} name - Full name
+   * @param {string} company - Company name
+   * @returns {Promise<{linkedinUrl: string}|null>} - Cached result or null
+   */
+  async getContactFromCache(name, company) {
+    try {
+      if (!this.isAvailable()) return null;
+      const docId = contactCacheDocId(name, company);
+      const docRef = this.db.collection('contactCache').doc(docId);
+      const doc = await docRef.get();
+      if (!doc.exists) return null;
+      const data = doc.data();
+      if (!data || !data.linkedinUrl) return null;
+      this.log(`Contact cache HIT: ${name} at ${company}`, 'debug');
+      return { linkedinUrl: data.linkedinUrl };
+    } catch (error) {
+      this.logError('Error reading contact cache', error);
+      return null;
+    }
+  }
+
+  /**
+   * Store a found contact in the global cache for faster future lookups.
+   * @param {string} name - Full name
+   * @param {string} company - Company name
+   * @param {string} linkedinUrl - LinkedIn profile URL
+   * @returns {Promise<boolean>} - Success status
+   */
+  async addContactToCache(name, company, linkedinUrl) {
+    try {
+      if (!this.isAvailable() || !linkedinUrl) return false;
+      const docId = contactCacheDocId(name, company);
+      const docRef = this.db.collection('contactCache').doc(docId);
+      await docRef.set({
+        name: (name || '').trim(),
+        company: (company || '').trim(),
+        linkedinUrl: linkedinUrl.trim(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, { merge: true });
+      this.log(`Contact cache STORED: ${name} at ${company}`, 'debug');
+      return true;
+    } catch (error) {
+      this.logError('Error writing contact cache', error);
+      return false;
     }
   }
   

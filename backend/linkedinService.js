@@ -13,19 +13,58 @@ const dbService = require('./dbService');
 async function findSingleLinkedinContact(fullName, company, position, userID = null, historyId = null) {
   try {
     log(`Searching for profile: ${fullName} at ${company}`);
-    
+
+    // Check contact cache first for faster fetching (no API/credits used)
+    const cached = await dbService.getContactFromCache(fullName, company);
+    if (cached && cached.linkedinUrl) {
+      log(`Cache hit: ${fullName} at ${company}`, 'debug');
+      let resolvedHistoryId = null;
+      if (userID) {
+        const quiet = { quiet: true };
+        resolvedHistoryId = historyId || await dbService.addSearchHistory(userID, {
+          type: "single",
+          status: "processing",
+          inputMeta: { name: fullName, company: company, position: position },
+          totalRecords: 0,
+          resultRefPath: "searchResults",
+          startedAt: new Date()
+        }, quiet);
+        const resultId = await dbService.addSearchResult(userID, resolvedHistoryId, "single",
+          { name: fullName, company: company, position: position },
+          cached.linkedinUrl
+        );
+        await dbService.updateSearchHistory(userID, resolvedHistoryId, {
+          status: "completed",
+          totalRecords: 1,
+          resultsCount: 1,
+          resultIds: resultId ? [resultId] : [],
+          linkedinUrl: cached.linkedinUrl,
+          completedAt: new Date()
+        });
+        await dbService.updateSearchCost(userID, resolvedHistoryId, "single", 1, quiet);
+      }
+      return {
+        success: true,
+        linkedInUrl: cached.linkedinUrl,
+        message: "LinkedIn profile found (cached)",
+        historyId: resolvedHistoryId,
+        fromCache: true
+      };
+    }
+
     const API_KEY = process.env.GOOGLE_API_KEY;
     const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    
+
     if (!API_KEY || !SEARCH_ENGINE_ID) {
       log("Missing API credentials in environment variables", 'error');
       return {
         success: false,
         linkedInUrl: "",
-        message: "API credentials not configured"
+        message: "API credentials not configured",
+        fromCache: false
       };
     }
-    
+
     // Create history entry if userID is provided but historyId is not
     if (userID && !historyId) {
       historyId = await dbService.addSearchHistory(userID, {
@@ -40,10 +79,10 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
         resultRefPath: "searchResults",
         startedAt: new Date()
       });
-      
+
       log(`Created search history: ${historyId}`, 'debug');
     }
-    
+
     const searchClient = new GoogleCustomSearch(API_KEY, SEARCH_ENGINE_ID);
     
     const searchStrategies = [
@@ -78,10 +117,11 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
         success: false,
         linkedInUrl: "",
         message: "No search results found",
-        historyId
+        historyId,
+        fromCache: false
       };
     }
-    
+
     const essentialData = extractEssentialData(results);
     
     const jsonData = {
@@ -110,12 +150,18 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
         success: false,
         linkedInUrl: "",
         message: "Failed to process search results",
-        historyId
+        historyId,
+        fromCache: false
       };
     }
-    
+
     const linkedInUrl = extractUrlFromResponse(aiResponse);
-    
+
+    // Store in contact cache for faster future lookups (only when we found a profile)
+    if (linkedInUrl) {
+      await dbService.addContactToCache(fullName, company, linkedInUrl);
+    }
+
     // If we have a user ID, save this search result
     if (userID && historyId) {
       // Add search result to database
@@ -130,28 +176,29 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
         },
         linkedInUrl || null
       );
-      
+
       // Update search history with LinkedIn URL included directly for easier access
       await dbService.updateSearchHistory(userID, historyId, {
         status: "completed",
         totalRecords: linkedInUrl ? 1 : 0,
         resultsCount: linkedInUrl ? 1 : 0,
         resultIds: resultId ? [resultId] : [],
-        linkedinUrl: linkedInUrl || null, // Add the LinkedIn URL directly to search history
+        linkedinUrl: linkedInUrl || null,
         completedAt: new Date()
       });
-      
+
       // Only charge if a LinkedIn profile was found
       if (linkedInUrl) {
         await dbService.updateSearchCost(userID, historyId, "single", 1);
       }
     }
-    
+
     return {
       success: !!linkedInUrl,
       linkedInUrl: linkedInUrl || "",
       message: linkedInUrl ? "LinkedIn profile found" : "No LinkedIn profile found",
-      historyId
+      historyId,
+      fromCache: false
     };
   } catch (error) {
     log(`Error finding LinkedIn contact: ${error.message}`, 'error');
@@ -169,7 +216,8 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
       success: false,
       linkedInUrl: "",
       message: `Error finding LinkedIn profile: ${error.message}`,
-      historyId: arguments[4] || null
+      historyId: arguments[4] || null,
+      fromCache: false
     };
   }
 }
@@ -207,7 +255,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
     let successCount = 0;
     let humans = [];
     let results = [];
-    
+
     // Update progress status
     await dbService.updateBatchStatus({
       userID,
@@ -220,15 +268,13 @@ async function processBatchInBackground(contacts, userID, historyId) {
       }
     });
     
-    // Process each contact
     for (const contact of contacts) {
       const { searchName, searchCompany, searchPosition, contactId } = contact;
-      
+
       try {
-        // Search for LinkedIn profile using the core function - don't pass userID & historyId
-        // to avoid creating individual histories for each search
+        // Search for LinkedIn profile (checks cache first, then Google+LLM)
         const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition);
-        
+
         // Create result object
         const processedContact = {
           contactId,
@@ -238,17 +284,11 @@ async function processBatchInBackground(contacts, userID, historyId) {
           linkedinProfileUrl: result.linkedInUrl || "",
           foundData: result.success ? 1 : 0
         };
-        
-        // Add to results array
+
         results.push(processedContact);
-        
-        // Increment counters
         processedCount++;
-        // Only increment successCount if a LinkedIn profile was actually found
-        if (result.success) {
-          successCount++;
-        }
-        
+        if (result.success) successCount++;
+
         // Add search result to database
         const resultId = await dbService.addSearchResult(
           userID, 
@@ -322,7 +362,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
     });
     
     await dbService.updateSearchCost(userID, historyId, "bulk", successCount);
-    
+
     log(`Batch processing completed: ${processedCount}/${contacts.length} processed, ${successCount} successful`, 'info');
     
     // Return in case this is used as a synchronous function in the future
@@ -344,8 +384,6 @@ async function processBatchInBackground(contacts, userID, historyId) {
       error: error.message
     });
     
-    // Only charge for successful LinkedIn profile finds, even on error
-    // This ensures users only pay for actual results, not processing effort
     await dbService.updateSearchCost(userID, historyId, "bulk", successCount || 0);
     
     // Return error info in case this is used as a synchronous function

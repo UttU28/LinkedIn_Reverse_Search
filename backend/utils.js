@@ -191,11 +191,28 @@ function extractEssentialData(results) {
   }));
 }
 
+/** Max retries for rate-limited LLM calls. 1 initial + 3 retries = 4 total attempts per contact. */
+const LLM_MAX_RETRIES = parseInt(process.env.LLM_MAX_RETRIES || '3', 10);
+/** Backoff delays in ms for each retry (2s, 4s, 8s). Override via LLM_RETRY_DELAYS_MS comma-separated. */
+const LLM_RETRY_DELAYS_MS = (() => {
+  const env = process.env.LLM_RETRY_DELAYS_MS;
+  if (!env) return [2000, 4000, 8000];
+  const parsed = env.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+  return parsed.length > 0 ? parsed : [2000, 4000, 8000];
+})();
+
+function isRateLimitOrTransientError(error) {
+  if (!error.response) return false;
+  const status = error.response.status;
+  return status === 429 || status === 500 || status === 503 || status === 502;
+}
+
 /**
  * Internal helper to call Google Gemini API (via Google Generative Language)
  * Respects the same interface as the OpenAI caller.
+ * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors with increasing backoff.
  */
-async function callGemini(jsonData, systemPrompt, userPromptWithData) {
+async function callGemini(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
   // Create a static rate limiter for Gemini requests
   if (!callGemini.rateLimiter) {
     callGemini.rateLimiter = new RateLimiter(
@@ -257,22 +274,22 @@ async function callGemini(jsonData, systemPrompt, userPromptWithData) {
 
     return aiResponse || null;
   } catch (error) {
-    if (error.response && (error.response.status === 429 || error.response.status === 500)) {
-      log(`Gemini API rate limit / transient error: ${error.message}`, 'error');
+    if (isRateLimitOrTransientError(error) && retryCount < LLM_MAX_RETRIES) {
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] || LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1];
+      log(`Gemini API rate limit / transient error (retry ${retryCount + 1}/${LLM_MAX_RETRIES}): ${error.message}`, 'warn');
       callGemini.rateLimiter.recordError();
+      log(`Backing off Gemini API for ${Math.round(delayMs / 1000)}s before retry...`, 'warn');
 
-      const backoffMs = Math.min(
-        1000 * Math.pow(2, callGemini.rateLimiter.consecutiveErrors),
-        60000
-      );
-      log(`Backing off Gemini API for ${Math.round(backoffMs / 1000)}s before retry`, 'warn');
+      await new Promise(resolve => setTimeout(resolve, delayMs));
 
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-
-      return callGemini(jsonData, systemPrompt, userPromptWithData);
+      return callGemini(jsonData, systemPrompt, userPromptWithData, retryCount + 1);
     }
 
-    log(`Gemini API error: ${error.message}`, 'error');
+    if (isRateLimitOrTransientError(error)) {
+      log(`Gemini API: exhausted ${LLM_MAX_RETRIES} retries after rate limit. Last error: ${error.message}`, 'error');
+    } else {
+      log(`Gemini API error: ${error.message}`, 'error');
+    }
     return null;
   }
 }
@@ -280,55 +297,53 @@ async function callGemini(jsonData, systemPrompt, userPromptWithData) {
 /**
  * Call LLM (OpenAI or Gemini) to analyze search results with rate limiting.
  * The provider is selected via USE_LLM_MODEL env: "openai" (default) or "gemini".
+ * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
  */
-async function callOpenAI(jsonData, systemPrompt, userPrompt) {
+async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
+  // New logic to handle nested placeholders like {json_input.googleSearchResults}
+  let userPromptWithData = userPrompt;
+
+  if (userPromptWithData.includes("{json_input}")) {
+    userPromptWithData = userPromptWithData.replace("{json_input}", JSON.stringify(jsonData, null, 2));
+  }
+
+  const nestedPlaceholderRegex = /\{json_input\.([^}]+)\}/g;
+  const matches = userPromptWithData.match(nestedPlaceholderRegex);
+
+  if (matches) {
+    matches.forEach(match => {
+      const propertyPath = match.slice(12, -1);
+      if (jsonData && jsonData[propertyPath] !== undefined) {
+        userPromptWithData = userPromptWithData.replace(match, jsonData[propertyPath]);
+      } else {
+        log(`Property ${propertyPath} not found in jsonData`, 'warn');
+      }
+    });
+  }
+
+  const provider = USE_LLM_MODEL === 'gemini' ? 'gemini' : 'openai';
+
+  if (provider === 'gemini') {
+    return await callGemini(jsonData, systemPrompt, userPromptWithData);
+  }
+
   try {
-    // New logic to handle nested placeholders like {json_input.googleSearchResults}
-    let userPromptWithData = userPrompt;
-    
-    // Replace simple {json_input} placeholder
-    if (userPromptWithData.includes("{json_input}")) {
-      userPromptWithData = userPromptWithData.replace("{json_input}", JSON.stringify(jsonData, null, 2));
-    }
-    
-    // Replace nested placeholders like {json_input.googleSearchResults}
-    const nestedPlaceholderRegex = /\{json_input\.([^}]+)\}/g;
-    const matches = userPromptWithData.match(nestedPlaceholderRegex);
-    
-    if (matches) {
-      matches.forEach(match => {
-        const propertyPath = match.slice(12, -1); // Extract property path without {json_input. and }
-        if (jsonData && jsonData[propertyPath] !== undefined) {
-          userPromptWithData = userPromptWithData.replace(match, jsonData[propertyPath]);
-        } else {
-          log(`Property ${propertyPath} not found in jsonData`, 'warn');
-        }
-      });
-    }
-
-    const provider = USE_LLM_MODEL === 'gemini' ? 'gemini' : 'openai';
-
-    if (provider === 'gemini') {
-      return await callGemini(jsonData, systemPrompt, userPromptWithData);
-    }
-
     if (!callOpenAI.rateLimiter) {
       callOpenAI.rateLimiter = new RateLimiter(
         parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
         'OpenAI'
       );
     }
-    
+
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    
+
     if (!OPENAI_API_KEY) {
       log("OpenAI API key not found in environment variables", 'error');
       return null;
     }
-    
-    // Acquire a token from the rate limiter before making the request
+
     await callOpenAI.rateLimiter.acquire();
-    
+
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -349,40 +364,34 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
         }
       }
     );
-    
-    // Record successful request
+
     callOpenAI.rateLimiter.recordSuccess();
-    
-    const aiResponse = response.data.choices[0].message.content;
-    return aiResponse;
+    return response.data.choices[0].message.content;
   } catch (error) {
-    // Check if this is a rate limit error
-    if (error.response && (error.response.status === 429 || 
-        error.response.status === 500 || 
-        (error.response.data && error.response.data.error && 
-         error.response.data.error.type === 'rate_limit_exceeded'))) {
-      log(`OpenAI API error / rate limit: ${error.message}`, 'error');
+    const isRetryable = error.response && (
+      error.response.status === 429 ||
+      error.response.status === 500 ||
+      error.response.status === 503 ||
+      error.response.status === 502 ||
+      (error.response.data && error.response.data.error &&
+       error.response.data.error.type === 'rate_limit_exceeded')
+    );
 
-      if (!callOpenAI.rateLimiter) {
-        callOpenAI.rateLimiter = new RateLimiter(
-          parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
-          'OpenAI'
-        );
-      }
-
+    if (isRetryable && retryCount < LLM_MAX_RETRIES) {
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] || LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1];
+      log(`OpenAI API rate limit / transient error (retry ${retryCount + 1}/${LLM_MAX_RETRIES}): ${error.message}`, 'warn');
       callOpenAI.rateLimiter.recordError();
-      
-      // Wait with exponential backoff before retrying
-      const backoffMs = Math.min(1000 * Math.pow(2, callOpenAI.rateLimiter.consecutiveErrors), 60000);
-      log(`Backing off OpenAI API for ${Math.round(backoffMs/1000)}s before retry`, 'warn');
-      
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-      
-      // Retry the request
-      return callOpenAI(jsonData, systemPrompt, userPrompt);
+      log(`Backing off OpenAI API for ${Math.round(delayMs / 1000)}s before retry...`, 'warn');
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return callOpenAI(jsonData, systemPrompt, userPrompt, retryCount + 1);
     }
-    
-    log(`OpenAI API error: ${error.message}`, 'error');
+
+    if (isRetryable) {
+      log(`OpenAI API: exhausted ${LLM_MAX_RETRIES} retries after rate limit. Last error: ${error.message}`, 'error');
+    } else {
+      log(`OpenAI API error: ${error.message}`, 'error');
+    }
     return null;
   }
 }
