@@ -3,6 +3,9 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+// Which LLM provider to use: "openai" (default) or "gemini"
+const USE_LLM_MODEL = (process.env.USE_LLM_MODEL || 'openai').toLowerCase();
+
 /**
  * Standardized logging function with log levels
  * @param {string} message - Message to log
@@ -131,7 +134,6 @@ class GoogleCustomSearch {
 
   async search(query, num = 10) {
     try {
-      // Acquire a token from the rate limiter before making the request
       await this.rateLimiter.acquire();
       
       const response = await axios.get(this.baseUrl, {
@@ -143,11 +145,9 @@ class GoogleCustomSearch {
         }
       });
       
-      // Record successful request
       this.rateLimiter.recordSuccess();
       return response.data.items || [];
     } catch (error) {
-      // Check if this is a rate limit error (HTTP 429 or quota exceeded)
       if (error.response && (error.response.status === 429 || 
           (error.response.data && error.response.data.error && 
            error.response.data.error.message && 
@@ -155,17 +155,26 @@ class GoogleCustomSearch {
         log(`Google Search API rate limit exceeded: ${error.message}`, 'error');
         this.rateLimiter.recordError();
         
-        // Wait with exponential backoff before retrying
         await new Promise(resolve => setTimeout(
           resolve, 
           Math.min(1000 * Math.pow(2, this.rateLimiter.consecutiveErrors), 60000)
         ));
         
-        // Retry the request
         return this.search(query, num);
       }
       
-      log(`Google Search error: ${error.message}`, 'error');
+      if (error.response) {
+        log(
+          `Google Search error: ${error.message} (status: ${error.response.status} ${error.response.statusText || ''})`,
+          'error'
+        );
+        if (error.response.data) {
+          const body = JSON.stringify(error.response.data);
+          log(`Google Search response body: ${body.slice(0, 1000)}`, 'error');
+        }
+      } else {
+        log(`Google Search error: ${error.message}`, 'error');
+      }
       return [];
     }
   }
@@ -183,25 +192,97 @@ function extractEssentialData(results) {
 }
 
 /**
- * Call OpenAI API to analyze search results with rate limiting
+ * Internal helper to call Google Gemini API (via Google Generative Language)
+ * Respects the same interface as the OpenAI caller.
  */
-async function callOpenAI(jsonData, systemPrompt, userPrompt) {
-  // Create a static rate limiter for OpenAI requests
-  if (!callOpenAI.rateLimiter) {
-    callOpenAI.rateLimiter = new RateLimiter(
-      parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
-      'OpenAI'
+async function callGemini(jsonData, systemPrompt, userPromptWithData) {
+  // Create a static rate limiter for Gemini requests
+  if (!callGemini.rateLimiter) {
+    callGemini.rateLimiter = new RateLimiter(
+      parseInt(
+        process.env.GEMINI_REQUESTS_PER_MINUTE ||
+        process.env.OPENAI_REQUESTS_PER_MINUTE ||
+        30
+      ),
+      'Gemini'
     );
   }
-  
+
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    log("Gemini API key (GEMINI_API_KEY) not found in environment variables", 'error');
+    return null;
+  }
+
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+
   try {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    
-    if (!OPENAI_API_KEY) {
-      log("OpenAI API key not found in environment variables", 'error');
+    await callGemini.rateLimiter.acquire();
+
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemPrompt}\n\n${userPromptWithData}` }]
+          }
+        ]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    callGemini.rateLimiter.recordSuccess();
+
+    const candidates = response.data && response.data.candidates;
+    if (!candidates || !candidates.length) {
+      log('Gemini response did not contain any candidates', 'warn');
       return null;
     }
-    
+
+    const parts = candidates[0].content && candidates[0].content.parts;
+    if (!parts || !parts.length) {
+      log('Gemini response candidate did not contain any parts', 'warn');
+      return null;
+    }
+
+    const aiResponse = parts
+      .map(part => part.text || '')
+      .join('\n')
+      .trim();
+
+    return aiResponse || null;
+  } catch (error) {
+    if (error.response && (error.response.status === 429 || error.response.status === 500)) {
+      log(`Gemini API rate limit / transient error: ${error.message}`, 'error');
+      callGemini.rateLimiter.recordError();
+
+      const backoffMs = Math.min(
+        1000 * Math.pow(2, callGemini.rateLimiter.consecutiveErrors),
+        60000
+      );
+      log(`Backing off Gemini API for ${Math.round(backoffMs / 1000)}s before retry`, 'warn');
+
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+
+      return callGemini(jsonData, systemPrompt, userPromptWithData);
+    }
+
+    log(`Gemini API error: ${error.message}`, 'error');
+    return null;
+  }
+}
+
+/**
+ * Call LLM (OpenAI or Gemini) to analyze search results with rate limiting.
+ * The provider is selected via USE_LLM_MODEL env: "openai" (default) or "gemini".
+ */
+async function callOpenAI(jsonData, systemPrompt, userPrompt) {
+  try {
     // New logic to handle nested placeholders like {json_input.googleSearchResults}
     let userPromptWithData = userPrompt;
     
@@ -215,17 +296,34 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
     const matches = userPromptWithData.match(nestedPlaceholderRegex);
     
     if (matches) {
-      log(`Found nested placeholders: ${matches.join(', ')}`, 'debug');
       matches.forEach(match => {
         const propertyPath = match.slice(12, -1); // Extract property path without {json_input. and }
-        log(`Replacing placeholder ${match} with property ${propertyPath}`, 'debug');
         if (jsonData && jsonData[propertyPath] !== undefined) {
           userPromptWithData = userPromptWithData.replace(match, jsonData[propertyPath]);
-          log(`Placeholder replaced successfully`, 'debug');
         } else {
           log(`Property ${propertyPath} not found in jsonData`, 'warn');
         }
       });
+    }
+
+    const provider = USE_LLM_MODEL === 'gemini' ? 'gemini' : 'openai';
+
+    if (provider === 'gemini') {
+      return await callGemini(jsonData, systemPrompt, userPromptWithData);
+    }
+
+    if (!callOpenAI.rateLimiter) {
+      callOpenAI.rateLimiter = new RateLimiter(
+        parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
+        'OpenAI'
+      );
+    }
+    
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    
+    if (!OPENAI_API_KEY) {
+      log("OpenAI API key not found in environment variables", 'error');
+      return null;
     }
     
     // Acquire a token from the rate limiter before making the request
@@ -263,7 +361,15 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
         error.response.status === 500 || 
         (error.response.data && error.response.data.error && 
          error.response.data.error.type === 'rate_limit_exceeded'))) {
-      log(`OpenAI API rate limit exceeded: ${error.message}`, 'error');
+      log(`OpenAI API error / rate limit: ${error.message}`, 'error');
+
+      if (!callOpenAI.rateLimiter) {
+        callOpenAI.rateLimiter = new RateLimiter(
+          parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
+          'OpenAI'
+        );
+      }
+
       callOpenAI.rateLimiter.recordError();
       
       // Wait with exponential backoff before retrying
@@ -306,6 +412,7 @@ module.exports = {
   RateLimiter,
   GoogleCustomSearch,
   extractEssentialData,
+  callGemini,
   callOpenAI,
   extractUrlFromResponse
 }; 
