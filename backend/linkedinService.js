@@ -253,6 +253,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
     // Initialize counters
     let processedCount = 0;
     let successCount = 0;
+    let fromCacheCount = 0;
     let humans = [];
     let results = [];
 
@@ -287,7 +288,10 @@ async function processBatchInBackground(contacts, userID, historyId) {
 
         results.push(processedContact);
         processedCount++;
-        if (result.success) successCount++;
+        if (result.success) {
+          successCount++;
+          if (result.fromCache) fromCacheCount++;
+        }
 
         // Add search result to database
         const resultId = await dbService.addSearchResult(
@@ -363,7 +367,8 @@ async function processBatchInBackground(contacts, userID, historyId) {
     
     await dbService.updateSearchCost(userID, historyId, "bulk", successCount);
 
-    log(`Batch processing completed: ${processedCount}/${contacts.length} processed, ${successCount} successful`, 'info');
+    const newlyCached = successCount - fromCacheCount;
+    log(`Batch completed: ${processedCount} contacts, ${successCount} profiles found (${fromCacheCount} from cache, ${newlyCached} newly cached)`, 'info');
     
     // Return in case this is used as a synchronous function in the future
     return {
