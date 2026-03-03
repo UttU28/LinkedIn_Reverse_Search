@@ -88,20 +88,18 @@ class RateLimiter {
   }
 
   _calculateWaitTime() {
-    // Base wait time - time until we have one token
-    const baseWait = (1 - this.tokens) / this.refillRate;
-    
-    // Add jitter - random value between 0 and 1
+    const baseWait = Math.max(0, (1 - this.tokens) / this.refillRate);
     const jitter = Math.random();
-    
-    // Calculate exponential backoff factor based on consecutive error count
-    // 1, 2, 4, 8, 16, etc. up to a maximum
-    const backoffFactor = this.consecutiveErrors > 0 
-      ? Math.min(Math.pow(2, this.consecutiveErrors - 1), 16) 
+    const backoffFactor = this.consecutiveErrors > 0
+      ? Math.min(Math.pow(2, this.consecutiveErrors - 1), 16)
       : 1;
-    
-    // Apply exponential backoff and jitter
-    return Math.ceil(baseWait * backoffFactor * (1 + jitter * 0.5));
+    let waitMs = Math.ceil(baseWait * backoffFactor * (1 + jitter * 0.5));
+    // Enforce minimum 2s when we've had API errors (rate limit), so we actually slow down
+    const MIN_WAIT_MS = 2000;
+    if (this.consecutiveErrors > 0 && waitMs < MIN_WAIT_MS) {
+      waitMs = MIN_WAIT_MS + Math.floor(Math.random() * 1000);
+    }
+    return waitMs;
   }
 
   // Track errors for exponential backoff
@@ -202,9 +200,12 @@ const LLM_RETRY_DELAYS_MS = (() => {
 })();
 
 function isRateLimitOrTransientError(error) {
-  if (!error.response) return false;
-  const status = error.response.status;
-  return status === 429 || status === 500 || status === 503 || status === 502;
+  if (error.response) {
+    const status = error.response.status;
+    if (status === 429 || status === 500 || status === 503 || status === 502) return true;
+  }
+  const msg = (error.message || '').toLowerCase();
+  return /429|rate limit|resource exhausted|quota|too many requests/i.test(msg);
 }
 
 /**
@@ -255,6 +256,22 @@ async function callGemini(jsonData, systemPrompt, userPromptWithData, retryCount
 
     callGemini.rateLimiter.recordSuccess();
 
+    // Check for rate-limit/error in 200 response body (Gemini may return error in body)
+    const err = response.data && response.data.error;
+    if (err) {
+      const code = err.code;
+      const statusStr = (err.status || '').toUpperCase();
+      const msg = (err.message || '').toLowerCase();
+      const isRateLimit = code === 429 ||
+        statusStr === 'RESOURCE_EXHAUSTED' ||
+        /resource exhausted|rate limit|quota|exhausted/i.test(msg);
+      if (isRateLimit) {
+        const e = new Error(err.message || 'Rate limit (from response body)');
+        e.response = { status: 429, data: err };
+        throw e;
+      }
+    }
+
     const candidates = response.data && response.data.candidates;
     if (!candidates || !candidates.length) {
       log('Gemini response did not contain any candidates', 'warn');
@@ -275,13 +292,14 @@ async function callGemini(jsonData, systemPrompt, userPromptWithData, retryCount
     return aiResponse || null;
   } catch (error) {
     if (isRateLimitOrTransientError(error) && retryCount < LLM_MAX_RETRIES) {
-      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] || LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1];
-      log(`Gemini API rate limit / transient error (retry ${retryCount + 1}/${LLM_MAX_RETRIES}): ${error.message}`, 'warn');
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] ?? LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1] ?? 2000;
+      const delaySec = Math.round(delayMs / 1000);
+      log(`Gemini API rate limit (retry ${retryCount + 1}/${LLM_MAX_RETRIES}). Sleeping ${delaySec}s before retry...`, 'warn');
       callGemini.rateLimiter.recordError();
-      log(`Backing off Gemini API for ${Math.round(delayMs / 1000)}s before retry...`, 'warn');
 
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
 
+      log(`Gemini retry ${retryCount + 1} after ${delaySec}s wait`, 'info');
       return callGemini(jsonData, systemPrompt, userPromptWithData, retryCount + 1);
     }
 
@@ -378,12 +396,14 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
     );
 
     if (isRetryable && retryCount < LLM_MAX_RETRIES) {
-      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] || LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1];
-      log(`OpenAI API rate limit / transient error (retry ${retryCount + 1}/${LLM_MAX_RETRIES}): ${error.message}`, 'warn');
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] ?? LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1] ?? 2000;
+      const delaySec = Math.round(delayMs / 1000);
+      log(`OpenAI API rate limit (retry ${retryCount + 1}/${LLM_MAX_RETRIES}). Sleeping ${delaySec}s before retry...`, 'warn');
       callOpenAI.rateLimiter.recordError();
-      log(`Backing off OpenAI API for ${Math.round(delayMs / 1000)}s before retry...`, 'warn');
 
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      log(`OpenAI retry ${retryCount + 1} after ${delaySec}s wait`, 'info');
       return callOpenAI(jsonData, systemPrompt, userPrompt, retryCount + 1);
     }
 
