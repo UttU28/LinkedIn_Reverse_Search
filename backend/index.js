@@ -5,6 +5,7 @@ require('dotenv').config();
 const { firebaseInitialized } = require('./firebase');
 const { findSingleLinkedinContact, startBatchProcessing } = require('./linkedinService');
 const { findRecruitersAtCompany } = require('./leadGenerator');
+const { findSingleCompanySite, findBulkCompanySites } = require('./companyWebsiteService');
 
 const dbService = require('./dbService');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -879,6 +880,99 @@ app.post('/findTargetedLeads', async (req, res) => {
   }
 });
 
+// Find single company website route
+app.post('/companyWebsiteSingle', async (req, res) => {
+  const { userID, companyName } = req.body;
+
+  log(`[COMPANY SITE SINGLE] ${companyName}`, 'info');
+
+  try {
+    const result = await findSingleCompanySite(companyName, userID || null);
+
+    return res.json({
+      success: result.success,
+      message: result.message,
+      websiteUrl: result.websiteUrl || '',
+      fromCache: !!result.fromCache,
+      historyId: result.historyId || null
+    });
+  } catch (error) {
+    log(`Error in /companyWebsiteSingle: ${error.message}`, 'error');
+    return res.status(500).json({
+      success: false,
+      message: `Error: ${error.message}`
+    });
+  }
+});
+
+// Bulk company websites route
+app.post('/companyWebsiteBulk', async (req, res) => {
+  const { userID, companies, fileName } = req.body;
+
+  log(
+    `[COMPANY SITE BULK] ${Array.isArray(companies) ? companies.length : 0} companies from ${
+      fileName || 'unknown file'
+    }`,
+    'info'
+  );
+
+  try {
+    const result = await findBulkCompanySites(companies || [], userID || null, fileName || null);
+
+    return res.json({
+      success: result.success,
+      message: result.message,
+      historyId: result.historyId || null,
+      results: result.results || []
+    });
+  } catch (error) {
+    log(`Error in /companyWebsiteBulk: ${error.message}`, 'error');
+    return res.status(500).json({
+      success: false,
+      message: `Error: ${error.message}`,
+      historyId: null,
+      results: []
+    });
+  }
+});
+
+// Get company website results for a bulk history
+app.post('/company-sites-results', async (req, res) => {
+  const { historyId } = req.body;
+
+  if (!historyId) {
+    return res.status(400).json({
+      success: false,
+      message: 'historyId is required'
+    });
+  }
+
+  log(`[COMPANY SITES RESULTS] Fetching results for historyId ${historyId}`, 'info');
+
+  try {
+    const results = await dbService.getCompanySiteResultsByHistoryId(historyId);
+
+    if (!results || results.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No company site results found'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: results,
+      count: results.length
+    });
+  } catch (error) {
+    log(`Error fetching company site results: ${error.message}`, 'error');
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch company site results'
+    });
+  }
+});
+
 // Get search results by IDs for download
 app.post('/search-results', async (req, res) => {
   const { resultIds } = req.body;
@@ -942,6 +1036,8 @@ app.listen(PORT, async () => {
   log(`- POST /findBatchContact`);
   log(`- POST /findTargetedLeads`);
   log(`- POST /search-results`);
+  log(`- POST /companyWebsiteSingle`);
+  log(`- POST /companyWebsiteBulk`);
 
   // Cleanup interrupted searches on startup (with timeout)
   try {

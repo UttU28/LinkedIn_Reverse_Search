@@ -16,6 +16,17 @@ function contactCacheDocId(name, company) {
   return crypto.createHash('sha256').update(key).digest('hex');
 }
 
+/** Normalize company name for site cache key */
+function normalizeCompanyKey(company) {
+  return (company || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Generate Firestore doc ID for company site cache */
+function companyCacheDocId(company) {
+  const key = normalizeCompanyKey(company);
+  return crypto.createHash('sha256').update(key).digest('hex');
+}
+
 /**
  * Database Service
  * Centralizes all database operations for the application
@@ -333,6 +344,57 @@ class DbService {
   }
 
   /**
+   * Look up a company website in the global cache by company name.
+   * Only returns cached entry if websiteUrl is present.
+   * @param {string} company - Company name
+   * @returns {Promise<{websiteUrl: string}|null>} - Cached result or null
+   */
+  async getCompanySiteFromCache(company) {
+    try {
+      if (!this.isAvailable()) return null;
+      const docId = companyCacheDocId(company);
+      const docRef = this.db.collection('companySitesCache').doc(docId);
+      const doc = await docRef.get();
+      if (!doc.exists) return null;
+      const data = doc.data();
+      if (!data || !data.websiteUrl) return null;
+      this.log(`Company site cache HIT: ${company}`, 'debug');
+      return { websiteUrl: data.websiteUrl };
+    } catch (error) {
+      this.logError('Error reading company site cache', error);
+      return null;
+    }
+  }
+
+  /**
+   * Store a found company website in the global cache.
+   * @param {string} company - Company name
+   * @param {string} websiteUrl - Official website URL
+   * @returns {Promise<boolean>} - Success status
+   */
+  async addCompanySiteToCache(company, websiteUrl) {
+    try {
+      if (!this.isAvailable() || !websiteUrl) return false;
+      const docId = companyCacheDocId(company);
+      const docRef = this.db.collection('companySitesCache').doc(docId);
+      await docRef.set(
+        {
+          company: (company || '').trim(),
+          websiteUrl: websiteUrl.trim(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        { merge: true }
+      );
+      this.log(`Company site cache STORED: ${company}`, 'debug');
+      return true;
+    } catch (error) {
+      this.logError('Error writing company site cache', error);
+      return false;
+    }
+  }
+
+  /**
    * Look up a contact in the global cache by name + company.
    * Only returns cached entry if linkedinUrl is present (we don't cache "not found").
    * @param {string} name - Full name
@@ -380,6 +442,62 @@ class DbService {
     } catch (error) {
       this.logError('Error writing contact cache', error);
       return false;
+    }
+  }
+  
+  /**
+   * Store a company website result row for a bulk search.
+   * @param {string} userId
+   * @param {string} historyId
+   * @param {string} companyName
+   * @param {string} websiteUrl
+   * @param {boolean} fromCache
+   */
+  async addCompanySiteResult(userId, historyId, companyName, websiteUrl, fromCache) {
+    try {
+      if (!this.isAvailable() || !historyId || !websiteUrl) return null;
+      const resultsRef = this.db.collection('companySitesResults');
+      const docRef = await resultsRef.add({
+        userId: userId || null,
+        historyId,
+        companyName: (companyName || '').trim(),
+        websiteUrl: websiteUrl.trim(),
+        fromCache: !!fromCache,
+        createdAt: new Date()
+      });
+      this.log(`Added company site result with ID: ${docRef.id} for history: ${historyId}`, 'debug');
+      return docRef.id;
+    } catch (error) {
+      this.logError('Error adding company site result', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch company website results for a given historyId.
+   * @param {string} historyId
+   * @returns {Promise<Array<{companyName: string, websiteUrl: string, fromCache: boolean}>>}
+   */
+  async getCompanySiteResultsByHistoryId(historyId) {
+    try {
+      if (!this.isAvailable() || !historyId) return [];
+      const resultsRef = this.db.collection('companySitesResults');
+      const snapshot = await resultsRef.where('historyId', '==', historyId).get();
+      if (snapshot.empty) return [];
+      const items = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        items.push({
+          id: doc.id,
+          companyName: data.companyName || '',
+          websiteUrl: data.websiteUrl || '',
+          fromCache: !!data.fromCache
+        });
+      });
+      return items;
+    } catch (error) {
+      this.logError('Error fetching company site results by historyId', error);
+      return [];
     }
   }
   
@@ -626,6 +744,27 @@ class DbService {
           } catch (resultError) {
             this.log(`Error retrieving search result for history ${doc.id}: ${resultError.message}`, 'warn');
             // Continue processing other history items even if this one fails
+          }
+        }
+
+        // For company website single searches, if websiteUrl is missing,
+        // try to backfill it from the company site cache and persist it.
+        if (historyItem.type === 'companySitesSingle' &&
+            (!historyItem.websiteUrl || historyItem.websiteUrl === '') &&
+            historyItem.inputMeta?.company) {
+          try {
+            const companyName = historyItem.inputMeta.company;
+            const cachedSite = await this.getCompanySiteFromCache(companyName);
+            if (cachedSite && cachedSite.websiteUrl) {
+              historyItem.websiteUrl = cachedSite.websiteUrl;
+              if (this.isAvailable()) {
+                await searchHistoryRef.doc(doc.id).update({
+                  websiteUrl: cachedSite.websiteUrl
+                });
+              }
+            }
+          } catch (cacheError) {
+            this.log(`Error backfilling company website for history ${doc.id}: ${cacheError.message}`, 'warn');
           }
         }
         

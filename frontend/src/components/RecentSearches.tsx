@@ -3,15 +3,15 @@ import { useSearchStore } from '../store/searchStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Button } from './ui/button';
-import { 
-  History, 
-  ExternalLink, 
-  Search, 
-  Users, 
-  Link as LinkIcon, 
-  Filter, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  History,
+  ExternalLink,
+  Search,
+  Users,
+  Link as LinkIcon,
+  Filter,
+  ChevronDown,
+  ChevronUp,
   Clock,
   CheckCircle,
   XCircle,
@@ -19,7 +19,8 @@ import {
   FileSpreadsheet,
   FileText,
   Download,
-  Linkedin
+  Linkedin,
+  Globe2
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fetchSearchHistory, SearchHistoryResult, searchHistoryEvents } from '../lib/searchService';
@@ -28,6 +29,7 @@ import { Badge } from './ui/badge';
 import { useToast } from '../hooks/use-toast';
 import { exportToExcel, SearchInfo } from '../utils/excelExporter';
 import { exportToCSV } from '../utils/csvExporter';
+import { exportCompanySitesToExcel, exportCompanySitesToCSV, CompanySitesSearchInfo } from '../utils/companySitesExporter';
 
 // Define a unified search result interface for display
 interface UnifiedSearchResult {
@@ -85,8 +87,8 @@ const RecentSearches: React.FC = () => {
 
   // Generic handler for file downloads
   const handleDownload = async (
-    e: React.MouseEvent, 
-    searchResult: UnifiedSearchResult, 
+    e: React.MouseEvent,
+    searchResult: UnifiedSearchResult,
     type: 'excel' | 'csv'
   ) => {
     e.stopPropagation(); // Prevent card click event from firing
@@ -94,7 +96,10 @@ const RecentSearches: React.FC = () => {
     // Close the menu
     setExpandedDownloadMenu(null);
     
-    if (!searchResult.originalData?.resultIds?.length) {
+    if (
+      searchResult.type !== 'companySitesBulk' &&
+      !searchResult.originalData?.resultIds?.length
+    ) {
       toast({
         title: "No data to download",
         description: "This search doesn't have any result IDs to download.",
@@ -106,44 +111,55 @@ const RecentSearches: React.FC = () => {
     try {
       setDownloadLoading({id: searchResult.id, type});
       
-      // Prepare search info for the exporter
-      const searchInfo: SearchInfo = {
-        id: searchResult.id,
-        title: searchResult.title,
-        timestamp: searchResult.timestamp,
-        resultIds: searchResult.originalData.resultIds
-      };
-      
       // Progress callback for toast notifications
-      const onProgress = (stage: 'fetching' | 'creating' | 'complete' | 'error', count?: number) => {
+      const onProgress = (
+        stage: 'fetching' | 'creating' | 'complete' | 'error',
+        count?: number
+      ) => {
         if (stage === 'fetching') {
           toast({
             title: `Preparing ${type.toUpperCase()} download`,
-            description: "Fetching data from database...",
-            variant: "default"
+            description: 'Fetching data from database...',
+            variant: 'default'
           });
-        } 
-        // Removed 'creating' toast to avoid duplicate notifications
-        else if (stage === 'complete' && count) {
+        } else if (stage === 'complete' && count) {
           toast({
-            title: "Download complete",
+            title: 'Download complete',
             description: `Successfully downloaded ${count} records as ${type.toUpperCase()} file.`,
-            variant: "default"
+            variant: 'default'
           });
         } else if (stage === 'error') {
           toast({
-            title: "Download failed",
+            title: 'Download failed',
             description: `There was a problem downloading the ${type.toUpperCase()} file.`,
-            variant: "destructive"
+            variant: 'destructive'
           });
         }
       };
-      
-      // Call the appropriate export function with progress updates
-      if (type === 'excel') {
-        await exportToExcel(searchInfo, onProgress);
+
+      if (searchResult.type === 'companySitesBulk') {
+        const companySearchInfo: CompanySitesSearchInfo = {
+          id: searchResult.id,
+          title: searchResult.title,
+          timestamp: searchResult.timestamp
+        };
+        if (type === 'excel') {
+          await exportCompanySitesToExcel(companySearchInfo, onProgress);
+        } else {
+          await exportCompanySitesToCSV(companySearchInfo, onProgress);
+        }
       } else {
-        await exportToCSV(searchInfo, onProgress);
+        const searchInfo: SearchInfo = {
+          id: searchResult.id,
+          title: searchResult.title,
+          timestamp: searchResult.timestamp,
+          resultIds: searchResult.originalData.resultIds
+        };
+        if (type === 'excel') {
+          await exportToExcel(searchInfo, onProgress);
+        } else {
+          await exportToCSV(searchInfo, onProgress);
+        }
       }
     } catch (error) {
       console.error(`Error downloading ${type} file:`, error);
@@ -214,10 +230,23 @@ const RecentSearches: React.FC = () => {
                 subtitle = `${item.totalRecords || 0} leads found`;
                 icon = <Filter className="h-4 w-4" />;
                 break;
+              
+              case 'companySitesBulk':
+                title = item.inputMeta?.fileName || 'Company Website Search';
+                subtitle = `${item.totalRecords || 0} companies`;
+                icon = <Globe2 className="h-4 w-4" />;
+                break;
+
+              case 'companySitesSingle':
+                title = item.inputMeta?.company || 'Company Search';
+                subtitle = 'Company Search';
+                icon = <Globe2 className="h-4 w-4" />;
+                url = item.websiteUrl || undefined;
+                break;
                 
               default:
                 title = `Search: ${item.id}`;
-                subtitle = `Type: ${item.type}`;
+                subtitle = '';
             }
             
             unifiedResults.push({
@@ -334,8 +363,14 @@ const RecentSearches: React.FC = () => {
 
   // Update the rendered button section
   const renderDownloadButton = (search: UnifiedSearchResult) => {
-    // Show download button for 'bulk', 'team', or 'recruiters' type searches that have resultIds
-    if ((search.type !== 'bulk' && search.type !== 'team' && search.type !== 'recruiters') || !search.originalData?.resultIds?.length) return null;
+    // Show download button for:
+    // - 'bulk', 'team', 'recruiters' with resultIds
+    // - 'companySitesBulk' (uses separate exporter)
+    const isStandardBulk =
+      (search.type === 'bulk' || search.type === 'team' || search.type === 'recruiters') &&
+      search.originalData?.resultIds?.length;
+    const isCompanySitesBulk = search.type === 'companySitesBulk';
+    if (!isStandardBulk && !isCompanySitesBulk) return null;
     
     return (
       <div className="relative ml-2" onClick={(e) => e.stopPropagation()}>
@@ -386,41 +421,54 @@ const RecentSearches: React.FC = () => {
     );
   };
 
-  // Add LinkedIn icon component
-  const renderLinkedInIcon = (search: UnifiedSearchResult) => {
-    // Only show for single searches
-    if (search.type !== 'single') return null;
-    
-    // Check multiple possible locations for LinkedIn URL
-    const linkedInUrl = 
-      search.url || 
-      (search.originalData?.linkedinUrl) ||  // First check for direct linkedinUrl in search history
-      (search.originalData?.inputMeta?.linkedin) ||
-      (search.originalData?.linkedin) || 
-      (search.originalData?.linkedInUrl) || 
-      (search.originalData?.linkedinProfileUrl);
-    
-    const hasLinkedIn = !!linkedInUrl;
-    
+  // Add link icon component (LinkedIn for profiles, globe for company website searches)
+  const renderLinkIcon = (search: UnifiedSearchResult) => {
+    if (search.type !== 'single' && search.type !== 'companySitesSingle') return null;
+
+    let href: string | undefined;
+    let title = '';
+    let iconEl: JSX.Element;
+
+    if (search.type === 'single') {
+      const linkedInUrl =
+        search.url ||
+        search.originalData?.linkedinUrl ||
+        search.originalData?.inputMeta?.linkedin ||
+        search.originalData?.linkedin ||
+        search.originalData?.linkedInUrl ||
+        search.originalData?.linkedinProfileUrl;
+
+      href = linkedInUrl;
+      title = linkedInUrl ? 'View LinkedIn Profile' : 'No LinkedIn Profile Found';
+      iconEl = <Linkedin className="h-5 w-5" />;
+    } else {
+      const websiteUrl = search.url || search.originalData?.websiteUrl;
+      href = websiteUrl;
+      title = websiteUrl ? 'Open Company Website' : 'No Company Website Found';
+      iconEl = <Globe2 className="h-5 w-5" />;
+    }
+
+    const hasUrl = !!href;
+
     return (
       <div className="ml-2" onClick={(e) => e.stopPropagation()}>
-        <a 
-          href={hasLinkedIn ? linkedInUrl : '#'} 
-          target="_blank" 
+        <a
+          href={hasUrl ? href : '#'}
+          target="_blank"
           rel="noopener noreferrer"
           className={`inline-flex p-1.5 rounded-full transition-colors ${
-            hasLinkedIn 
-              ? 'text-[#0A66C2] hover:bg-[#0A66C2]/10 cursor-pointer' 
+            hasUrl
+              ? 'text-primary hover:bg-primary/10 cursor-pointer'
               : 'text-gray-400/50 cursor-not-allowed'
           }`}
           onClick={(e) => {
-            if (!hasLinkedIn) {
+            if (!hasUrl) {
               e.preventDefault();
             }
           }}
-          title={hasLinkedIn ? "View LinkedIn Profile" : "No LinkedIn Profile Found"}
+          title={title}
         >
-          <Linkedin className="h-5 w-5" />
+          {iconEl}
         </a>
       </div>
     );
@@ -521,8 +569,8 @@ const RecentSearches: React.FC = () => {
                   <div className="min-w-0 flex items-center">
                     <span className="font-medium text-base truncate block">{search.title}</span>
                     
-                    {/* LinkedIn Icon */}
-                    {renderLinkedInIcon(search)}
+                    {/* Link Icon (LinkedIn or Website) */}
+                    {renderLinkIcon(search)}
                     
                     {/* Add download button if resultIds are available */}
                     {renderDownloadButton(search)}

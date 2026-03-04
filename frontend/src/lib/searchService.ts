@@ -24,7 +24,7 @@ export const searchHistoryEvents = new SearchHistoryEventEmitter();
 // Define interface for typed data
 export interface SearchHistoryResult {
   id: string;
-  type: 'single' | 'bulk' | 'recruiters' | 'team';
+  type: 'single' | 'bulk' | 'recruiters' | 'team' | 'companySitesSingle' | 'companySitesBulk';
   status: string;
   inputMeta?: {
     name?: string;
@@ -37,6 +37,7 @@ export interface SearchHistoryResult {
   resultRefPath?: string;
   resultIds?: string[];
   linkedinUrl?: string | null;
+  websiteUrl?: string | null;
   createdAt: Date;
   completedAt?: Date;
 }
@@ -94,13 +95,14 @@ export const fetchSearchHistory = async (userId: string) => {
           
           return {
             id: item.id || item._id || '',
-            type: item.type || 'single',
+            type: (item.type || 'single') as SearchHistoryResult['type'],
             status: item.status || 'pending',
             inputMeta: item.inputMeta || {},
             totalRecords: item.totalRecords || 0,
             resultRefPath: item.resultRefPath || '',
             resultIds: item.resultIds || [],
             linkedinUrl: item.linkedinUrl || null,
+            websiteUrl: item.websiteUrl || null,
             createdAt,
             completedAt
           } as SearchHistoryResult;

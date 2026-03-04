@@ -58,6 +58,38 @@ interface TargetedLeadsParams {
   leadDocId: string;
 }
 
+interface CompanyWebsiteSingleParams {
+  userID: string;
+  companyName: string;
+}
+
+interface CompanyWebsiteSingleResponse {
+  success: boolean;
+  message: string;
+  websiteUrl: string;
+  fromCache: boolean;
+  historyId?: string | null;
+}
+
+interface CompanyWebsiteBulkParams {
+  userID: string;
+  companies: string[];
+  fileName?: string;
+}
+
+interface CompanyWebsiteBulkResult {
+  companyName: string;
+  websiteUrl: string;
+  fromCache: boolean;
+}
+
+interface CompanyWebsiteBulkResponse {
+  success: boolean;
+  message: string;
+  historyId?: string | null;
+  results: CompanyWebsiteBulkResult[];
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
 
 /**
@@ -259,6 +291,78 @@ export const findTargetedLeads = async (params: TargetedLeadsParams): Promise<an
     return result;
   } catch (error) {
     console.error('Targeted leads error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Service for finding a single company website
+ */
+export const findSingleCompanyWebsite = async (
+  params: CompanyWebsiteSingleParams
+): Promise<CompanyWebsiteSingleResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/companyWebsiteSingle`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    });
+
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+
+    const raw = await response.json();
+    return {
+      success: !!raw.success,
+      message: raw.message || '',
+      websiteUrl: raw.websiteUrl || '',
+      fromCache: !!raw.fromCache,
+      historyId: raw.historyId ?? null
+    };
+  } catch (error) {
+    console.error('Company website single error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Service for finding company websites in bulk
+ */
+export const findBulkCompanyWebsites = async (
+  params: CompanyWebsiteBulkParams
+): Promise<CompanyWebsiteBulkResponse> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/companyWebsiteBulk`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(params)
+    });
+
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+
+    const raw = await response.json();
+
+    return {
+      success: !!raw.success,
+      message: raw.message || '',
+      historyId: raw.historyId ?? null,
+      results: Array.isArray(raw.results)
+        ? raw.results.map((r: any) => ({
+            companyName: r.companyName || '',
+            websiteUrl: r.websiteUrl || '',
+            fromCache: !!r.fromCache
+          }))
+        : []
+    };
+  } catch (error) {
+    console.error('Company website bulk error:', error);
     throw error;
   }
 };

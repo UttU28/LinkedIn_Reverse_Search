@@ -1,28 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { useToast } from '../hooks/use-toast';
 import {
   Search,
   Users,
-  Filter,
-  UserCheck,
-  Clock
+  Clock,
+  Building2
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { Card, CardContent } from '../components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import SearchCard from '../components/SearchCard';
 import LeadSearchForm from '../components/LeadSearchForm';
 import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
 import RecentSearches from '../components/RecentSearches';
+import CompanySearchCard from '../components/CompanySearchCard';
 
 const Dashboard: React.FC = () => {
   const { userData, refreshCredits } = useAuthStore();
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch' | 'companyFinder'>('profile');
   const hasRefreshedCredits = useRef(false);
   
   useEffect(() => {
@@ -61,10 +57,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleContentSwitch = (value: string) => {
-    setActiveTab(value as 'profile' | 'leadSearch');
-  };
-  
   const handleLeadSearchComplete = (results: LeadResult[]) => {
     setLeadResults(results);
     setShowLeadResults(true);
@@ -104,7 +96,9 @@ const Dashboard: React.FC = () => {
               <p className="text-xl text-muted-foreground max-w-2xl">
                 {activeTab === 'profile'
                   ? "Ready to discover LinkedIn profiles with AI precision"
-                  : "Find targeted professionals for your networking goals"}
+                  : activeTab === 'leadSearch'
+                    ? "Find targeted professionals for your networking goals"
+                    : "Upload company lists to prepare for website discovery"}
               </p>
             </div>
           </div>
@@ -134,6 +128,18 @@ const Dashboard: React.FC = () => {
               <Users className="h-5 w-5" />
               <span className="hidden sm:inline">Lead Generator</span>
               <span className="sm:hidden">Leads</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('companyFinder')}
+              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+                activeTab === 'companyFinder'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <Building2 className="h-5 w-5" />
+              <span className="hidden sm:inline">Company Finding</span>
+              <span className="sm:hidden">Companies</span>
             </button>
           </div>
         </motion.section>
@@ -187,6 +193,31 @@ const Dashboard: React.FC = () => {
                   onSearchComplete={handleLeadSearchComplete}
                   onSearchStart={handleLeadSearchStart}
                 />
+              </div>
+            </motion.section>
+          ) : activeTab === 'companyFinder' ? (
+            <motion.section
+              key="company-finder"
+              className="mb-16"
+              variants={itemVariants}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <div className="glass-card rounded-3xl border border-border-elevated shadow-xl p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl border border-primary/20">
+                    <Building2 className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground">Company Finding</h2>
+                    <p className="text-muted-foreground">
+                      Upload company lists and verify the Company column before processing
+                    </p>
+                  </div>
+                </div>
+                <CompanySearchCard />
               </div>
             </motion.section>
           ) : null}
