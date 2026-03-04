@@ -314,7 +314,7 @@ async function processBatchInBackground(contacts, userID, historyId) {
         // Log progress and update database only every 10 contacts or at end
         if (processedCount % 10 === 0 || processedCount === contacts.length) {
           log(`Progress: ${processedCount}/${contacts.length} contacts, found ${successCount} profiles`, 'info');
-          
+
           // Periodic database update
           await dbService.updateBatchStatus({
             userID,
@@ -327,10 +327,10 @@ async function processBatchInBackground(contacts, userID, historyId) {
             }
           });
         }
+
       } catch (contactError) {
         log(`Error processing contact ${searchName}: ${contactError.message}`, 'error');
-        
-        // Add to results array with error
+
         results.push({
           contactId,
           searchName,
@@ -340,9 +340,14 @@ async function processBatchInBackground(contacts, userID, historyId) {
           foundData: 0,
           error: contactError.message
         });
-        
-        // Increment processed counter but not success counter
+
         processedCount++;
+      }
+
+      // Pause 60s after every 60 contacts to help avoid rate limits
+      if (processedCount % 60 === 0 && processedCount < contacts.length) {
+        log(`Pausing 60s after ${processedCount} contacts...`, 'info');
+        await new Promise((resolve) => setTimeout(resolve, 60000));
       }
     }
     
