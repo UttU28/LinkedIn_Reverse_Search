@@ -122,7 +122,7 @@ const LeadSearchForm: React.FC<LeadSearchFormProps> = ({
       console.error('Error fetching leads:', error);
       toast({
         title: "Search failed",
-        description: "There was a problem processing your search",
+        description: error instanceof Error ? error.message : "There was a problem processing your search",
         variant: "destructive"
       });
     } finally {

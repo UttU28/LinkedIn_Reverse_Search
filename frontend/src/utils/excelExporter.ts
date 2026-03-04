@@ -7,6 +7,7 @@ export interface SearchResultData {
   company?: string;
   title?: string;
   linkedin?: string;
+  website?: string;
   createdAt?: Date;
   [key: string]: any;
 }
@@ -59,6 +60,7 @@ export const fetchSearchResultData = async (resultIds: string[]): Promise<Search
       company: item.company || '',
       title: item.title || '',
       linkedin: item.linkedin || '',
+      website: item.website || '',
       createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
     }));
     
@@ -97,11 +99,12 @@ export const exportToExcel = async (
     // Create a workbook
     const wb = XLSX.utils.book_new();
     
-    // Define the headers and fields to include in the Excel file
-    const headers = ['Full Name', 'Company', 'Position', 'LinkedIn'];
+    // Define the headers and fields to include in the Excel file (Full Name, Company, Website, Position, LinkedIn)
+    const headers = ['Full Name', 'Company', 'Website', 'Position', 'LinkedIn'];
     const fieldMap = {
       'Full Name': 'name',
       'Company': 'company',
+      'Website': 'website',
       'Position': 'title',
       'LinkedIn': 'linkedin'
     };
@@ -131,6 +134,7 @@ export const exportToExcel = async (
     const colWidths = [
       { wch: 25 }, // Full Name
       { wch: 25 }, // Company
+      { wch: 35 }, // Website
       { wch: 25 }, // Position
       { wch: 40 }  // LinkedIn
     ];

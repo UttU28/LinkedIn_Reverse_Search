@@ -6,6 +6,7 @@ interface SearchParams {
   searchName: string;
   searchCompany: string;
   searchPosition: string;
+  includeCompanyLinks?: boolean;
 }
 
 interface SearchResponse {
@@ -17,6 +18,7 @@ interface SearchResponse {
     searchCompany: string;
     searchPosition: string;
     linkedinProfileUrl?: string;
+    companyUrl?: string;
     foundData: number;
   };
 }
@@ -31,6 +33,7 @@ interface BatchContactsParams {
     searchCompany: string;
     searchPosition: string;
   }>;
+  includeCompanyLinks?: boolean;
 }
 
 interface BatchResponse {
@@ -126,6 +129,7 @@ export const findSingleContact = async (params: SearchParams): Promise<SearchRes
           searchCompany: params.searchCompany,
           searchPosition: params.searchPosition,
           linkedinProfileUrl: rawResult.linkedInUrl || '',
+          companyUrl: rawResult.companyUrl || '',
           foundData: rawResult.success ? 1 : 0
         }
       };
@@ -236,11 +240,10 @@ export const findTargetedLeads = async (params: TargetedLeadsParams): Promise<an
       body: JSON.stringify(params),
     });
     
+    const rawResult = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      throw new Error((rawResult as { message?: string }).message || 'Insufficient credits or request failed');
     }
-    
-    const rawResult = await response.json();
     console.log('Targeted leads raw response:', rawResult);
     
     // Standardize the response format to match what frontend components expect
@@ -310,11 +313,10 @@ export const findSingleCompanyWebsite = async (
       body: JSON.stringify(params)
     });
 
+    const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      throw new Error((raw as { message?: string }).message || 'Insufficient credits or request failed');
     }
-
-    const raw = await response.json();
     return {
       success: !!raw.success,
       message: raw.message || '',
@@ -343,11 +345,10 @@ export const findBulkCompanyWebsites = async (
       body: JSON.stringify(params)
     });
 
+    const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      throw new Error((raw as { message?: string }).message || 'Insufficient credits or request failed');
     }
-
-    const raw = await response.json();
 
     return {
       success: !!raw.success,

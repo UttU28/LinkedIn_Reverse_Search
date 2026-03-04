@@ -293,9 +293,10 @@ class DbService {
    * @param {string} type - Search type (single, bulk, etc.)
    * @param {object} searchData - Search data (name, company, position)
    * @param {string|null} linkedinUrl - LinkedIn profile URL or null if not found
+   * @param {string|null} [companyUrl] - Company website URL or null (when includeCompanyLinks was used)
    * @returns {Promise<string|null>} - Result ID or null if failed
    */
-  async addSearchResult(userId, historyId, type, searchData, linkedinUrl) {
+  async addSearchResult(userId, historyId, type, searchData, linkedinUrl, companyUrl = null) {
     try {
       if (!this.isAvailable()) {
         this.log('Firestore not available - skipping search result storage', 'warn');
@@ -335,6 +336,7 @@ class DbService {
           title: inputTitle
         },
         linkedinUrl: linkedinUrl || null,
+        companyUrl: companyUrl || null,
         createdAt: new Date()
       };
       
@@ -600,6 +602,27 @@ class DbService {
       return null;
     }
   }
+
+  /**
+   * Update user preference (e.g. includeCompanyLinks for profile search).
+   * @param {string} userId - User ID
+   * @param {object} preference - { includeCompanyLinks?: boolean }
+   * @returns {Promise<boolean>}
+   */
+  async updateUserPreference(userId, preference) {
+    try {
+      if (!this.isAvailable() || !userId) return false;
+      const userRef = this.db.collection('users').doc(userId);
+      await userRef.set(
+        { ...preference, lastPreferenceUpdate: new Date() },
+        { merge: true }
+      );
+      return true;
+    } catch (error) {
+      this.logError('Error updating user preference', error);
+      return false;
+    }
+  }
   
   /**
    * Create a new user
@@ -829,6 +852,7 @@ class DbService {
               company: inputData.company || '',
               title: inputData.position || inputData.title || '',
               linkedin: data.linkedinUrl || data.linkedin || inputData.linkedin || '',
+              website: data.companyUrl || data.website || inputData.website || '',
               createdAt: data.createdAt || null,
               type: data.type || 'unknown'
             };

@@ -9,14 +9,15 @@ import { fetchSearchResultData, SearchInfo, SearchResultData } from './excelExpo
 export const convertToCSV = (data: SearchResultData[]): string => {
   if (data.length === 0) return '';
   
-  // Define headers with friendly names
-  const headers = ['Full Name', 'Company', 'Position', 'LinkedIn'];
+  // Define headers with friendly names (Full Name, Company, Website, Position, LinkedIn)
+  const headers = ['Full Name', 'Company', 'Website', 'Position', 'LinkedIn'];
   
   // Map to actual data fields
   const fieldMap = {
     'Full Name': 'name',
     'Company': 'company',
-    'Position': 'title', // 'title' from excelExporter will contain either the title or position field
+    'Website': 'website',
+    'Position': 'title',
     'LinkedIn': 'linkedin'
   };
   

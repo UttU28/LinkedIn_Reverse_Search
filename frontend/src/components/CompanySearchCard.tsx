@@ -31,7 +31,8 @@ const CompanySearchCard: React.FC = () => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { user } = useAuthStore();
+  const { user, userData } = useAuthStore();
+  const credits = userData?.linkCredits ?? 0;
 
   const [singleCompany, setSingleCompany] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -213,6 +214,17 @@ const CompanySearchCard: React.FC = () => {
     };
   };
 
+  const getUniqueCompanyCount = () => {
+    if (!parsedData.length || !validation.detectedCompanyHeader) return 0;
+    const header = validation.detectedCompanyHeader;
+    const seen = new Set<string>();
+    parsedData.forEach((row) => {
+      const name = (row[header] || '').toString().trim();
+      if (name) seen.add(name.toLowerCase());
+    });
+    return seen.size;
+  };
+
   useEffect(() => {
     if (!parsedData.length) {
       setValidation({
@@ -233,13 +245,28 @@ const CompanySearchCard: React.FC = () => {
         variant: 'destructive'
       });
     } else if (nextValidation.detectedCompanyHeader) {
-      toast({
-        title: 'File ready',
-        description: `Detected company column: "${nextValidation.detectedCompanyHeader}".`,
-        variant: 'default'
+      const header = nextValidation.detectedCompanyHeader;
+      const seen = new Set<string>();
+      parsedData.forEach((row) => {
+        const name = (row[header] || '').toString().trim();
+        if (name) seen.add(name.toLowerCase());
       });
+      const uniqueCount = seen.size;
+      if (uniqueCount > 0 && credits < uniqueCount) {
+        toast({
+          title: 'Insufficient credits for this file',
+          description: `You need ₹ ${uniqueCount} credits for ${uniqueCount} companies but have ₹ ${credits}. Please purchase more credits.`,
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'File ready',
+          description: `Detected company column: "${nextValidation.detectedCompanyHeader}".${uniqueCount > 0 && credits >= uniqueCount ? ` You have ₹ ${credits} credits for ${uniqueCount} companies.` : ''}`,
+          variant: 'default'
+        });
+      }
     }
-  }, [parsedData, toast]);
+  }, [parsedData, toast, credits]);
 
   const handleSingleProcessClick = async () => {
     if (!singleCompany.trim()) {
@@ -256,6 +283,15 @@ const CompanySearchCard: React.FC = () => {
       toast({
         title: 'Sign in required',
         description: 'Please sign in again to search for company websites.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (credits < 1) {
+      toast({
+        title: 'Insufficient credits',
+        description: "You don't have enough credits. Please purchase credits to search for company websites.",
         variant: 'destructive'
       });
       return;
@@ -298,7 +334,7 @@ const CompanySearchCard: React.FC = () => {
       console.error('Single company website error:', error);
       toast({
         title: 'Search failed',
-        description: 'There was a problem finding the company website.',
+        description: error instanceof Error ? error.message : 'There was a problem finding the company website.',
         variant: 'destructive'
       });
     } finally {
@@ -357,7 +393,7 @@ const CompanySearchCard: React.FC = () => {
             <Button
               type="button"
               className="bg-primary hover:bg-accent-hover h-10 sm:h-11 px-4 sm:px-6 flex-shrink-0"
-              disabled={!singleCompany.trim() || isProcessingSingle}
+              disabled={!singleCompany.trim() || isProcessingSingle || credits < 1}
               onClick={handleSingleProcessClick}
             >
               {isProcessingSingle ? (
@@ -605,7 +641,12 @@ const CompanySearchCard: React.FC = () => {
           <Button
             type="button"
             className="bg-primary hover:bg-accent-hover w-full h-10 sm:h-11"
-            disabled={!selectedFile || !validation.isValid || isProcessingBulk}
+            disabled={
+              !selectedFile ||
+              !validation.isValid ||
+              isProcessingBulk ||
+              (getUniqueCompanyCount() > 0 && credits < getUniqueCompanyCount())
+            }
             onClick={async () => {
               if (!selectedFile || !validation.isValid || !validation.detectedCompanyHeader) {
                 return;
@@ -621,32 +662,40 @@ const CompanySearchCard: React.FC = () => {
                 return;
               }
 
+              const header = validation.detectedCompanyHeader;
+              const companiesRaw = parsedData
+                .map((row) => (row[header] || '').toString().trim())
+                .filter((name) => name.length > 0);
+
+              if (!companiesRaw.length) {
+                toast({
+                  title: 'No companies found',
+                  description: 'We could not read any company names from the selected column.',
+                  variant: 'destructive'
+                });
+                return;
+              }
+
+              const seen = new Map<string, string>();
+              companiesRaw.forEach((name) => {
+                const key = name.toLowerCase();
+                if (!seen.has(key)) {
+                  seen.set(key, name);
+                }
+              });
+              const uniqueCompanies = Array.from(seen.values());
+
+              if (credits < uniqueCompanies.length) {
+                toast({
+                  title: 'Insufficient credits',
+                  description: `You need ₹ ${uniqueCompanies.length} credits for ${uniqueCompanies.length} companies but have ₹ ${credits}. Please purchase more credits.`,
+                  variant: 'destructive'
+                });
+                return;
+              }
+
               try {
                 setIsProcessingBulk(true);
-
-                const header = validation.detectedCompanyHeader;
-                const companiesRaw = parsedData
-                  .map((row) => (row[header] || '').toString().trim())
-                  .filter((name) => name.length > 0);
-
-                if (!companiesRaw.length) {
-                  toast({
-                    title: 'No companies found',
-                    description: 'We could not read any company names from the selected column.',
-                    variant: 'destructive'
-                  });
-                  return;
-                }
-
-                // De-duplicate client-side before sending to backend
-                const seen = new Map<string, string>();
-                companiesRaw.forEach((name) => {
-                  const key = name.toLowerCase();
-                  if (!seen.has(key)) {
-                    seen.set(key, name);
-                  }
-                });
-                const uniqueCompanies = Array.from(seen.values());
 
                 const response = await findBulkCompanyWebsites({
                   userID: userId,
@@ -671,7 +720,7 @@ const CompanySearchCard: React.FC = () => {
                 console.error('Bulk company website error:', error);
                 toast({
                   title: 'Bulk processing failed',
-                  description: 'There was a problem processing the company list.',
+                  description: error instanceof Error ? error.message : 'There was a problem processing the company list.',
                   variant: 'destructive'
                 });
               } finally {

@@ -32,6 +32,7 @@ export interface SearchHistoryResult {
     position?: string;
     fileName?: string;
     companyUrl?: string;
+    includeCompanyLinks?: boolean;
   };
   totalRecords: number;
   resultRefPath?: string;

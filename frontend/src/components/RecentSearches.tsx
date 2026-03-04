@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
@@ -43,6 +43,7 @@ interface UnifiedSearchResult {
   icon: JSX.Element;
   resultIds?: string[]; // Use resultIds property name to match database
   originalData?: any; // Store the full original data
+  includeCompanyLinks?: boolean;
 }
 
 // Interface for search result data
@@ -56,7 +57,6 @@ interface SearchResultData {
 }
 
 const RecentSearches: React.FC = () => {
-  const { recentSearches } = useSearchStore();
   const { user, userData, loading: authLoading } = useAuthStore();
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +68,11 @@ const RecentSearches: React.FC = () => {
   
   // Number of items to show initially
   const initialCount = 5;
+
+  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLoadRef = useRef<number>(0);
+  const DEBOUNCE_MS = 800;
+  const MIN_INTERVAL_MS = 2000;
 
   // Handle click on search card
   const handleCardClick = (searchResult: UnifiedSearchResult) => {
@@ -206,14 +211,21 @@ const RecentSearches: React.FC = () => {
             let subtitle = '';
             let url = undefined;
             let icon = <Search className="h-4 w-4" />;
+            const includeCompanyLinks = !!item.inputMeta?.includeCompanyLinks;
             
             switch (item.type) {
               case 'single':
                 title = item.inputMeta?.name || 'Unknown Person';
-                subtitle = [
-                  item.inputMeta?.company || '',
-                  item.inputMeta?.position || ''
-                ].filter(Boolean).join(' • ');
+                {
+                  const pieces = [
+                    item.inputMeta?.company || '',
+                    item.inputMeta?.position || ''
+                  ].filter(Boolean);
+                  if (includeCompanyLinks || item.websiteUrl) {
+                    pieces.push('Website');
+                  }
+                  subtitle = pieces.join(' • ');
+                }
                 icon = <Search className="h-4 w-4" />;
                 // For single searches, include the direct linkedinUrl if available
                 url = item.linkedinUrl || undefined;
@@ -258,6 +270,7 @@ const RecentSearches: React.FC = () => {
               timestamp: item.createdAt.getTime(),
               url,
               icon,
+              includeCompanyLinks,
               resultIds: item.resultIds || [], // Include resultIds directly
               originalData: item // Store the full original data
             });
@@ -267,8 +280,9 @@ const RecentSearches: React.FC = () => {
         });
       }
       
-      // Process recent searches from store (in-memory)
-      recentSearches.forEach(search => {
+      // Process recent searches from store (in-memory) - read fresh to avoid dependency churn
+      const fromStore = useSearchStore.getState().recentSearches;
+      fromStore.forEach(search => {
         unifiedResults.push({
           id: search.id,
           type: 'single',
@@ -291,45 +305,50 @@ const RecentSearches: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, recentSearches]);
+  }, [user?.uid]);
+
+  const loadRef = useRef(loadSearchHistory);
+  loadRef.current = loadSearchHistory;
+
+  const scheduledLoad = useCallback(() => {
+    if (!user?.uid) return;
+    const now = Date.now();
+    if (loadTimeoutRef.current) {
+      clearTimeout(loadTimeoutRef.current);
+      loadTimeoutRef.current = null;
+    }
+    const elapsed = now - lastLoadRef.current;
+    const isFirstLoad = lastLoadRef.current === 0;
+    if (isFirstLoad || elapsed >= MIN_INTERVAL_MS) {
+      lastLoadRef.current = now;
+      loadRef.current();
+      return;
+    }
+    loadTimeoutRef.current = setTimeout(() => {
+      loadTimeoutRef.current = null;
+      lastLoadRef.current = Date.now();
+      loadRef.current();
+    }, DEBOUNCE_MS);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (authLoading) return;
     if (user?.uid) {
-      loadSearchHistory();
+      scheduledLoad();
       const unsubscribe = searchHistoryEvents.subscribe(() => {
-        loadSearchHistory();
+        scheduledLoad();
       });
-      
       return () => {
         unsubscribe();
+        if (loadTimeoutRef.current) {
+          clearTimeout(loadTimeoutRef.current);
+          loadTimeoutRef.current = null;
+        }
       };
     } else {
       setLoading(false);
     }
-  }, [user?.uid, loadSearchHistory, authLoading]);
-
-  // Polling effect for processing searches
-  useEffect(() => {
-    if (!user?.uid || authLoading) return;
-    
-    // Check if there are any processing searches
-    const hasProcessingSearches = searchResults.some(search => 
-      search.status === 'pending' || search.status === 'processing'
-    );
-    
-    if (!hasProcessingSearches) return;
-    
-    // Set up polling every 5 seconds for processing searches
-    const pollInterval = setInterval(() => {
-      console.log('Polling for search status updates...');
-      loadSearchHistory();
-    }, 5000); // Poll every 5 seconds for faster updates
-    
-    return () => {
-      clearInterval(pollInterval);
-    };
-  }, [user?.uid, authLoading, searchResults, loadSearchHistory]);
+  }, [user?.uid, scheduledLoad, authLoading]);
 
   // Format time ago string with status prefix
   const formatTimeAgo = (timestamp: number, status: string): string => {
@@ -568,6 +587,11 @@ const RecentSearches: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex items-center">
                     <span className="font-medium text-base truncate block">{search.title}</span>
+                    {search.includeCompanyLinks && (
+                      <Badge variant="outline" className="ml-2 text-[0.7rem] px-1.5 py-0">
+                        + URLs
+                      </Badge>
+                    )}
                     
                     {/* Link Icon (LinkedIn or Website) */}
                     {renderLinkIcon(search)}

@@ -118,6 +118,7 @@ export interface UserData {
   linkCredits: number;
   totalSearched: number;
   totalFound: number;
+  includeCompanyLinks?: boolean;
 }
 
 export { 

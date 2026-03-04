@@ -392,13 +392,14 @@ app.get('/refresh-credits/:userId', async (req, res) => {
     
     const userData = userDoc.data();
     
-    // Return the latest credit information
+    // Return the latest credit information and preference
     return res.status(200).json({
       success: true,
       data: {
         userId: userId,
         linkCredits: userData.linkCredits || 0,
-        lastCreditUpdate: userData.lastCreditUpdate?.toDate() || null
+        lastCreditUpdate: userData.lastCreditUpdate?.toDate() || null,
+        includeCompanyLinks: !!userData.includeCompanyLinks
       }
     });
   } catch (error) {
@@ -408,6 +409,27 @@ app.get('/refresh-credits/:userId', async (req, res) => {
       message: 'Error refreshing user credits', 
       error: error.message 
     });
+  }
+});
+
+// Update user preference (e.g. includeCompanyLinks) - persisted in DB
+app.patch('/user-preference/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { includeCompanyLinks } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+    const updated = await dbService.updateUserPreference(userId, {
+      includeCompanyLinks: !!includeCompanyLinks
+    });
+    if (!updated) {
+      return res.status(500).json({ success: false, message: 'Failed to update preference' });
+    }
+    return res.status(200).json({ success: true, includeCompanyLinks: !!includeCompanyLinks });
+  } catch (error) {
+    log('Error updating user preference:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -772,31 +794,40 @@ app.post('/updateCredits', async (req, res) => {
 
 // Find single contact route
 app.post('/findSingleContact', async (req, res) => {
-  const { userID, searchName, searchCompany, searchPosition } = req.body;
+  const { userID, searchName, searchCompany, searchPosition, includeCompanyLinks } = req.body;
   
-  log(`[SINGLE CONTACT] ${searchName} at ${searchCompany}`, 'info');
+  log(`[SINGLE CONTACT] ${searchName} at ${searchCompany}${includeCompanyLinks ? ' (with company link)' : ''}`, 'info');
   
-  // Use our LinkedIn search functionality to find the actual profile
   try {
-    // Find the LinkedIn contact - pass userID to properly track history and credits
-    const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition, userID);
+    if (userID) {
+      const userData = await dbService.getUserData(userID);
+      const credits = (userData && userData.linkCredits !== undefined) ? userData.linkCredits : 0;
+      const required = includeCompanyLinks ? 2 : 1;
+      if (credits < required) {
+        log(`[SINGLE CONTACT] Insufficient credits for user ${userID}`, 'warn');
+        return res.status(402).json({
+          success: false,
+          message: `Insufficient credits. This search requires at least ₹ ${required} credit${required > 1 ? 's' : ''}. Please purchase credits.`
+        });
+      }
+    }
+
+    const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition, userID, null, { includeCompanyLinks: !!includeCompanyLinks });
   
-    // Log the result status
     if (result.success) {
       log(`Result: Found`, 'info');
     } else {
       log(`Result: Not found`, 'info');
     }
     
-    // Return the search result
     return res.json({
       success: true,
       linkedInUrl: result.linkedInUrl || "",
+      companyUrl: result.companyUrl || "",
       message: result.message,
       historyId: result.historyId
     });
   } catch (error) {
-    // Handle errors
     return res.status(500).json({
       success: false,
       message: `Error: ${error.message}`
@@ -806,11 +837,32 @@ app.post('/findSingleContact', async (req, res) => {
 
 // Find batch contacts route
 app.post('/findBatchContact', async (req, res) => {
-  const { userID, fileName, timestamp, contacts } = req.body;
+  const { userID, fileName, timestamp, contacts, includeCompanyLinks } = req.body;
   
-  log(`[BATCH CONTACT] ${fileName} with ${contacts?.length || 0} contacts`, 'info');
+  const contactList = Array.isArray(contacts) ? contacts : [];
+  const contactCount = contactList.length;
+  const requiredCredits = includeCompanyLinks ? contactCount * 2 : contactCount;
   
-  // Generate batch info
+  log(`[BATCH CONTACT] ${fileName} with ${contactCount} contacts${includeCompanyLinks ? ' (with company links)' : ''}`, 'info');
+  
+  if (userID && contactCount > 0) {
+    try {
+      const userData = await dbService.getUserData(userID);
+      const credits = (userData && userData.linkCredits !== undefined) ? userData.linkCredits : 0;
+      if (credits < requiredCredits) {
+        log(`[BATCH CONTACT] Insufficient credits for user ${userID}: has ${credits}, needs ${requiredCredits}`, 'warn');
+        return res.status(402).json({
+          success: false,
+          message: `Insufficient credits. You need at least ₹ ${requiredCredits} credits for ${contactCount} contacts${includeCompanyLinks ? ' (with company links)' : ''} but have ₹ ${credits}. Please purchase more credits.`,
+          historyId: null
+        });
+      }
+    } catch (err) {
+      log(`Error checking credits for batch: ${err.message}`, 'error');
+      return res.status(500).json({ success: false, message: 'Failed to verify credits', historyId: null });
+    }
+  }
+  
   const batchInfo = {
     fileName: fileName || 'Unknown File',
     timestamp: timestamp || Date.now()
@@ -819,15 +871,15 @@ app.post('/findBatchContact', async (req, res) => {
   let historyId = null;
   
   try {
-    // Create search history entry
     historyId = await dbService.addSearchHistory(userID, {
       type: "bulk",
       status: "pending",
       inputMeta: {
         fileName: batchInfo.fileName,
-        totalContacts: contacts?.length || 0
+        totalContacts: contactCount,
+        includeCompanyLinks: !!includeCompanyLinks
       },
-      totalRecords: contacts?.length || 0,
+      totalRecords: contactCount,
       resultsCount: 0,
       resultRefPath: "searchResults",
       startedAt: new Date()
@@ -836,13 +888,11 @@ app.post('/findBatchContact', async (req, res) => {
     log(`Created history entry with ID: ${historyId}`, 'debug');
   } catch (err) {
     log('Error in search history: ' + err.message, 'error');
-    // Continue processing - don't fail the whole request
   }
   
-  // Start batch processing in the background
-  const processingInfo = startBatchProcessing(contacts, userID, batchInfo, historyId);
+  const options = { includeCompanyLinks: !!includeCompanyLinks };
+  const processingInfo = startBatchProcessing(contactList, userID, batchInfo, historyId, options);
   
-  // Return immediate response with processing status
   return res.json({
     success: true,
     message: processingInfo.message,
@@ -857,7 +907,18 @@ app.post('/findTargetedLeads', async (req, res) => {
   log(`[TARGETED LEADS] ${positionTitle} at ${company}`, 'info');
   
   try {
-    // Call the lead generator service to find recruiters
+    if (userID) {
+      const userData = await dbService.getUserData(userID);
+      const credits = (userData && userData.linkCredits !== undefined) ? userData.linkCredits : 0;
+      if (credits < 1) {
+        log(`[TARGETED LEADS] Insufficient credits for user ${userID}`, 'warn');
+        return res.status(402).json({
+          success: false,
+          message: 'Insufficient credits. Please purchase credits to search for leads.'
+        });
+      }
+    }
+
     const results = await findRecruitersAtCompany(company, userID, positionTitle);
     
     log(`Found ${results.data.length} leads`, 'info');
@@ -887,6 +948,18 @@ app.post('/companyWebsiteSingle', async (req, res) => {
   log(`[COMPANY SITE SINGLE] ${companyName}`, 'info');
 
   try {
+    if (userID) {
+      const userData = await dbService.getUserData(userID);
+      const credits = (userData && userData.linkCredits !== undefined) ? userData.linkCredits : 0;
+      if (credits < 1) {
+        log(`[COMPANY SITE SINGLE] Insufficient credits for user ${userID}`, 'warn');
+        return res.status(402).json({
+          success: false,
+          message: 'Insufficient credits. Please purchase credits to search for company websites.'
+        });
+      }
+    }
+
     const result = await findSingleCompanySite(companyName, userID || null);
 
     return res.json({
@@ -909,15 +982,30 @@ app.post('/companyWebsiteSingle', async (req, res) => {
 app.post('/companyWebsiteBulk', async (req, res) => {
   const { userID, companies, fileName } = req.body;
 
+  const companyList = Array.isArray(companies) ? companies : [];
+  const requiredCredits = companyList.length;
+
   log(
-    `[COMPANY SITE BULK] ${Array.isArray(companies) ? companies.length : 0} companies from ${
-      fileName || 'unknown file'
-    }`,
+    `[COMPANY SITE BULK] ${companyList.length} companies from ${fileName || 'unknown file'}`,
     'info'
   );
 
   try {
-    const result = await findBulkCompanySites(companies || [], userID || null, fileName || null);
+    if (userID && requiredCredits > 0) {
+      const userData = await dbService.getUserData(userID);
+      const credits = (userData && userData.linkCredits !== undefined) ? userData.linkCredits : 0;
+      if (credits < requiredCredits) {
+        log(`[COMPANY SITE BULK] Insufficient credits for user ${userID}: has ${credits}, needs ${requiredCredits}`, 'warn');
+        return res.status(402).json({
+          success: false,
+          message: `Insufficient credits. You need ₹ ${requiredCredits} credits for ${requiredCredits} companies but have ₹ ${credits}. Please purchase more credits.`,
+          historyId: null,
+          results: []
+        });
+      }
+    }
+
+    const result = await findBulkCompanySites(companyList, userID || null, fileName || null);
 
     return res.json({
       success: result.success,

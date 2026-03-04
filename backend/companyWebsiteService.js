@@ -254,7 +254,7 @@ async function findSingleCompanySite(companyName, userID = null) {
 
 /**
  * Bulk company website finder with de-duplication, caching and rate limiting.
- * Processes unique companies sequentially, pausing 60s after every 60 lookups.
+ * Processes unique companies sequentially, pausing 120s after every 50 lookups.
  */
 async function findBulkCompanySites(companies, userID = null, fileName = null) {
   const safeList = Array.isArray(companies) ? companies : [];
@@ -305,6 +305,8 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
     let processedCount = 0;
     let successCount = 0;
     let fromCacheCount = 0;
+    let skippedCount = 0;
+    let nonCachedSincePause = 0;
 
     for (const company of uniqueCompanies) {
       let websiteUrl = '';
@@ -331,6 +333,8 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
 
       if (websiteUrl) {
         successCount += 1;
+      } else {
+        skippedCount += 1;
       }
 
       processedCount += 1;
@@ -345,10 +349,17 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
         await dbService.addCompanySiteResult(userID, historyId, company, websiteUrl, fromCache);
       }
 
-      // Pause 60 seconds after every 60 processed companies to mirror LinkedIn logic
-      if (processedCount % 60 === 0 && processedCount < uniqueCompanies.length) {
-        log(`[COMPANY SITES BULK] Processed ${processedCount} companies, sleeping 60s to respect limits`, 'info');
-        await sleep(60000);
+      if (!fromCache) {
+        nonCachedSincePause += 1;
+      }
+
+      if (nonCachedSincePause >= 50 && processedCount < uniqueCompanies.length) {
+        log(
+          `[COMPANY SITES BULK] Processed ${processedCount} companies (${nonCachedSincePause} external lookups), sleeping 90s to respect limits`,
+          'info'
+        );
+        await sleep(90000);
+        nonCachedSincePause = 0;
       }
     }
 
@@ -367,7 +378,9 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
 
     const newlyCached = successCount - fromCacheCount;
     log(
-      `[COMPANY SITES BULK] Completed: ${processedCount} companies, ${successCount} sites found (${fromCacheCount} from cache, ${newlyCached} newly cached)`,
+      `[COMPANY SITES BULK] Completed: ${processedCount} companies total. ` +
+        `${successCount} sites found, ${skippedCount} skipped (no confident site). ` +
+        `${fromCacheCount} from cache, ${newlyCached} newly cached.`,
       'info'
     );
 
@@ -397,8 +410,33 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
   }
 }
 
+/**
+ * Get company website for embedding in profile search (no separate history/cost).
+ * Uses cache; on miss calls findOfficialCompanyWebsite and caches result.
+ * @param {string} companyName
+ * @returns {Promise<{ websiteUrl: string, fromCache: boolean }>}
+ */
+async function getCompanyWebsiteForProfileSearch(companyName) {
+  const trimmed = (companyName || '').trim();
+  if (!trimmed) {
+    return { websiteUrl: '', fromCache: false };
+  }
+  const cached = await dbService.getCompanySiteFromCache(trimmed);
+  if (cached && cached.websiteUrl) {
+    log(`[COMPANY SITE] Cache hit for profile search: ${trimmed}`, 'debug');
+    return { websiteUrl: cached.websiteUrl, fromCache: true };
+  }
+  const result = await findOfficialCompanyWebsite(trimmed);
+  const websiteUrl = (result && result.websiteUrl) || '';
+  if (websiteUrl) {
+    await dbService.addCompanySiteToCache(trimmed, websiteUrl);
+  }
+  return { websiteUrl, fromCache: false };
+}
+
 module.exports = {
   findSingleCompanySite,
-  findBulkCompanySites
+  findBulkCompanySites,
+  getCompanyWebsiteForProfileSearch
 };
 

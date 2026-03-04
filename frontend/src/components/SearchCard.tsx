@@ -25,6 +25,7 @@ import { findSingleContact, findBatchContacts } from '../services/apiService';
 import { refreshSearchHistory } from '../lib/searchService';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { Switch } from './ui/switch';
 
 // Temporary type definitions until the real files are created
 interface SearchResponse {
@@ -86,6 +87,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   // Single search response state
   const [searchResponse, setSearchResponse] = useState<{
     linkedinProfileUrl?: string;
+    companyUrl?: string;
     searchName?: string;
     searchCompany?: string;
     searchPosition?: string;
@@ -121,6 +123,9 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     linkedinProfileUrl?: string;
     foundData: number;
   }> | null>(null);
+
+  // Company links preference (synced with DB and localStorage)
+  const [includeCompanyLinks, setIncludeCompanyLinks] = useState(false);
   
   // Calculate if either the single search or file upload is active
   const isSingleSearchActive = 
@@ -138,6 +143,35 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
       setShowCSVUpload(true);
     }
   }, [isSingleSearchActive]);
+
+  // Load company links preference from DB (userData) or localStorage
+  useEffect(() => {
+    if (userData?.includeCompanyLinks !== undefined) {
+      setIncludeCompanyLinks(!!userData.includeCompanyLinks);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('includeCompanyLinks');
+    if (stored !== null) setIncludeCompanyLinks(stored === 'true');
+  }, [userData?.includeCompanyLinks]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('includeCompanyLinks', includeCompanyLinks ? 'true' : 'false');
+  }, [includeCompanyLinks]);
+
+  const handleCompanyLinksToggle = (value: boolean) => {
+    setIncludeCompanyLinks(value);
+    const uid = useAuthStore.getState().user?.uid;
+    if (uid) {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+      fetch(`${API_BASE}/user-preference/${uid}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeCompanyLinks: value })
+      }).catch(() => {});
+    }
+  };
   
   // Function to clear the single search form without clearing results
   const clearSearchFormOnly = () => {
@@ -221,7 +255,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         userID,
         searchName: searchForm.name,
         searchCompany: searchForm.company,
-        searchPosition: searchForm.position
+        searchPosition: searchForm.position,
+        includeCompanyLinks
       });
       
       // Refresh credits from backend to get the real value
@@ -621,7 +656,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
         fileName: selectedFile.name,
         timestamp: Date.now(),
         batchId,
-        contacts
+        contacts,
+        includeCompanyLinks
       });
       
       // Clear single search response when setting new bulk results
@@ -848,7 +884,28 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                           )}
                         </div>
                       </div>
-                      
+                      {searchResponse.companyUrl && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-secondary-text">Website:</span>
+                          <a
+                            href={searchResponse.companyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline truncate max-w-[200px] sm:max-w-none"
+                          >
+                            {searchResponse.companyUrl.replace(/^https?:\/\//, '')}
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 flex-shrink-0"
+                            onClick={() => copyToClipboard(searchResponse.companyUrl || '')}
+                            title="Copy website"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                       <div className="text-xs text-secondary-text mt-4 pb-1">
                         <p>
                           This search used ₹ {(searchResponse.foundData ?? 0)} credit{(searchResponse.foundData ?? 0) !== 1 ? 's' : ''} from your account.
@@ -1326,6 +1383,25 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
               )}
             </motion.div>
           )}
+        </motion.div>
+
+        {/* Company links toggle - applies to single & bulk search */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="flex items-center justify-between gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-background/40"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-primary-text">Include company website links</p>
+            <p className="text-xs text-secondary-text mt-0.5">Also fetch company links using existing logic when searching</p>
+          </div>
+          <Switch
+            checked={includeCompanyLinks}
+            onCheckedChange={handleCompanyLinksToggle}
+            aria-label="Include company website links in results"
+            className="flex-shrink-0"
+          />
         </motion.div>
         
         {/* Search Button - improve touch target */}

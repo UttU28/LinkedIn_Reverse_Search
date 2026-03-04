@@ -81,11 +81,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const result = await response.json();
       
       if (result.success && userData) {
-        // Update only the credits in the userData
         set({
           userData: {
             ...userData,
-            linkCredits: result.data.linkCredits
+            linkCredits: result.data.linkCredits,
+            ...(result.data.includeCompanyLinks !== undefined && { includeCompanyLinks: result.data.includeCompanyLinks })
           }
         });
       }
