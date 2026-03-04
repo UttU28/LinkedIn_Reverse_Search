@@ -186,6 +186,12 @@ class DbService {
         case 'recruiters':
           costCredits = resultsCount || 0;
           break;
+        case 'companySitesBulk':
+          costCredits = resultsCount || 0;
+          break;
+        case 'companySitesSingle':
+          costCredits = resultsCount > 0 ? 1 : 0;
+          break;
         default:
           costCredits = resultsCount > 0 ? 1 : 0;
       }
