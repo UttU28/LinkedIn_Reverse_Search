@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 
 // Interface for search result data
@@ -95,74 +95,127 @@ export const exportToExcel = async (
     
     // Skip notifying about Excel creation to avoid duplicate toasts
     // if (onProgress) onProgress('creating', detailedData.length);
-    
-    // Create a workbook
-    const wb = XLSX.utils.book_new();
-    
-    // Define the headers and fields to include in the Excel file (Full Name, Company, Website, Position, LinkedIn)
-    const headers = ['Full Name', 'Company', 'Website', 'Position', 'LinkedIn'];
-    const fieldMap = {
-      'Full Name': 'name',
-      'Company': 'company',
-      'Website': 'website',
-      'Position': 'title',
-      'LinkedIn': 'linkedin'
-    };
-    
-    // Prepare the data for the worksheet
-    const wsData = [headers];
-    
-    // Add data rows
-    detailedData.forEach(item => {
-      const row = headers.map(header => {
-        const fieldName = fieldMap[header as keyof typeof fieldMap];
-        
-        // Special case for LinkedIn URLs - ensure we get the value from the correct field
-        if (header === 'LinkedIn') {
-          return item[fieldName] || item.linkedinUrl || item.linkedin || '';
-        }
-        
-        return item[fieldName] || '';
-      });
-      wsData.push(row);
-    });
-    
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    
-    // Set column widths
-    const colWidths = [
-      { wch: 25 }, // Full Name
-      { wch: 25 }, // Company
-      { wch: 35 }, // Website
-      { wch: 25 }, // Position
-      { wch: 40 }  // LinkedIn
+
+    // Create a workbook and worksheet using ExcelJS
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('LinkedIn Results');
+
+    // Define columns (headers, keys, widths)
+    worksheet.columns = [
+      { header: 'Full Name', key: 'name', width: 25 },
+      { header: 'Company', key: 'company', width: 25 },
+      { header: 'Website', key: 'website', width: 35 },
+      { header: 'Position', key: 'title', width: 25 },
+      { header: 'LinkedIn', key: 'linkedin', width: 40 },
     ];
-    ws['!cols'] = colWidths;
-    
-    // Style the header row
-    const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
-      if (!ws[cellRef]) ws[cellRef] = { v: '', t: 's' };
-      
-      // Add style properties to the header cells
-      ws[cellRef].s = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "4F46E5" } }, // Indigo color
-        alignment: { horizontal: "center", vertical: "center" }
+
+    // Add rows of data
+    const tableRows = detailedData.map(item => {
+      const website =
+        item.website && typeof item.website === 'string' ? item.website : '';
+      const linkedin =
+        (item.linkedinUrl as string) ||
+        (item.linkedin as string) ||
+        '';
+
+      return {
+        name: item.name || '',
+        company: item.company || '',
+        website,
+        title: item.title || '',
+        linkedin,
       };
+    });
+
+    tableRows.forEach(row => worksheet.addRow(row));
+
+    // Build an Excel "Table" with banded rows & header style
+    const rowCount = tableRows.length + 1; // +1 for header row
+    if (rowCount > 1) {
+      worksheet.addTable({
+        name: 'LinkedInResultsTable',
+        ref: 'A1',
+        headerRow: true,
+        totalsRow: false,
+        style: {
+          theme: 'TableStyleMedium9', // blue header + striped rows
+          showRowStripes: true,
+        },
+        columns: [
+          { name: 'Full Name', filterButton: true },
+          { name: 'Company', filterButton: true },
+          { name: 'Website', filterButton: true },
+          { name: 'Position', filterButton: true },
+          { name: 'LinkedIn', filterButton: true },
+        ],
+        rows: tableRows.map(row => [
+          row.name,
+          row.company,
+          row.website,
+          row.title,
+          row.linkedin,
+        ]),
+      });
     }
-    
-    // Generate filename based on search data
-    const timestamp = format(new Date(searchInfo.timestamp), 'yyyy-MM-dd');
-    const fileName = `${searchInfo.title.replace(/[^\w\s]/gi, '')}_${timestamp}.xlsx`;
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'LinkedIn Results');
-    
-    // Write to file and trigger download
-    XLSX.writeFile(wb, fileName);
+
+    // Apply hyperlink styling to Website (D) and LinkedIn (E) columns
+    for (let i = 0; i < tableRows.length; i++) {
+      const excelRowIndex = i + 2; // data starts at row 2
+      const row = tableRows[i];
+
+      // Website: column C (3)
+      if (row.website) {
+        const normalizedWebsite =
+          row.website.startsWith('http') ? row.website : `https://${row.website}`;
+        const cell = worksheet.getCell(`C${excelRowIndex}`);
+        cell.value = {
+          text: row.website,
+          hyperlink: normalizedWebsite,
+        };
+        cell.font = {
+          color: { argb: 'FF0563C1' },
+          underline: true,
+        };
+      }
+
+      // LinkedIn: column E (5)
+      if (row.linkedin) {
+        const normalizedLinkedin = row.linkedin.startsWith('http')
+          ? row.linkedin
+          : `https://${row.linkedin}`;
+        const cell = worksheet.getCell(`E${excelRowIndex}`);
+        cell.value = {
+          text: row.linkedin,
+          hyperlink: normalizedLinkedin,
+        };
+        cell.font = {
+          color: { argb: 'FF0563C1' },
+          underline: true,
+        };
+      }
+    }
+
+    // Generate filename based on search data (e.g. "Ceraweek Mar 3.xlsx")
+    const rawTitle = searchInfo.title || 'results';
+    const titleWithoutExt = rawTitle.replace(/\.[^.\s]{1,5}$/i, '');
+    const safeTitle = titleWithoutExt.replace(/[^\w\s-]/gi, '').trim() || 'results';
+    const shortDate = format(new Date(searchInfo.timestamp), 'MMM d');
+    const fileName = `${safeTitle} ${shortDate}.xlsx`;
+
+    // Write workbook to a buffer and trigger browser download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     
     // Notify completion
     if (onProgress) onProgress('complete', detailedData.length);
