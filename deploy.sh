@@ -57,7 +57,7 @@ print_header "🚀 Starting Backend..."
 if [ -f "ecosystem.config.js" ]; then
     pm2 start ecosystem.config.js >/dev/null 2>&1
     if [ $? -eq 0 ]; then
-        print_status "Backend started successfully on port 3008"
+        print_status "Backend started successfully on port 9221"
     else
         print_error "Failed to start backend"
         exit 1
@@ -89,7 +89,7 @@ print_header "🚀 Starting Frontend..."
 if [ -f "ecosystem.config.cjs" ]; then
     pm2 start ecosystem.config.cjs >/dev/null 2>&1
     if [ $? -eq 0 ]; then
-        print_status "Frontend started successfully on port 3009"
+        print_status "Frontend started successfully on port 9220"
     else
         print_error "Failed to start frontend"
         exit 1
@@ -221,8 +221,8 @@ fi
 # ============================================
 echo ""
 print_header "✅ Deployment Complete!"
-print_status "Backend: http://localhost:3008"
-print_status "Frontend: http://localhost:3009"
+print_status "Backend: http://localhost:9221"
+print_status "Frontend: http://localhost:9220"
 if [ -n "$DOMAIN" ]; then
     print_status ""
     print_status "Public URLs:"

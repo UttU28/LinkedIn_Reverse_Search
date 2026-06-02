@@ -93,7 +93,7 @@ interface CompanyWebsiteBulkResponse {
   results: CompanyWebsiteBulkResult[];
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9221';
 
 /**
  * Service for finding a single LinkedIn contact

@@ -15,7 +15,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:9221";
 
 export const registerUser = async (
   email: string,

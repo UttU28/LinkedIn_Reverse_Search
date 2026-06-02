@@ -8,12 +8,12 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 3009,
+        PORT: 9220,
         HOST: '0.0.0.0'
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 3009,
+        PORT: 9220,
         HOST: '0.0.0.0'
       },
       // Logging

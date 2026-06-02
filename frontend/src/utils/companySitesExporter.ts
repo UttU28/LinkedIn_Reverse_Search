@@ -13,7 +13,7 @@ export interface CompanySitesSearchInfo {
   timestamp: number;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9221';
 
 export const fetchCompanySitesByHistoryId = async (
   historyId: string

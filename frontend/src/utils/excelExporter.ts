@@ -31,7 +31,7 @@ export const fetchSearchResultData = async (resultIds: string[]): Promise<Search
   try {
     console.log('Fetching search results with IDs:', resultIds);
     
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9221';
     
     const response = await fetch(`${API_BASE_URL}/search-results`, {
       method: 'POST',

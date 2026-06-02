@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9221';
 
 // Create a simple event emitter for search history updates
 type Listener = () => void;

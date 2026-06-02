@@ -13,7 +13,7 @@ const admin = require('firebase-admin');
 const { log } = require('./utils');
 
 const app = express();
-const PORT = process.env.PORT || 3008;
+const PORT = process.env.PORT || 9221;
 
 // Important: The webhook route needs raw body for signature verification
 // This route must be defined before JSON body parser middleware
