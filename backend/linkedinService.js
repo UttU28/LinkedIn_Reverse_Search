@@ -150,7 +150,7 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
     const aiResponse = await callOpenAI(jsonData, SINGLE_BULK_SYSTEM_PROMPT, SINGLE_BULK_USER_PROMPT);
     
     if (!aiResponse) {
-      log(`No response from OpenAI for ${fullName}`, 'warn');
+      log(`No response from LLM for ${fullName}`, 'warn');
       
       // Update search history if we have userID and historyId
       if (userID && historyId) {

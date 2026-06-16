@@ -3,8 +3,8 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Which LLM provider to use: "openai" (default) or "gemini"
-const USE_LLM_MODEL = (process.env.USE_LLM_MODEL || 'openai').toLowerCase();
+// Which LLM provider to use: "ollama" (default), "openai", or "gemini"
+const USE_LLM_MODEL = (process.env.USE_LLM_MODEL || 'ollama').toLowerCase();
 
 /**
  * Standardized logging function with log levels
@@ -313,12 +313,9 @@ async function callGemini(jsonData, systemPrompt, userPromptWithData, retryCount
 }
 
 /**
- * Call LLM (OpenAI or Gemini) to analyze search results with rate limiting.
- * The provider is selected via USE_LLM_MODEL env: "openai" (default) or "gemini".
- * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
+ * Build the user prompt by substituting JSON placeholders.
  */
-async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
-  // New logic to handle nested placeholders like {json_input.googleSearchResults}
+function buildUserPromptWithData(jsonData, userPrompt) {
   let userPromptWithData = userPrompt;
 
   if (userPromptWithData.includes("{json_input}")) {
@@ -339,10 +336,99 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
     });
   }
 
-  const provider = USE_LLM_MODEL === 'gemini' ? 'gemini' : 'openai';
+  return userPromptWithData;
+}
 
-  if (provider === 'gemini') {
+/**
+ * Internal helper to call a local Ollama instance.
+ */
+async function callOllama(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
+  if (!callOllama.rateLimiter) {
+    callOllama.rateLimiter = new RateLimiter(
+      parseInt(process.env.OLLAMA_REQUESTS_PER_MINUTE || 60, 10),
+      'Ollama'
+    );
+  }
+
+  const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+  const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10);
+
+  try {
+    await callOllama.rateLimiter.acquire();
+
+    const response = await axios.post(
+      `${baseUrl}/api/chat`,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPromptWithData }
+        ],
+        stream: false,
+        options: {
+          temperature: 0
+        }
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: timeoutMs
+      }
+    );
+
+    callOllama.rateLimiter.recordSuccess();
+
+    const content = response.data && response.data.message && response.data.message.content;
+    if (!content || !content.trim()) {
+      log('Ollama response did not contain any content', 'warn');
+      return null;
+    }
+
+    return content.trim();
+  } catch (error) {
+    const isRetryable = isRateLimitOrTransientError(error) ||
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ETIMEDOUT';
+
+    if (isRetryable && retryCount < LLM_MAX_RETRIES) {
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] ?? LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1] ?? 2000;
+      const delaySec = Math.round(delayMs / 1000);
+      log(`Ollama unavailable (retry ${retryCount + 1}/${LLM_MAX_RETRIES}). Sleeping ${delaySec}s before retry...`, 'warn');
+      callOllama.rateLimiter.recordError();
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      log(`Ollama retry ${retryCount + 1} after ${delaySec}s wait`, 'info');
+      return callOllama(jsonData, systemPrompt, userPromptWithData, retryCount + 1);
+    }
+
+    if (error.response && error.response.data) {
+      const body = JSON.stringify(error.response.data);
+      log(`Ollama API error: ${error.message} - ${body.slice(0, 500)}`, 'error');
+    } else {
+      log(`Ollama API error: ${error.message}`, 'error');
+    }
+    return null;
+  }
+}
+
+/**
+ * Call LLM (Ollama, OpenAI, or Gemini) to analyze search results with rate limiting.
+ * The provider is selected via USE_LLM_MODEL env: "ollama" (default), "openai", or "gemini".
+ * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
+ */
+async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
+  const userPromptWithData = buildUserPromptWithData(jsonData, userPrompt);
+
+  if (USE_LLM_MODEL === 'gemini') {
     return await callGemini(jsonData, systemPrompt, userPromptWithData);
+  }
+
+  if (USE_LLM_MODEL === 'ollama') {
+    return await callOllama(jsonData, systemPrompt, userPromptWithData);
   }
 
   try {
@@ -442,6 +528,7 @@ module.exports = {
   GoogleCustomSearch,
   extractEssentialData,
   callGemini,
+  callOllama,
   callOpenAI,
   extractUrlFromResponse
 }; 
