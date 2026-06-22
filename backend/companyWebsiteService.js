@@ -3,7 +3,9 @@ const {
   GoogleCustomSearch,
   extractEssentialData,
   callOpenAI,
-  extractUrlFromResponse
+  extractUrlFromResponse,
+  LlmUnavailableError,
+  llmCircuitBreaker
 } = require('./utils');
 const dbService = require('./dbService');
 
@@ -64,6 +66,8 @@ async function findOfficialCompanyWebsite(companyName) {
     if (!API_KEY || !SEARCH_ENGINE_ID) {
       throw new Error('Missing GOOGLE_API_KEY or GOOGLE_SEARCH_ENGINE_ID in environment');
     }
+
+    llmCircuitBreaker.assertAvailable();
 
     const searchClient = new GoogleCustomSearch(API_KEY, SEARCH_ENGINE_ID);
 
@@ -134,6 +138,9 @@ async function findOfficialCompanyWebsite(companyName) {
       message: 'Official company website found'
     };
   } catch (error) {
+    if (error instanceof LlmUnavailableError) {
+      throw error;
+    }
     log(`Error in findOfficialCompanyWebsite: ${error.message}`, 'error');
     return {
       success: false,
@@ -232,6 +239,9 @@ async function findSingleCompanySite(companyName, userID = null) {
       message: success ? 'Official company website found' : 'No official website found'
     };
   } catch (error) {
+    if (error instanceof LlmUnavailableError) {
+      throw error;
+    }
     log(`Error in findSingleCompanySite: ${error.message}`, 'error');
 
     if (userID && historyId) {
@@ -284,6 +294,8 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
   let historyId = null;
 
   try {
+    llmCircuitBreaker.reset();
+
     if (userID) {
       historyId =
         (await dbService.addSearchHistory(userID, {
@@ -328,6 +340,10 @@ async function findBulkCompanySites(companies, userID = null, fileName = null) {
           }
         }
       } catch (innerError) {
+        if (innerError instanceof LlmUnavailableError) {
+          log(`Aborting company site bulk: ${innerError.message}`, 'error');
+          throw innerError;
+        }
         log(`Error processing company "${company}": ${innerError.message}`, 'error');
       }
 

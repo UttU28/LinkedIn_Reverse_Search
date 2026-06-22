@@ -1,4 +1,4 @@
-const { log, GoogleCustomSearch, callOpenAI } = require('./utils');
+const { log, GoogleCustomSearch, callOpenAI, LlmUnavailableError, llmCircuitBreaker } = require('./utils');
 const { LINKEDIN_EXTRACTION_SYSTEM_PROMPT, LINKEDIN_EXTRACTION_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 const axios = require('axios');
@@ -11,6 +11,8 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
   let historyId = null;
   
   try {
+    llmCircuitBreaker.reset();
+
     // Determine the appropriate term based on position type
     let positionTerm;
     switch (positionTitle.toLowerCase()) {
@@ -55,6 +57,8 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
     });
     
     log(`Created search history: ${historyId}`, 'debug');
+
+    llmCircuitBreaker.assertAvailable();
     
     // Step 1: Perform Google search for the specified position type
     const searchResults = await searchRecruiters(companyName, GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID, positionTitle);
@@ -158,8 +162,9 @@ async function findRecruitersAtCompany(companyName, userID, positionTitle = 'rec
     // Update history with error status
     if (historyId) {
       await dbService.updateSearchHistory(userID, historyId, {
-        status: "error",
-        errorMessage: error.message
+        status: error instanceof LlmUnavailableError ? 'failed' : 'error',
+        errorMessage: error.message,
+        completedAt: new Date()
       });
     }
     

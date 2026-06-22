@@ -191,6 +191,44 @@ function extractEssentialData(results) {
 
 /** Max retries for rate-limited LLM calls. 1 initial + 3 retries = 4 total attempts per contact. */
 const LLM_MAX_RETRIES = parseInt(process.env.LLM_MAX_RETRIES || '3', 10);
+/** Abort the full pipeline after this many consecutive LLM failures (no Google/company lookups once open). */
+const LLM_CONSECUTIVE_FAIL_LIMIT = parseInt(process.env.LLM_CONSECUTIVE_FAIL_LIMIT || '5', 10);
+
+class LlmUnavailableError extends Error {
+  constructor(message) {
+    super(message || `LLM unavailable after ${LLM_CONSECUTIVE_FAIL_LIMIT} consecutive failures`);
+    this.name = 'LlmUnavailableError';
+  }
+}
+
+const llmCircuitBreaker = {
+  consecutiveFailures: 0,
+  reset() {
+    this.consecutiveFailures = 0;
+  },
+  isOpen() {
+    return this.consecutiveFailures >= LLM_CONSECUTIVE_FAIL_LIMIT;
+  },
+  assertAvailable() {
+    if (this.isOpen()) {
+      throw new LlmUnavailableError();
+    }
+  },
+  recordSuccess() {
+    this.consecutiveFailures = 0;
+  },
+  recordFailure() {
+    this.consecutiveFailures += 1;
+    const open = this.isOpen();
+    if (open) {
+      log(
+        `LLM circuit open after ${this.consecutiveFailures} consecutive failures — stopping pipeline`,
+        'error'
+      );
+    }
+    return open;
+  }
+};
 /** Backoff delays in ms for each retry (2s, 4s, 8s). Override via LLM_RETRY_DELAYS_MS comma-separated. */
 const LLM_RETRY_DELAYS_MS = (() => {
   const env = process.env.LLM_RETRY_DELAYS_MS;
@@ -416,24 +454,12 @@ async function callOllama(jsonData, systemPrompt, userPromptWithData, retryCount
 }
 
 /**
- * Call LLM (Ollama, OpenAI, or Gemini) to analyze search results with rate limiting.
- * The provider is selected via USE_LLM_MODEL env: "ollama" (default), "openai", or "gemini".
- * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
+ * OpenAI chat-completions provider (internal; retries handled here).
  */
-async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
-  const userPromptWithData = buildUserPromptWithData(jsonData, userPrompt);
-
-  if (USE_LLM_MODEL === 'gemini') {
-    return await callGemini(jsonData, systemPrompt, userPromptWithData);
-  }
-
-  if (USE_LLM_MODEL === 'ollama') {
-    return await callOllama(jsonData, systemPrompt, userPromptWithData);
-  }
-
+async function callOpenAIProvider(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
   try {
-    if (!callOpenAI.rateLimiter) {
-      callOpenAI.rateLimiter = new RateLimiter(
+    if (!callOpenAIProvider.rateLimiter) {
+      callOpenAIProvider.rateLimiter = new RateLimiter(
         parseInt(process.env.OPENAI_REQUESTS_PER_MINUTE || 30),
         'OpenAI'
       );
@@ -446,7 +472,7 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
       return null;
     }
 
-    await callOpenAI.rateLimiter.acquire();
+    await callOpenAIProvider.rateLimiter.acquire();
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
@@ -469,7 +495,7 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
       }
     );
 
-    callOpenAI.rateLimiter.recordSuccess();
+    callOpenAIProvider.rateLimiter.recordSuccess();
     return response.data.choices[0].message.content;
   } catch (error) {
     const isRetryable = error.response && (
@@ -485,12 +511,12 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
       const delayMs = LLM_RETRY_DELAYS_MS[retryCount] ?? LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1] ?? 2000;
       const delaySec = Math.round(delayMs / 1000);
       log(`OpenAI API rate limit (retry ${retryCount + 1}/${LLM_MAX_RETRIES}). Sleeping ${delaySec}s before retry...`, 'warn');
-      callOpenAI.rateLimiter.recordError();
+      callOpenAIProvider.rateLimiter.recordError();
 
       await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       log(`OpenAI retry ${retryCount + 1} after ${delaySec}s wait`, 'info');
-      return callOpenAI(jsonData, systemPrompt, userPrompt, retryCount + 1);
+      return callOpenAIProvider(jsonData, systemPrompt, userPromptWithData, retryCount + 1);
     }
 
     if (isRetryable) {
@@ -500,6 +526,37 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt, retryCount = 0) {
     }
     return null;
   }
+}
+
+/**
+ * Call LLM (Ollama, OpenAI, or Gemini) to analyze search results with rate limiting.
+ * The provider is selected via USE_LLM_MODEL env: "ollama" (default), "openai", or "gemini".
+ * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
+ * After LLM_CONSECUTIVE_FAIL_LIMIT consecutive null responses, throws LlmUnavailableError.
+ */
+async function callOpenAI(jsonData, systemPrompt, userPrompt) {
+  llmCircuitBreaker.assertAvailable();
+
+  const userPromptWithData = buildUserPromptWithData(jsonData, userPrompt);
+  let result = null;
+
+  if (USE_LLM_MODEL === 'gemini') {
+    result = await callGemini(jsonData, systemPrompt, userPromptWithData);
+  } else if (USE_LLM_MODEL === 'ollama') {
+    result = await callOllama(jsonData, systemPrompt, userPromptWithData);
+  } else {
+    result = await callOpenAIProvider(jsonData, systemPrompt, userPromptWithData);
+  }
+
+  if (!result) {
+    if (llmCircuitBreaker.recordFailure()) {
+      throw new LlmUnavailableError();
+    }
+    return null;
+  }
+
+  llmCircuitBreaker.recordSuccess();
+  return result;
 }
 
 /**
@@ -530,5 +587,7 @@ module.exports = {
   callGemini,
   callOllama,
   callOpenAI,
-  extractUrlFromResponse
+  extractUrlFromResponse,
+  LlmUnavailableError,
+  llmCircuitBreaker
 }; 

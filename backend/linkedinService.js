@@ -1,4 +1,4 @@
-const { log, GoogleCustomSearch, extractEssentialData, callOpenAI, extractUrlFromResponse } = require('./utils');
+const { log, GoogleCustomSearch, extractEssentialData, callOpenAI, extractUrlFromResponse, LlmUnavailableError, llmCircuitBreaker } = require('./utils');
 const { SINGLE_BULK_SYSTEM_PROMPT, SINGLE_BULK_USER_PROMPT } = require('./prompts');
 const dbService = require('./dbService');
 const { getCompanyWebsiteForProfileSearch } = require('./companyWebsiteService');
@@ -26,6 +26,7 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
       log(`Cache hit: ${fullName} at ${company}`, 'debug');
       let companyUrl = '';
       if (includeCompanyLinks && company) {
+        llmCircuitBreaker.assertAvailable();
         const siteResult = await getCompanyWebsiteForProfileSearch(company);
         companyUrl = siteResult.websiteUrl || '';
       }
@@ -78,6 +79,9 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
         fromCache: false
       };
     }
+
+    // Pipeline depends on LLM — skip Google lookups once the circuit is open
+    llmCircuitBreaker.assertAvailable();
 
     // Create history entry if userID is provided but historyId is not
     if (userID && !historyId) {
@@ -180,9 +184,13 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
     let companyUrl = '';
     if (includeCompanyLinks && company && (userID || linkedInUrl)) {
       try {
+        llmCircuitBreaker.assertAvailable();
         const siteResult = await getCompanyWebsiteForProfileSearch(company);
         companyUrl = siteResult.websiteUrl || '';
       } catch (err) {
+        if (err instanceof LlmUnavailableError) {
+          throw err;
+        }
         log(`Company website fetch failed for ${company}: ${err.message}`, 'warn');
       }
     }
@@ -229,6 +237,10 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
       fromCache: false
     };
   } catch (error) {
+    if (error instanceof LlmUnavailableError) {
+      throw error;
+    }
+
     log(`Error finding LinkedIn contact: ${error.message}`, 'error');
     
     // Update search history if we have userID and historyId
@@ -259,7 +271,14 @@ async function findSingleLinkedinContact(fullName, company, position, userID = n
  */
 async function processBatchInBackground(contacts, userID, historyId, options = {}) {
   const includeCompanyLinks = !!options.includeCompanyLinks;
+  let processedCount = 0;
+  let successCount = 0;
+  let companyFoundCount = 0;
+  let humans = [];
+
   try {
+    llmCircuitBreaker.reset();
+
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       log("No contacts provided for batch processing", 'warn');
       
@@ -280,14 +299,8 @@ async function processBatchInBackground(contacts, userID, historyId, options = {
     
     log(`Starting batch processing for ${contacts.length} contacts${includeCompanyLinks ? ' (with company links)' : ''}`, 'info');
     
-    // Initialize counters
-    let processedCount = 0;
-    let successCount = 0;
-    let companyFoundCount = 0;
     let fromCacheCount = 0;
-    let humans = [];
     let results = [];
-
     let nonCachedSincePause = 0;
     let nonCachedSincePauseCompany = 0;
 
@@ -307,11 +320,13 @@ async function processBatchInBackground(contacts, userID, historyId, options = {
       const { searchName, searchCompany, searchPosition, contactId } = contact;
 
       try {
+        llmCircuitBreaker.assertAvailable();
+
         // Search for LinkedIn profile only (company URL fetched separately to keep rate-limit counters distinct)
         const result = await findSingleLinkedinContact(searchName, searchCompany, searchPosition, null, null, { includeCompanyLinks: false });
 
         let companyUrl = '';
-        if (includeCompanyLinks && searchCompany) {
+        if (includeCompanyLinks && searchCompany && !llmCircuitBreaker.isOpen()) {
           try {
             const siteResult = await getCompanyWebsiteForProfileSearch(searchCompany);
             companyUrl = siteResult.websiteUrl || '';
@@ -320,6 +335,9 @@ async function processBatchInBackground(contacts, userID, historyId, options = {
               nonCachedSincePauseCompany++;
             }
           } catch (err) {
+            if (err instanceof LlmUnavailableError) {
+              throw err;
+            }
             log(`Company website fetch failed for ${searchCompany}: ${err.message}`, 'warn');
           }
         }
@@ -383,6 +401,42 @@ async function processBatchInBackground(contacts, userID, historyId, options = {
         }
 
       } catch (contactError) {
+        if (contactError instanceof LlmUnavailableError) {
+          log(`Aborting batch: ${contactError.message}`, 'error');
+
+          await dbService.updateBatchStatus({
+            userID,
+            historyId,
+            status: 'failed',
+            progress: {
+              total: contacts.length,
+              processed: processedCount,
+              successful: successCount
+            },
+            error: contactError.message
+          });
+
+          await dbService.updateSearchHistory(userID, historyId, {
+            status: 'failed',
+            errorMessage: contactError.message,
+            resultIds: humans,
+            completedAt: new Date()
+          });
+
+          const partialCredits = successCount + (includeCompanyLinks ? companyFoundCount : 0);
+          if (partialCredits > 0) {
+            await dbService.updateSearchCost(userID, historyId, 'bulk', partialCredits);
+          }
+
+          return {
+            error: contactError.message,
+            processed: processedCount,
+            successful: successCount,
+            results,
+            resultIds: humans
+          };
+        }
+
         log(`Error processing contact ${searchName}: ${contactError.message}`, 'error');
 
         results.push({
