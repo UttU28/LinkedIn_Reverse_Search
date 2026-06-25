@@ -464,6 +464,36 @@ app.get('/search-history/:userId', async (req, res) => {
   }
 });
 
+// Completed searches available for Utils stitch (paginated)
+app.get('/stitchable-searches/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const cursorId = req.query.cursor || null;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
+
+    const result = await dbService.getStitchableSearches(userId, { limit, cursorId });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    log('Error getting stitchable searches:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error getting stitchable searches',
+      error: error.message,
+    });
+  }
+});
+
 // Get single payment details
 app.get('/payment-details/:paymentId', async (req, res) => {
   try {

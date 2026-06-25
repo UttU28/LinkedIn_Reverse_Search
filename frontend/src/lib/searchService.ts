@@ -43,6 +43,22 @@ export interface SearchHistoryResult {
   completedAt?: Date;
 }
 
+export interface StitchableSearch {
+  id: string;
+  type: 'bulk' | 'team' | 'recruiters';
+  title: string;
+  totalRecords: number;
+  resultIds: string[];
+  createdAt: Date;
+  completedAt?: Date | null;
+}
+
+export interface StitchableSearchesPage {
+  items: StitchableSearch[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 // Function to fetch user's search history
 export const fetchSearchHistory = async (userId: string) => {
   try {
@@ -119,6 +135,47 @@ export const fetchSearchHistory = async (userId: string) => {
   } catch (error) {
     console.error('Error fetching search history:', error);
     throw error;
+  }
+};
+
+// Paginated completed searches for Utils stitch
+export const fetchStitchableSearches = async (
+  userId: string,
+  options: { limit?: number; cursor?: string | null } = {}
+): Promise<StitchableSearchesPage> => {
+  const empty: StitchableSearchesPage = { items: [], nextCursor: null, hasMore: false };
+
+  if (!userId) return empty;
+
+  const limit = options.limit ?? 10;
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (options.cursor) params.set('cursor', options.cursor);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/stitchable-searches/${userId}?${params}`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const data = await response.json();
+    if (!data.success || !data.data) return empty;
+
+    const items: StitchableSearch[] = (data.data.items || []).map((item: any) => ({
+      id: item.id,
+      type: item.type,
+      title: item.title || 'Search',
+      totalRecords: item.totalRecords || item.resultIds?.length || 0,
+      resultIds: item.resultIds || [],
+      createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+      completedAt: item.completedAt ? new Date(item.completedAt) : null,
+    }));
+
+    return {
+      items,
+      nextCursor: data.data.nextCursor || null,
+      hasMore: !!data.data.hasMore,
+    };
+  } catch (error) {
+    console.error('Error fetching stitchable searches:', error);
+    return empty;
   }
 };
 

@@ -808,6 +808,99 @@ class DbService {
   }
 
   /**
+   * Completed bulk-style searches that can be stitched from history (paginated).
+   * @param {string} userId
+   * @param {{ limit?: number, cursorId?: string|null }} options
+   */
+  async getStitchableSearches(userId, { limit = 10, cursorId = null } = {}) {
+    const STITCHABLE_TYPES = new Set(['bulk', 'team', 'recruiters']);
+    const BATCH_SIZE = 30;
+
+    const isStitchable = (data) =>
+      data.status === 'completed' &&
+      STITCHABLE_TYPES.has(data.type) &&
+      Array.isArray(data.resultIds) &&
+      data.resultIds.length > 0;
+
+    const titleFor = (data) => {
+      if (data.type === 'bulk' || data.type === 'team') {
+        return data.inputMeta?.fileName || (data.type === 'team' ? 'Team Search' : 'Bulk Search');
+      }
+      if (data.type === 'recruiters') {
+        return `${data.inputMeta?.company || 'Unknown'} Recruiters`;
+      }
+      return 'Search';
+    };
+
+    try {
+      if (!this.isAvailable()) {
+        this.log('Firestore not available - cannot get stitchable searches');
+        return { items: [], nextCursor: null, hasMore: false };
+      }
+
+      if (!userId) {
+        this.log('Cannot get stitchable searches: userId is missing');
+        return { items: [], nextCursor: null, hasMore: false };
+      }
+
+      const searchHistoryRef = this.db.collection('users').doc(userId).collection('searchHistory');
+      const items = [];
+      let scanAfterId = cursorId;
+      let exhausted = false;
+
+      while (items.length < limit) {
+        let query = searchHistoryRef.orderBy('createdAt', 'desc').limit(BATCH_SIZE);
+        if (scanAfterId) {
+          const cursorDoc = await searchHistoryRef.doc(scanAfterId).get();
+          if (!cursorDoc.exists) {
+            exhausted = true;
+            break;
+          }
+          query = query.startAfter(cursorDoc);
+        }
+
+        const snapshot = await query.get();
+        if (snapshot.empty) {
+          exhausted = true;
+          break;
+        }
+
+        for (const doc of snapshot.docs) {
+          scanAfterId = doc.id;
+          const historyData = doc.data();
+          if (!isStitchable(historyData)) continue;
+
+          items.push({
+            id: doc.id,
+            type: historyData.type,
+            title: titleFor(historyData),
+            totalRecords: historyData.totalRecords || historyData.resultIds.length,
+            resultIds: historyData.resultIds,
+            createdAt: historyData.createdAt?.toDate() || new Date(),
+            completedAt: historyData.completedAt?.toDate() || null,
+          });
+
+          if (items.length >= limit) break;
+        }
+
+        if (snapshot.size < BATCH_SIZE) {
+          exhausted = true;
+          break;
+        }
+      }
+
+      return {
+        items: items.slice(0, limit),
+        nextCursor: exhausted ? null : scanAfterId,
+        hasMore: !exhausted,
+      };
+    } catch (error) {
+      this.logError('Error getting stitchable searches', error);
+      return { items: [], nextCursor: null, hasMore: false };
+    }
+  }
+
+  /**
    * Get search results by their IDs
    * @param {string[]} resultIds - Array of result document IDs
    * @returns {Promise<Array>} - Array of search result documents

@@ -1,21 +1,24 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { format } from 'date-fns';
 import {
   Upload,
   X,
   FileIcon as FileComponent,
-  Wrench,
   SplitSquareHorizontal,
   Merge,
   Download,
   Loader2,
   AlertCircle,
+  History,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
+import { Checkbox } from './ui/checkbox';
 import { useToast } from '../hooks/use-toast';
+import { useAuthStore } from '../store/authStore';
 import ColumnAvailabilityBadges from './ColumnAvailabilityBadges';
 import { parseSpreadsheetFile, type SpreadsheetFileExtension } from '../utils/spreadsheetParser';
 import {
@@ -32,11 +35,15 @@ import {
   stitchNormalizedRows,
   DEFAULT_SPLIT_ROWS_PER_FILE,
 } from '../utils/spreadsheetSplitStitch';
+import { fetchStitchableSearches, type StitchableSearch } from '../lib/searchService';
+import { fetchSearchResultData } from '../utils/excelExporter';
+import { searchResultsToNormalizedRows } from '../utils/searchResultRows';
 
 type UtilsMode = 'split' | 'stitch';
 type FileExtension = SpreadsheetFileExtension;
 
 const ACCEPTED_EXTENSIONS: FileExtension[] = ['csv', 'xlsx'];
+const STITCHABLE_PAGE_SIZE = 10;
 
 interface ParsedFileEntry {
   file: File;
@@ -90,6 +97,7 @@ const ExtensionSwitcher: React.FC<ExtensionSwitcherProps> = ({ value, onChange }
 
 const UtilsCard: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<UtilsMode>('split');
@@ -99,6 +107,17 @@ const UtilsCard: React.FC = () => {
   const [dragCounter, setDragCounter] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+
+  const [showExistingPicker, setShowExistingPicker] = useState(false);
+  const [stitchableSearches, setStitchableSearches] = useState<StitchableSearch[]>([]);
+  const [stitchableCursor, setStitchableCursor] = useState<string | null>(null);
+  const [hasMoreStitchable, setHasMoreStitchable] = useState(false);
+  const [loadingStitchable, setLoadingStitchable] = useState(false);
+  const [selectedStitchableItems, setSelectedStitchableItems] = useState<Map<string, StitchableSearch>>(
+    new Map()
+  );
+  const [stitchBackendRows, setStitchBackendRows] = useState<SpreadsheetRow[]>([]);
+  const [loadingBackendRows, setLoadingBackendRows] = useState(false);
 
   const [splitOutputStem, setSplitOutputStem] = useState('');
   const [splitOutputExt, setSplitOutputExt] = useState<FileExtension>('csv');
@@ -110,6 +129,17 @@ const UtilsCard: React.FC = () => {
   const itemAnimation = {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+  };
+
+  const resetStitchExistingState = () => {
+    setShowExistingPicker(false);
+    setStitchableSearches([]);
+    setStitchableCursor(null);
+    setHasMoreStitchable(false);
+    setLoadingStitchable(false);
+    setSelectedStitchableItems(new Map());
+    setStitchBackendRows([]);
+    setLoadingBackendRows(false);
   };
 
   const resetOutputNames = () => {
@@ -127,9 +157,104 @@ const UtilsCard: React.FC = () => {
     setStitchEntries([]);
     setIsDragging(false);
     setDragCounter(0);
+    resetStitchExistingState();
     resetOutputNames();
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const loadStitchableSearches = useCallback(
+    async (reset: boolean) => {
+      if (!user?.uid) {
+        toast({
+          title: 'Sign in required',
+          description: 'Log in to stitch completed searches from your history.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setLoadingStitchable(true);
+      try {
+        const page = await fetchStitchableSearches(user.uid, {
+          limit: STITCHABLE_PAGE_SIZE,
+          cursor: reset ? null : stitchableCursor,
+        });
+
+        setStitchableSearches((prev) => (reset ? page.items : [...prev, ...page.items]));
+        setStitchableCursor(page.nextCursor);
+        setHasMoreStitchable(page.hasMore);
+      } catch {
+        toast({
+          title: 'Could not load history',
+          description: 'Failed to fetch completed searches.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoadingStitchable(false);
+      }
+    },
+    [user?.uid, stitchableCursor, toast]
+  );
+
+  const openExistingPicker = async () => {
+    if (!user?.uid) {
+      toast({
+        title: 'Sign in required',
+        description: 'Log in to stitch completed searches from your history.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setShowExistingPicker(true);
+    if (!stitchableSearches.length) {
+      await loadStitchableSearches(true);
+    }
+  };
+
+  const toggleStitchableSelection = (item: StitchableSearch) => {
+    setSelectedStitchableItems((prev) => {
+      const next = new Map(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.set(item.id, item);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (selectedStitchableItems.size === 0) {
+      setStitchBackendRows([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoadingBackendRows(true);
+      try {
+        const resultIds = Array.from(selectedStitchableItems.values()).flatMap((item) => item.resultIds);
+        const data = await fetchSearchResultData(resultIds);
+        if (!cancelled) {
+          setStitchBackendRows(searchResultsToNormalizedRows(data));
+        }
+      } catch {
+        if (!cancelled) {
+          setStitchBackendRows([]);
+          toast({
+            title: 'Could not load search data',
+            description: 'Failed to fetch rows for the selected history files.',
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingBackendRows(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [selectedStitchableItems, toast]);
 
   const showInvalidFileToast = () => {
     toast({
@@ -296,7 +421,9 @@ const UtilsCard: React.FC = () => {
       ? 'Upload one .csv or .xlsx file. Required columns: N, C, P. Optional: W, L.'
       : 'Upload one or more .csv or .xlsx files. Each needs N, C, P. Optional: W, L.';
 
-  const hasFiles = mode === 'split' ? !!splitEntry : stitchEntries.length > 0;
+  const hasUploadedFiles = mode === 'split' ? !!splitEntry : stitchEntries.length > 0;
+  const hasExistingSelections = selectedStitchableItems.size > 0;
+  const hasFiles = hasUploadedFiles || hasExistingSelections;
   const splitPatternStem = splitOutputStem.trim() || 'output';
   const splitPattern = `${splitPatternStem}-{}.${splitOutputExt}`;
   const splitExample = `${splitPatternStem}-1.${splitOutputExt}, ${splitPatternStem}-2.${splitOutputExt}, …`;
@@ -304,19 +431,48 @@ const UtilsCard: React.FC = () => {
   const stitchOutputName = `${stitchStem}.${stitchOutputExt}`;
 
   const splitReady = !!splitEntry?.validation.isValid;
-  const stitchReady = stitchEntries.length > 0 && stitchEntries.every((entry) => entry.validation.isValid);
+  const uploadStitchReady =
+    stitchEntries.length === 0 || stitchEntries.every((entry) => entry.validation.isValid);
+  const stitchReady =
+    uploadStitchReady &&
+    (stitchEntries.length > 0 || hasExistingSelections) &&
+    (!hasExistingSelections || (!loadingBackendRows && stitchBackendRows.length > 0));
   const effectiveRowsPerFile = Math.max(1, Math.floor(splitRowsPerFile) || DEFAULT_SPLIT_ROWS_PER_FILE);
   const splitChunkCount = splitEntry
     ? Math.ceil(splitEntry.data.length / effectiveRowsPerFile)
     : 0;
 
-  const stitchMergedRows = stitchReady
+  const uploadMergedRows = uploadStitchReady
     ? stitchEntries.flatMap((entry) => prepareNormalizedRows(entry.data, entry.validation))
     : [];
+  const stitchMergedRows = [...uploadMergedRows, ...stitchBackendRows];
   const stitchTotalRows = stitchMergedRows.length;
   const stitchLinkedInRows = stitchMergedRows.filter(rowHasLinkedIn).length;
   const stitchWithoutLinkedInRows = stitchTotalRows - stitchLinkedInRows;
   const stitchOutputRowCount = removeRowsWithoutLinkedin ? stitchLinkedInRows : stitchTotalRows;
+
+  const renderSelectedHistoryRow = (item: StitchableSearch) => (
+    <div className="p-3 sm:p-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <History className="text-accent shrink-0 h-5 w-5" />
+        <div className="flex-grow min-w-0">
+          <p className="text-primary-text font-medium text-sm truncate">{item.title}</p>
+          <p className="text-secondary-text text-xs">
+            {item.totalRecords} row{item.totalRecords !== 1 ? 's' : ''} · from history ·{' '}
+            {format(item.completedAt || item.createdAt, 'MMM d, yyyy')}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="text-secondary-text hover:text-destructive shrink-0 p-0.5"
+          onClick={() => toggleStitchableSelection(item)}
+          aria-label={`Remove ${item.title}`}
+        >
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+  );
 
   const renderFileRow = (
     entry: ParsedFileEntry,
@@ -352,8 +508,119 @@ const UtilsCard: React.FC = () => {
     </div>
   );
 
+  const selectedStitchableCount = selectedStitchableItems.size;
+
+  const renderStitchSelectedButton = (className?: string) => (
+    <Button
+      type="button"
+      className={`h-10 bg-primary hover:bg-accent-hover text-white shadow-md shadow-primary/20 ${className ?? ''}`}
+      onClick={handleDownloadClick}
+      disabled={isDownloading || !stitchReady || stitchOutputRowCount === 0}
+    >
+      {isDownloading ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <Merge className="mr-2 h-4 w-4" />
+      )}
+      Stitch selected ({selectedStitchableCount})
+    </Button>
+  );
+
+  const renderExistingPicker = () => (
+    <div className="rounded-lg border border-border bg-background/50 overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4 border-b border-border bg-background/70">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-primary-text">Completed searches</p>
+          <p className="text-xs text-secondary-text mt-0.5">
+            Select past bulk searches to merge directly from your account — no download needed.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="text-secondary-text hover:text-foreground shrink-0 p-1"
+          onClick={() => setShowExistingPicker(false)}
+          aria-label="Close completed searches picker"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      {selectedStitchableCount > 0 && (
+        <div className="px-3 py-3 sm:px-4 border-b border-border bg-primary/5">
+          {renderStitchSelectedButton('w-full')}
+        </div>
+      )}
+
+      <div className="divide-y divide-border max-h-[22rem] overflow-y-auto">
+        {loadingStitchable && !stitchableSearches.length ? (
+          <div className="p-6 flex items-center justify-center gap-2 text-secondary-text">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading completed searches…</span>
+          </div>
+        ) : stitchableSearches.length === 0 ? (
+          <div className="p-6 text-center text-sm text-secondary-text">
+            No completed bulk searches found in your history.
+          </div>
+        ) : (
+          stitchableSearches.map((item) => {
+            const checked = selectedStitchableItems.has(item.id);
+            return (
+              <label
+                key={item.id}
+                className={`flex items-center gap-3 px-3 py-3 sm:px-4 cursor-pointer transition-colors ${
+                  checked ? 'bg-primary/5' : 'hover:bg-background/80'
+                }`}
+              >
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={() => toggleStitchableSelection(item)}
+                  aria-label={`Select ${item.title}`}
+                />
+                <div className="flex-grow min-w-0">
+                  <p className="text-sm font-medium text-primary-text truncate">{item.title}</p>
+                  <p className="text-xs text-secondary-text">
+                    {item.totalRecords} row{item.totalRecords !== 1 ? 's' : ''} ·{' '}
+                    {format(item.completedAt || item.createdAt, 'MMM d, yyyy')}
+                  </p>
+                </div>
+                <History className="h-4 w-4 text-accent shrink-0" />
+              </label>
+            );
+          })
+        )}
+      </div>
+
+      <div className="px-3 py-3 sm:px-4 border-t border-border space-y-3">
+        {hasMoreStitchable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full border-accent/40 text-accent hover:bg-accent/10"
+            onClick={() => loadStitchableSearches(false)}
+            disabled={loadingStitchable}
+          >
+            {loadingStitchable ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            Load more
+          </Button>
+        )}
+        {selectedStitchableCount > 0 && renderStitchSelectedButton('w-full')}
+      </div>
+    </div>
+  );
+
   const fileSectionLabel = mode === 'split' ? 'Select file to split' : 'Select files to stitch';
 
+  const fetchBackendRowsForStitch = async (): Promise<SpreadsheetRow[]> => {
+    if (stitchBackendRows.length > 0) return stitchBackendRows;
+    if (selectedStitchableItems.size === 0) return [];
+
+    const resultIds = Array.from(selectedStitchableItems.values()).flatMap((item) => item.resultIds);
+    const data = await fetchSearchResultData(resultIds);
+    return searchResultsToNormalizedRows(data);
+  };
   const handleDownloadClick = async () => {
     try {
       setIsDownloading(true);
@@ -384,25 +651,36 @@ const UtilsCard: React.FC = () => {
         return;
       }
 
-      if (!stitchReady) {
+      if (!uploadStitchReady) {
         toast({
           title: 'Cannot stitch yet',
-          description: 'Every file must have N, C, and P columns.',
+          description: 'Every uploaded file must have N, C, and P columns.',
           variant: 'destructive',
         });
         return;
       }
 
-      const merged = stitchEntries.flatMap((entry) =>
+      if (!stitchEntries.length && !hasExistingSelections) {
+        toast({
+          title: 'Nothing to stitch',
+          description: 'Upload files or select completed searches from your history.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const uploadRows = stitchEntries.flatMap((entry) =>
         prepareNormalizedRows(entry.data, entry.validation)
       );
+      const backendRows = await fetchBackendRowsForStitch();
+      const merged = [...uploadRows, ...backendRows];
       const filtered = removeRowsWithoutLinkedin ? merged.filter(rowHasLinkedIn) : merged;
 
       if (!filtered.length) {
         toast({
           title: 'No rows to export',
           description: removeRowsWithoutLinkedin
-            ? 'No rows with LinkedIn found across the selected files.'
+            ? 'No rows with LinkedIn found across the selected sources.'
             : 'No data rows to stitch.',
           variant: 'destructive',
         });
@@ -476,7 +754,7 @@ const UtilsCard: React.FC = () => {
       <motion.div variants={itemAnimation}>
         <div className="flex items-center justify-between gap-3 mb-2">
           <Label className="text-sm">{fileSectionLabel}</Label>
-          {hasFiles && (
+          {hasUploadedFiles && (
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <ColumnAvailabilityBadges variant="headers" />
               <span className="w-[26px] shrink-0" aria-hidden />
@@ -499,45 +777,65 @@ const UtilsCard: React.FC = () => {
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">Reading file…</span>
           </div>
-        ) : !hasFiles ? (
-          <div
-            className={`border-2 border-dashed rounded-lg p-4 sm:p-5 text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center ${
-              isDragging
-                ? 'border-accent bg-accent/10 scale-[1.02]'
-                : 'border-border hover:border-accent/50 hover:bg-accent/5'
-            }`}
-            onClick={openFilePicker}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
+        ) : !hasUploadedFiles && !hasExistingSelections ? (
+          <div className="space-y-3">
             <div
-              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-3 transition-all duration-200 ${
-                isDragging ? 'bg-accent/20 scale-110' : 'bg-accent/10'
+              className={`border-2 border-dashed rounded-lg p-4 sm:p-5 text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center ${
+                isDragging
+                  ? 'border-accent bg-accent/10 scale-[1.02]'
+                  : 'border-border hover:border-accent/50 hover:bg-accent/5'
               }`}
+              onClick={openFilePicker}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
             >
-              <Upload
-                className={`h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200 ${
-                  isDragging ? 'text-accent scale-110 animate-bounce' : 'text-accent'
+              <div
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-3 transition-all duration-200 ${
+                  isDragging ? 'bg-accent/20 scale-110' : 'bg-accent/10'
                 }`}
-              />
+              >
+                <Upload
+                  className={`h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200 ${
+                    isDragging ? 'text-accent scale-110 animate-bounce' : 'text-accent'
+                  }`}
+                />
+              </div>
+              <p className="text-secondary-text text-xs sm:text-sm mb-3">
+                {isDragging ? 'Drop your file(s) here to upload' : uploadHint}
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40 h-9 px-3 sm:px-4"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openFilePicker();
+                  }}
+                >
+                  <FileComponent className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  Browse Files
+                </Button>
+                {mode === 'stitch' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-primary/40 text-primary hover:bg-primary/10 h-9 px-3 sm:px-4"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void openExistingPicker();
+                    }}
+                  >
+                    <History className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                    Stitch existing files
+                  </Button>
+                )}
+              </div>
             </div>
-            <p className="text-secondary-text text-xs sm:text-sm mb-3">
-              {isDragging ? 'Drop your file(s) here to upload' : uploadHint}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="bg-accent/20 hover:bg-accent/30 text-accent hover:text-primary-text border border-accent/40 h-9 px-3 sm:px-4"
-              onClick={(event) => {
-                event.stopPropagation();
-                openFilePicker();
-              }}
-            >
-              <FileComponent className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-              Browse Files
-            </Button>
+            {mode === 'stitch' && showExistingPicker && renderExistingPicker()}
           </div>
         ) : mode === 'split' && splitEntry ? (
           <div className="bg-background/70 rounded-lg border border-border">
@@ -545,13 +843,18 @@ const UtilsCard: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="bg-background/70 rounded-lg border border-border divide-y divide-border">
-              {stitchEntries.map((entry, index) => (
-                <div key={`${entry.file.name}-${entry.file.size}-${index}`}>
-                  {renderFileRow(entry, () => removeStitchFile(index), `Remove ${entry.file.name}`)}
-                </div>
-              ))}
-            </div>
+            {(stitchEntries.length > 0 || hasExistingSelections) && (
+              <div className="bg-background/70 rounded-lg border border-border divide-y divide-border">
+                {stitchEntries.map((entry, index) => (
+                  <div key={`${entry.file.name}-${entry.file.size}-${index}`}>
+                    {renderFileRow(entry, () => removeStitchFile(index), `Remove ${entry.file.name}`)}
+                  </div>
+                ))}
+                {Array.from(selectedStitchableItems.values()).map((item) => (
+                  <div key={`history-${item.id}`}>{renderSelectedHistoryRow(item)}</div>
+                ))}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <Button
@@ -568,12 +871,26 @@ const UtilsCard: React.FC = () => {
                 type="button"
                 size="sm"
                 variant="outline"
+                className="border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => void openExistingPicker()}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Stitch existing files
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 className="border-border text-secondary-text hover:text-destructive hover:border-destructive/40"
-                onClick={clearStitchFiles}
+                onClick={() => {
+                  clearStitchFiles();
+                  resetStitchExistingState();
+                }}
               >
                 Clear all
               </Button>
             </div>
+            {showExistingPicker && renderExistingPicker()}
           </div>
         )}
       </motion.div>
@@ -641,9 +958,15 @@ const UtilsCard: React.FC = () => {
         </motion.div>
       )}
 
-      {mode === 'stitch' && stitchEntries.length > 0 && (
+      {mode === 'stitch' && hasFiles && (
         <motion.div variants={itemAnimation} className="space-y-3">
           <div className="rounded-lg border border-border bg-background/50 px-3 py-3 sm:px-4 space-y-3">
+            {loadingBackendRows && (
+              <p className="text-xs text-secondary-text flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Loading rows from selected history files…
+              </p>
+            )}
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <p className="text-foreground">
                 <span className="text-muted-foreground">Total combined rows:</span>{' '}
@@ -707,7 +1030,7 @@ const UtilsCard: React.FC = () => {
         </motion.div>
       )}
 
-      {hasFiles && (
+          {hasFiles && (
         <motion.div variants={itemAnimation} className="pt-2">
           <Button
             type="button"
@@ -715,6 +1038,7 @@ const UtilsCard: React.FC = () => {
             onClick={handleDownloadClick}
             disabled={
               isDownloading ||
+              loadingBackendRows ||
               (mode === 'split' ? !splitReady : !stitchReady || stitchOutputRowCount === 0)
             }
           >
