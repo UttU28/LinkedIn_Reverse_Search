@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { refreshSearchHistory } from '../lib/searchService';
 import { findSingleCompanyWebsite, findBulkCompanyWebsites } from '../services/apiService';
+import { validateCompanyColumn } from '../utils/spreadsheetColumns';
 
 interface CompanyCSVRow {
   [key: string]: string | undefined;
@@ -178,39 +179,12 @@ const CompanySearchCard: React.FC = () => {
     }
   };
 
-  const validateCompanyColumn = (data: CompanyCSVRow[]): CompanyColumnValidation => {
-    if (!data.length) {
-      return {
-        company: false,
-        detectedCompanyHeader: undefined,
-        isValid: false
-      };
-    }
-
-    const headers = Object.keys(data[0]);
-    const lowerHeaders = headers.map((h) => h.toLowerCase());
-
-    const idx = lowerHeaders.findIndex(
-      (h) =>
-        h === 'company' ||
-        h === 'companyname' ||
-        h === 'company name' ||
-        h === 'company_name' ||
-        h.includes('company')
-    );
-
-    if (idx === -1) {
-      return {
-        company: false,
-        detectedCompanyHeader: undefined,
-        isValid: false
-      };
-    }
-
+  const validateCompanyColumnLocal = (data: CompanyCSVRow[]): CompanyColumnValidation => {
+    const result = validateCompanyColumn(data);
     return {
-      company: true,
-      detectedCompanyHeader: headers[idx],
-      isValid: true
+      company: result.company,
+      detectedCompanyHeader: result.detectedCompanyHeader,
+      isValid: result.isValid,
     };
   };
 
@@ -235,7 +209,7 @@ const CompanySearchCard: React.FC = () => {
       return;
     }
 
-    const nextValidation = validateCompanyColumn(parsedData);
+    const nextValidation = validateCompanyColumnLocal(parsedData);
     setValidation(nextValidation);
 
     if (!nextValidation.isValid) {
@@ -451,7 +425,8 @@ const CompanySearchCard: React.FC = () => {
         {/* CSV / Excel upload */}
         <motion.div variants={itemAnimation}>
           <Label className="text-sm mb-2 block">
-            Upload a file with a <span className="font-semibold">Company</span> or{' '}
+            Upload a file with a <span className="font-semibold">C</span> or{' '}
+            <span className="font-semibold">Company</span> /{' '}
             <span className="font-semibold">Company Name</span> column.
           </Label>
 
@@ -547,7 +522,7 @@ const CompanySearchCard: React.FC = () => {
                           validation.company ? 'text-primary-text' : 'text-secondary-text'
                         }`}
                       >
-                        Company column
+                        C
                       </span>
                     </div>
                   </div>
@@ -557,8 +532,7 @@ const CompanySearchCard: React.FC = () => {
                   <div className="mt-3 p-2 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
                     <AlertCircle size={14} className="text-destructive shrink-0 mr-2 mt-0.5" />
                     <span className="text-xs text-destructive">
-                      We could not find a Company or Company Name column. Please update your file and
-                      upload again.
+                      We could not find a C / Company column. Please update your file and upload again.
                     </span>
                   </div>
                 )}

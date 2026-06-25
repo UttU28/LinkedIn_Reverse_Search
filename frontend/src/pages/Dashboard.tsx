@@ -5,7 +5,8 @@ import {
   Search,
   Users,
   Clock,
-  Building2
+  Building2,
+  Wrench
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -15,10 +16,11 @@ import LeadResultsTable from '../components/LeadResultsTable';
 import { LeadResult } from '../components/LeadSearchForm';
 import RecentSearches from '../components/RecentSearches';
 import CompanySearchCard from '../components/CompanySearchCard';
+import UtilsCard from '../components/UtilsCard';
 
 const Dashboard: React.FC = () => {
   const { userData, refreshCredits } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch' | 'companyFinder'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'leadSearch' | 'companyFinder' | 'utils'>('profile');
   const hasRefreshedCredits = useRef(false);
   
   useEffect(() => {
@@ -98,16 +100,18 @@ const Dashboard: React.FC = () => {
                   ? "Ready to discover LinkedIn profiles with AI precision"
                   : activeTab === 'leadSearch'
                     ? "Find targeted professionals for your networking goals"
-                    : "Upload company lists to prepare for website discovery"}
+                    : activeTab === 'companyFinder'
+                      ? "Upload company lists to prepare for website discovery"
+                      : "Split or stitch CSV and Excel files for your workflows"}
               </p>
             </div>
           </div>
           
           {/* Professional Tab Navigation */}
-          <div className="flex bg-card-elevated rounded-2xl p-2 border border-border-elevated">
+          <div className="flex bg-card-elevated rounded-2xl p-2 border border-border-elevated overflow-x-auto">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+              className={`flex-1 min-w-[7rem] flex items-center justify-center space-x-2 sm:space-x-3 py-4 px-3 sm:px-6 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 ${
                 activeTab === 'profile'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20'
                   : 'text-muted-foreground hover:text-foreground hover:bg-card'
@@ -119,7 +123,7 @@ const Dashboard: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('leadSearch')}
-              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+              className={`flex-1 min-w-[7rem] flex items-center justify-center space-x-2 sm:space-x-3 py-4 px-3 sm:px-6 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 ${
                 activeTab === 'leadSearch'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20'
                   : 'text-muted-foreground hover:text-foreground hover:bg-card'
@@ -131,7 +135,7 @@ const Dashboard: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('companyFinder')}
-              className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl text-base font-medium transition-all duration-300 ${
+              className={`flex-1 min-w-[7rem] flex items-center justify-center space-x-2 sm:space-x-3 py-4 px-3 sm:px-6 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 ${
                 activeTab === 'companyFinder'
                   ? 'bg-primary text-white shadow-lg shadow-primary/20'
                   : 'text-muted-foreground hover:text-foreground hover:bg-card'
@@ -140,6 +144,18 @@ const Dashboard: React.FC = () => {
               <Building2 className="h-5 w-5" />
               <span className="hidden sm:inline">Company Finding</span>
               <span className="sm:hidden">Companies</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('utils')}
+              className={`flex-1 min-w-[7rem] flex items-center justify-center space-x-2 sm:space-x-3 py-4 px-3 sm:px-6 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 ${
+                activeTab === 'utils'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <Wrench className="h-5 w-5" />
+              <span className="hidden sm:inline">Utils</span>
+              <span className="sm:hidden">Utils</span>
             </button>
           </div>
         </motion.section>
@@ -220,7 +236,32 @@ const Dashboard: React.FC = () => {
                 <CompanySearchCard />
               </div>
             </motion.section>
-          ) : null}
+          ) : (
+            <motion.section
+              key="utils"
+              className="mb-16"
+              variants={itemVariants}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <div className="glass-card rounded-3xl border border-border-elevated shadow-xl p-8">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl border border-primary/20">
+                    <Wrench className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground">Utils</h2>
+                    <p className="text-muted-foreground">
+                      Split one file or stitch multiple CSV / Excel files together
+                    </p>
+                  </div>
+                </div>
+                <UtilsCard />
+              </div>
+            </motion.section>
+          )}
         </AnimatePresence>
         
         {/* Results Sections */}

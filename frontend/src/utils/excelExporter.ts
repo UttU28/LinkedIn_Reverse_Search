@@ -1,5 +1,6 @@
-import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
+import { FULL_COLUMN_HEADERS } from './spreadsheetColumns';
+import { buildProfileExcelBlob } from './profileExcelBuilder';
 
 // Interface for search result data
 export interface SearchResultData {
@@ -96,118 +97,24 @@ export const exportToExcel = async (
     // Skip notifying about Excel creation to avoid duplicate toasts
     // if (onProgress) onProgress('creating', detailedData.length);
 
-    // Create a workbook and worksheet using ExcelJS
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('LinkedIn Results');
+    // Map to normalized profile rows (same column order as Utils split/stitch + CSV export)
+    const normalizedRows = detailedData.map((item) => ({
+      [FULL_COLUMN_HEADERS.name]: item.name || '',
+      [FULL_COLUMN_HEADERS.company]: item.company || '',
+      [FULL_COLUMN_HEADERS.website]:
+        item.website && typeof item.website === 'string' ? item.website : '',
+      [FULL_COLUMN_HEADERS.position]: item.title || '',
+      [FULL_COLUMN_HEADERS.linkedin]:
+        (item.linkedinUrl as string) || (item.linkedin as string) || '',
+    }));
 
-    // Define columns (headers, keys, widths)
-    worksheet.columns = [
-      { header: 'Full Name', key: 'name', width: 25 },
-      { header: 'Company', key: 'company', width: 25 },
-      { header: 'Website', key: 'website', width: 35 },
-      { header: 'Position', key: 'title', width: 25 },
-      { header: 'LinkedIn', key: 'linkedin', width: 40 },
-    ];
-
-    // Add rows of data
-    const tableRows = detailedData.map(item => {
-      const website =
-        item.website && typeof item.website === 'string' ? item.website : '';
-      const linkedin =
-        (item.linkedinUrl as string) ||
-        (item.linkedin as string) ||
-        '';
-
-      return {
-        name: item.name || '',
-        company: item.company || '',
-        website,
-        title: item.title || '',
-        linkedin,
-      };
-    });
-
-    tableRows.forEach(row => worksheet.addRow(row));
-
-    // Build an Excel "Table" with banded rows & header style
-    const rowCount = tableRows.length + 1; // +1 for header row
-    if (rowCount > 1) {
-      worksheet.addTable({
-        name: 'LinkedInResultsTable',
-        ref: 'A1',
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: 'TableStyleMedium9', // blue header + striped rows
-          showRowStripes: true,
-        },
-        columns: [
-          { name: 'Full Name', filterButton: true },
-          { name: 'Company', filterButton: true },
-          { name: 'Website', filterButton: true },
-          { name: 'Position', filterButton: true },
-          { name: 'LinkedIn', filterButton: true },
-        ],
-        rows: tableRows.map(row => [
-          row.name,
-          row.company,
-          row.website,
-          row.title,
-          row.linkedin,
-        ]),
-      });
-    }
-
-    // Apply hyperlink styling to Website (D) and LinkedIn (E) columns
-    for (let i = 0; i < tableRows.length; i++) {
-      const excelRowIndex = i + 2; // data starts at row 2
-      const row = tableRows[i];
-
-      // Website: column C (3)
-      if (row.website) {
-        const normalizedWebsite =
-          row.website.startsWith('http') ? row.website : `https://${row.website}`;
-        const cell = worksheet.getCell(`C${excelRowIndex}`);
-        cell.value = {
-          text: row.website,
-          hyperlink: normalizedWebsite,
-        };
-        cell.font = {
-          color: { argb: 'FF0563C1' },
-          underline: true,
-        };
-      }
-
-      // LinkedIn: column E (5)
-      if (row.linkedin) {
-        const normalizedLinkedin = row.linkedin.startsWith('http')
-          ? row.linkedin
-          : `https://${row.linkedin}`;
-        const cell = worksheet.getCell(`E${excelRowIndex}`);
-        cell.value = {
-          text: row.linkedin,
-          hyperlink: normalizedLinkedin,
-        };
-        cell.font = {
-          color: { argb: 'FF0563C1' },
-          underline: true,
-        };
-      }
-    }
-
-    // Generate filename based on search data (e.g. "Ceraweek Mar 3.xlsx")
+    const blob = await buildProfileExcelBlob(normalizedRows);
     const rawTitle = searchInfo.title || 'results';
     const titleWithoutExt = rawTitle.replace(/\.[^.\s]{1,5}$/i, '');
     const safeTitle = titleWithoutExt.replace(/[^\w\s-]/gi, '').trim() || 'results';
     const shortDate = format(new Date(searchInfo.timestamp), 'MMM d');
     const fileName = `${safeTitle} ${shortDate}.xlsx`;
 
-    // Write workbook to a buffer and trigger browser download
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type:
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

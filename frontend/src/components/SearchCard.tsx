@@ -26,6 +26,8 @@ import { refreshSearchHistory } from '../lib/searchService';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
+import ColumnAvailabilityBadges from './ColumnAvailabilityBadges';
+import { validateProfileColumns, type ProfileColumnValidation } from '../utils/spreadsheetColumns';
 
 // Temporary type definitions until the real files are created
 interface SearchResponse {
@@ -57,13 +59,6 @@ interface CSVRow {
   Position?: string;
   Title?: string;
   [key: string]: string | undefined;
-}
-
-interface ColumnValidation {
-  name: boolean;
-  company: boolean;
-  position: boolean;
-  isValid: boolean;
 }
 
 // At the top of the file, add an interface for the props
@@ -104,11 +99,14 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<CSVRow[]>([]);
   const [isProcessingCSV, setIsProcessingCSV] = useState(false);
-  const [columnValidation, setColumnValidation] = useState<ColumnValidation>({
+  const [columnValidation, setColumnValidation] = useState<ProfileColumnValidation>({
     name: false,
     company: false,
+    website: false,
     position: false,
-    isValid: false
+    linkedin: false,
+    isValid: false,
+    detectedHeaders: {},
   });
   
   // Drag and drop state
@@ -192,8 +190,11 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     setColumnValidation({
       name: false,
       company: false,
+      website: false,
       position: false,
-      isValid: false
+      linkedin: false,
+      isValid: false,
+      detectedHeaders: {},
     });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -470,88 +471,29 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     return Math.round(bytes / 1048576) + ' MB';
   };
   
-  // Validates which required columns are present in the data
-  const validateColumns = (data: CSVRow[]): ColumnValidation => {
-    if (!data.length) return { name: false, company: false, position: false, isValid: false };
-    
-    // Get all column headers from the first row
-    const headers = Object.keys(data[0]).map(h => h.toLowerCase());
-    
-    // Check for name column (variations)
-    const hasName = headers.some(h => 
-      h === 'name' || h === 'fullname' || h === 'full name' || h === 'full_name' || h.includes('name')
-    );
-    
-    // Check for company column (variations)
-    const hasCompany = headers.some(h => 
-      h === 'company' || h === 'companyname' || h === 'company name' || h === 'company_name' || h.includes('company')
-    );
-    
-    // Check for position/title column (variations)
-    const hasPosition = headers.some(h => 
-      h === 'position' || h === 'title' || h === 'jobtitle' || h === 'job title' || 
-      h === 'job_title' || h === 'currentposition' || h === 'current position' || 
-      h === 'current_position' || h === 'currenttitle' || h === 'current title' || 
-      h === 'current_title' || h.includes('position') || h.includes('title')
-    );
-    
-    // All required columns must be present
-    const isValid = hasName && hasCompany && hasPosition;
-    
-    return { name: hasName, company: hasCompany, position: hasPosition, isValid };
-  };
-  
+  // Validates which columns are present in the data
   // Effect to validate columns whenever parsed data changes
   useEffect(() => {
     if (parsedData.length > 0) {
-      const validation = validateColumns(parsedData);
+      const validation = validateProfileColumns(parsedData);
       setColumnValidation(validation);
       
       if (!validation.isValid) {
         toast({
           title: "Missing required columns",
-          description: "Your file must include columns for Name, Company, and Position/Title.",
+          description: "Your file must include N, C, and P (Name, Company, Position). W and L are optional.",
           variant: "destructive"
         });
       } else {
-        // Find the actual column names that matched our patterns
-        const headers = Object.keys(parsedData[0]);
-        const nameField = headers.find(h => 
-          h.toLowerCase() === 'name' || 
-          h.toLowerCase() === 'fullname' || 
-          h.toLowerCase() === 'full name' || 
-          h.toLowerCase() === 'full_name' || 
-          h.toLowerCase().includes('name')
-        );
+        const { detectedHeaders } = validation;
         
-        const companyField = headers.find(h => 
-          h.toLowerCase() === 'company' || 
-          h.toLowerCase() === 'companyname' || 
-          h.toLowerCase() === 'company name' || 
-          h.toLowerCase() === 'company_name' || 
-          h.toLowerCase().includes('company')
-        );
-        
-        const positionField = headers.find(h => 
-          h.toLowerCase() === 'position' || 
-          h.toLowerCase() === 'title' || 
-          h.toLowerCase() === 'jobtitle' || 
-          h.toLowerCase() === 'job title' || 
-          h.toLowerCase() === 'job_title' || 
-          h.toLowerCase() === 'currentposition' || 
-          h.toLowerCase() === 'current position' || 
-          h.toLowerCase() === 'current_title' || 
-          h.toLowerCase().includes('position') || 
-          h.toLowerCase().includes('title')
-        );
-        
-        // Log the content when all three fields are found
+        // Log the content when all required fields are found
         console.log("CSV/Excel Upload - Found all required fields:");
         parsedData.forEach((row, index) => {
           console.log(`Record ${index + 1}:`, {
-            "Full Name": nameField ? row[nameField] || "" : "",
-            "Company": companyField ? row[companyField] || "" : "",
-            "Position": positionField ? row[positionField] || "" : ""
+            "Full Name": detectedHeaders.name ? row[detectedHeaders.name] || "" : "",
+            "Company": detectedHeaders.company ? row[detectedHeaders.company] || "" : "",
+            "Position": detectedHeaders.position ? row[detectedHeaders.position] || "" : ""
           });
         });
         
@@ -606,44 +548,12 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     // Generate a unique batch ID
     const batchId = `batch-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     
-    // Get available headers from the first row
-    const headers = Object.keys(parsedData[0]);
-    
-    // Try to intelligently find appropriate columns by name
-    const nameField = headers.find(h => 
-      h.toLowerCase() === 'name' || 
-      h.toLowerCase() === 'fullname' || 
-      h.toLowerCase() === 'full name' || 
-      h.toLowerCase() === 'full_name' || 
-      h.toLowerCase().includes('name')
-    );
-    
-    const companyField = headers.find(h => 
-      h.toLowerCase() === 'company' || 
-      h.toLowerCase() === 'companyname' || 
-      h.toLowerCase() === 'company name' || 
-      h.toLowerCase() === 'company_name' || 
-      h.toLowerCase().includes('company')
-    );
-    
-    const positionField = headers.find(h => 
-      h.toLowerCase() === 'position' || 
-      h.toLowerCase() === 'title' || 
-      h.toLowerCase() === 'jobtitle' || 
-      h.toLowerCase() === 'job title' || 
-      h.toLowerCase() === 'job_title' || 
-      h.toLowerCase() === 'currentposition' || 
-      h.toLowerCase() === 'current position' || 
-      h.toLowerCase() === 'current_title' || 
-      h.toLowerCase().includes('position') || 
-      h.toLowerCase().includes('title')
-    );
-    
     // Format contacts for batch processing
+    const { detectedHeaders } = columnValidation;
     const contacts = parsedData.map((row, index) => ({
-      searchName: nameField ? row[nameField] || "" : "",
-      searchCompany: companyField ? row[companyField] || "" : "",
-      searchPosition: positionField ? row[positionField] || "" : "",
+      searchName: detectedHeaders.name ? row[detectedHeaders.name] || "" : "",
+      searchCompany: detectedHeaders.company ? row[detectedHeaders.company] || "" : "",
+      searchPosition: detectedHeaders.position ? row[detectedHeaders.position] || "" : "",
       contactId: `temp-${index}` // Use temporary IDs
     }));
     
@@ -1198,7 +1108,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                     <p className="text-secondary-text text-xs sm:text-sm mb-3">
                       {isDragging 
                         ? "Drop your file here to upload" 
-                        : "Drag & drop or click to upload a CSV or Excel file having Full Name, Company, and Position/Title columns"
+                        : "Drag & drop or click to upload a CSV or Excel file with N, C, P columns (W, L optional)"
                       }
                     </p>
                     <Button
@@ -1234,54 +1144,8 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                     </div>
                     
                     {parsedData.length > 0 && (
-                      <div className="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6 pt-3 sm:pt-4 pb-2 border-t border-border">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
-                            ${columnValidation.name 
-                              ? 'bg-primary/20 border border-primary/60' 
-                              : 'bg-destructive/20 border border-destructive/60'}`}>
-                            {columnValidation.name ? (
-                              <Check size={16} className="text-primary" />
-                            ) : (
-                              <X size={16} className="text-destructive" />
-                            )}
-                          </div>
-                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.name ? 'text-primary-text' : 'text-secondary-text'}`}>
-                            Full Name
-                          </span>
-                        </div>
-                        
-                        <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
-                            ${columnValidation.company 
-                              ? 'bg-primary/20 border border-primary/60' 
-                              : 'bg-destructive/20 border border-destructive/60'}`}>
-                            {columnValidation.company ? (
-                              <Check size={16} className="text-primary" />
-                            ) : (
-                              <X size={16} className="text-destructive" />
-                            )}
-                          </div>
-                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.company ? 'text-primary-text' : 'text-secondary-text'}`}>
-                            Company
-                          </span>
-                        </div>
-                        
-                        <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full mb-1 sm:mb-2 flex items-center justify-center shadow-md 
-                            ${columnValidation.position 
-                              ? 'bg-primary/20 border border-primary/60' 
-                              : 'bg-destructive/20 border border-destructive/60'}`}>
-                            {columnValidation.position ? (
-                              <Check size={16} className="text-primary" />
-                            ) : (
-                              <X size={16} className="text-destructive" />
-                            )}
-                          </div>
-                          <span className={`text-xs sm:text-sm font-medium text-center ${columnValidation.position ? 'text-primary-text' : 'text-secondary-text'}`}>
-                            Position/Title
-                          </span>
-                        </div>
+                      <div className="pt-3 sm:pt-4 pb-2 border-t border-border">
+                        <ColumnAvailabilityBadges validation={columnValidation} />
                       </div>
                     )}
                     
@@ -1289,7 +1153,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
                       <div className="mt-3 p-2 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start">
                         <AlertCircle size={14} className="text-destructive shrink-0 mr-2 mt-0.5" />
                         <span className="text-xs text-destructive">
-                          Required columns missing. Please ensure your file has columns for Full Name, Company, and Position/Title.
+                          Required columns missing. Use N, C, and P (or full names: Name, Company, Position).
                         </span>
                       </div>
                     )}
