@@ -162,7 +162,7 @@ const SearchCard: React.FC<SearchCardProps> = ({ onSearchComplete }) => {
     setIncludeCompanyLinks(value);
     const uid = useAuthStore.getState().user?.uid;
     if (uid) {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3008';
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:9221';
       fetch(`${API_BASE}/user-preference/${uid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

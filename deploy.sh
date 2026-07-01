@@ -7,6 +7,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../deploy-lib.sh
+source "${ROOT}/../deploy-lib.sh"
 cd "$ROOT"
 
 BLUE='\033[0;34m'
@@ -87,8 +89,8 @@ banner "Nginx + SSL (${DOMAIN})"
 if ! command -v nginx &>/dev/null; then
   warn "nginx not installed — skipping vhost/SSL"
   warn "Install: sudo pacman -S nginx  or  sudo apt install nginx"
-elif [[ "${EUID:-$(id -u)}" -ne 0 && -z "${SUDO_USER:-}" ]]; then
-  warn "Not root — nginx/SSL skipped. Run: sudo bash ${ROOT}/deploy.sh"
+elif [[ "$(id -u)" -ne 0 ]]; then
+  warn "Not root — nginx/SSL skipped. Parent deploy runs these as root, or use: sudo bash ${ROOT}/deploy.sh"
   warn "Manual nginx:"
   echo "  sudo cp ${NGINX_CONF_FILE} ${NGINX_AVAILABLE}"
   echo "  sudo ln -sf ${NGINX_AVAILABLE} ${NGINX_ENABLED}"
@@ -109,9 +111,11 @@ else
     err "nginx -t failed"
   fi
 
-  if command -v certbot &>/dev/null; then
+  if le_cert_exists "${DOMAIN}"; then
+    info "Certificate exists for ${DOMAIN} — skipped certbot."
+  elif command -v certbot &>/dev/null; then
     step "Certbot: ${DOMAIN}"
-    if certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --keep-until-expiring 2>/dev/null; then
+    if certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --redirect 2>/dev/null; then
       info "SSL certificate configured"
     elif printf '\nA\n1\n' | certbot --nginx -d "${DOMAIN}" 2>/dev/null; then
       info "SSL certificate configured"

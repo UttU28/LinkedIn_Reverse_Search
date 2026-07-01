@@ -9,7 +9,7 @@ import { loadStripe } from '@stripe/stripe-js';
 // Load the Stripe publishable key from environment variables
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 // API URL from environment variables
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3008";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:9221";
 
 interface PricingCardProps {
   plan: {
