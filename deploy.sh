@@ -7,8 +7,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../deploy-lib.sh
-source "${ROOT}/../deploy-lib.sh"
+# shellcheck source=../deployLib.sh
+source "${ROOT}/../dktp/deployLib.sh"
 cd "$ROOT"
 
 BLUE='\033[0;34m'
