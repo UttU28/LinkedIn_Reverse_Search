@@ -100,6 +100,7 @@ elif [[ ! -f "$NGINX_CONF_FILE" ]]; then
 else
   step "Installing nginx vhost…"
   cp "$NGINX_CONF_FILE" "$NGINX_AVAILABLE"
+  chmod 644 "$NGINX_AVAILABLE"
   ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
   rm -f /etc/nginx/sites-enabled/default
 
@@ -112,7 +113,13 @@ else
   fi
 
   if le_cert_exists "${DOMAIN}"; then
-    info "Certificate exists for ${DOMAIN} — skipped certbot."
+    if le_nginx_has_ssl "${DOMAIN}"; then
+      info "Certificate exists for ${DOMAIN} — HTTPS vhost OK."
+    else
+      step "Applying existing certificate to nginx (${DOMAIN})…"
+      le_install_nginx_ssl "${DOMAIN}" \
+        || warn "Could not apply SSL — run: sudo certbot install --cert-name ${DOMAIN}"
+    fi
   elif command -v certbot &>/dev/null; then
     step "Certbot: ${DOMAIN}"
     if certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --redirect 2>/dev/null; then
