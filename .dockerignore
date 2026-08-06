@@ -1,0 +1,7 @@
+**/node_modules
+**/.env
+**/.env.*
+backend/firebaseServiceAccountKey.json
+.git
+.github
+frontend/dist

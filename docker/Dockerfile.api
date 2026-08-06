@@ -1,0 +1,21 @@
+# Link It Up API. Build context: repo root.
+#   docker build -f docker/Dockerfile.api -t linkitup-api:latest .
+FROM node:20-alpine
+
+ENV NODE_ENV=production \
+    PORT=9221
+
+WORKDIR /app
+
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY backend/ ./
+# firebaseServiceAccountKey.json is mounted at runtime (K8s secret), not baked in.
+
+EXPOSE 9221
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD node -e "require('http').get('http://127.0.0.1:9221/', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
+CMD ["node", "index.js"]
