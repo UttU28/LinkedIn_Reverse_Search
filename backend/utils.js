@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Which LLM provider to use: "ollama" (default), "openai", or "gemini"
+// Which LLM provider to use: "local", "ollama" (default), "openai", or "gemini"
 const USE_LLM_MODEL = (process.env.USE_LLM_MODEL || 'ollama').toLowerCase();
 
 /**
@@ -378,6 +378,82 @@ function buildUserPromptWithData(jsonData, userPrompt) {
 }
 
 /**
+ * Local OpenAI-compatible LLM (vLLM / Saral homelab at :8000/v1).
+ */
+async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
+  if (!callLocalLlm.rateLimiter) {
+    callLocalLlm.rateLimiter = new RateLimiter(
+      parseInt(process.env.LOCAL_LLM_REQUESTS_PER_MINUTE || process.env.OLLAMA_REQUESTS_PER_MINUTE || 30, 10),
+      'Local LLM'
+    );
+  }
+
+  const baseUrl = (process.env.LOCAL_LLM_BASE_URL || 'http://12.216.3.116:8000/v1').replace(/\/$/, '');
+  const model = process.env.LOCAL_LLM_MODEL || '/root/.cache/huggingface/Gemma-4-31B-IT-NVFP4';
+  const timeoutMs = parseInt(process.env.LOCAL_LLM_TIMEOUT_MS || process.env.OLLAMA_TIMEOUT_MS || '180000', 10);
+  const apiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENAI_API_KEY || 'local';
+
+  try {
+    await callLocalLlm.rateLimiter.acquire();
+
+    const response = await axios.post(
+      `${baseUrl}/chat/completions`,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPromptWithData }
+        ],
+        temperature: 0,
+        max_tokens: 512
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        timeout: timeoutMs
+      }
+    );
+
+    callLocalLlm.rateLimiter.recordSuccess();
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content || !content.trim()) {
+      log('Local LLM response did not contain any content', 'warn');
+      return null;
+    }
+
+    return content.trim();
+  } catch (error) {
+    const isRetryable = isRateLimitOrTransientError(error) ||
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ETIMEDOUT';
+
+    if (isRetryable && retryCount < LLM_MAX_RETRIES) {
+      const delayMs = LLM_RETRY_DELAYS_MS[retryCount] ?? LLM_RETRY_DELAYS_MS[LLM_RETRY_DELAYS_MS.length - 1] ?? 2000;
+      const delaySec = Math.round(delayMs / 1000);
+      log(`Local LLM unavailable (retry ${retryCount + 1}/${LLM_MAX_RETRIES}). Sleeping ${delaySec}s before retry...`, 'warn');
+      callLocalLlm.rateLimiter.recordError();
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      log(`Local LLM retry ${retryCount + 1} after ${delaySec}s wait`, 'info');
+      return callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCount + 1);
+    }
+
+    if (error.response && error.response.data) {
+      const body = JSON.stringify(error.response.data);
+      log(`Local LLM API error: ${error.message} - ${body.slice(0, 500)}`, 'error');
+    } else {
+      log(`Local LLM API error: ${error.message}`, 'error');
+    }
+    return null;
+  }
+}
+
+/**
  * Internal helper to call a local Ollama instance.
  */
 async function callOllama(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
@@ -529,8 +605,8 @@ async function callOpenAIProvider(jsonData, systemPrompt, userPromptWithData, re
 }
 
 /**
- * Call LLM (Ollama, OpenAI, or Gemini) to analyze search results with rate limiting.
- * The provider is selected via USE_LLM_MODEL env: "ollama" (default), "openai", or "gemini".
+ * Call LLM (local, Ollama, OpenAI, or Gemini) to analyze search results with rate limiting.
+ * The provider is selected via USE_LLM_MODEL env: "local", "ollama" (default), "openai", or "gemini".
  * Retries up to LLM_MAX_RETRIES times on rate limit/transient errors.
  * After LLM_CONSECUTIVE_FAIL_LIMIT consecutive null responses, throws LlmUnavailableError.
  */
@@ -542,6 +618,8 @@ async function callOpenAI(jsonData, systemPrompt, userPrompt) {
 
   if (USE_LLM_MODEL === 'gemini') {
     result = await callGemini(jsonData, systemPrompt, userPromptWithData);
+  } else if (USE_LLM_MODEL === 'local') {
+    result = await callLocalLlm(jsonData, systemPrompt, userPromptWithData);
   } else if (USE_LLM_MODEL === 'ollama') {
     result = await callOllama(jsonData, systemPrompt, userPromptWithData);
   } else {

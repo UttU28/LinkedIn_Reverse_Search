@@ -383,22 +383,19 @@ async function processBatchInBackground(contacts, userID, historyId, options = {
           humans.push(resultId);
         }
         
-        // Log progress and update database only every 10 contacts or at end
-        if (processedCount % 10 === 0 || processedCount === contacts.length) {
-          log(`Progress: ${processedCount}/${contacts.length} contacts, found ${successCount} profiles${includeCompanyLinks ? `, ${companyFoundCount} company links` : ''}`, 'info');
+        // Log progress and update database after each contact
+        log(`Progress: ${processedCount}/${contacts.length} contacts, found ${successCount} profiles${includeCompanyLinks ? `, ${companyFoundCount} company links` : ''}`, 'info');
 
-          // Periodic database update
-          await dbService.updateBatchStatus({
-            userID,
-            historyId,
-            status: 'processing',
-            progress: {
-              total: contacts.length,
-              processed: processedCount,
-              successful: successCount
-            }
-          });
-        }
+        await dbService.updateBatchStatus({
+          userID,
+          historyId,
+          status: 'processing',
+          progress: {
+            total: contacts.length,
+            processed: processedCount,
+            successful: successCount
+          }
+        });
 
       } catch (contactError) {
         if (contactError instanceof LlmUnavailableError) {

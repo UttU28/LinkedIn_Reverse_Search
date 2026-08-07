@@ -338,8 +338,20 @@ const RecentSearches: React.FC = () => {
       const unsubscribe = searchHistoryEvents.subscribe(() => {
         scheduledLoad();
       });
+      const pollInterval = setInterval(() => {
+        setSearchResults((current) => {
+          const hasProcessing = current.some(
+            (item) => item.status === 'processing' || item.status === 'pending'
+          );
+          if (hasProcessing) {
+            scheduledLoad();
+          }
+          return current;
+        });
+      }, 10000);
       return () => {
         unsubscribe();
+        clearInterval(pollInterval);
         if (loadTimeoutRef.current) {
           clearTimeout(loadTimeoutRef.current);
           loadTimeoutRef.current = null;
@@ -358,7 +370,7 @@ const RecentSearches: React.FC = () => {
       // Map status to display text
       let displayStatus = "Unknown";
       if (status === 'completed') displayStatus = "Found";
-      else if (status === 'pending') displayStatus = "Finding";
+      else if (status === 'pending' || status === 'processing') displayStatus = "Finding";
       else if (status === 'failed') displayStatus = "Failed";
       else displayStatus = status; // Fallback to original status
       
