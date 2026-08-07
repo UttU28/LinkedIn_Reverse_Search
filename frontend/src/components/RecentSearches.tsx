@@ -44,6 +44,9 @@ interface UnifiedSearchResult {
   resultIds?: string[]; // Use resultIds property name to match database
   originalData?: any; // Store the full original data
   includeCompanyLinks?: boolean;
+  processedCount?: number;
+  resultsCount?: number;
+  totalRecords?: number;
 }
 
 // Interface for search result data
@@ -71,6 +74,7 @@ const RecentSearches: React.FC = () => {
 
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLoadRef = useRef<number>(0);
+  const hasLoadedOnceRef = useRef(false);
   const DEBOUNCE_MS = 800;
   const MIN_INTERVAL_MS = 2000;
 
@@ -191,11 +195,13 @@ const RecentSearches: React.FC = () => {
   }, []);
 
   // Create a memoized loadSearchHistory function to avoid recreating it on each render
-  const loadSearchHistory = useCallback(async () => {
+  const loadSearchHistory = useCallback(async (options?: { silent?: boolean }) => {
     if (!user?.uid) return;
     
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setError(null);
       const searchHistory = await fetchSearchHistory(user.uid);
       
@@ -233,7 +239,14 @@ const RecentSearches: React.FC = () => {
                 
               case 'bulk':
                 title = item.inputMeta?.fileName || 'Bulk Search';
-                subtitle = `${item.totalRecords || 0} records`;
+                if (item.status === 'processing' || item.status === 'pending') {
+                  const processed = item.processedCount ?? 0;
+                  const total = item.totalRecords || 0;
+                  const found = item.resultsCount ?? 0;
+                  subtitle = total > 0 ? `${processed}/${total} processed · ${found} found` : `${total} records`;
+                } else {
+                  subtitle = `${item.resultsCount ?? item.totalRecords ?? 0} found`;
+                }
                 icon = <Users className="h-4 w-4" />;
                 break;
                 
@@ -272,6 +285,9 @@ const RecentSearches: React.FC = () => {
               icon,
               includeCompanyLinks,
               resultIds: item.resultIds || [], // Include resultIds directly
+              processedCount: item.processedCount,
+              resultsCount: item.resultsCount,
+              totalRecords: item.totalRecords,
               originalData: item // Store the full original data
             });
           } catch (err) {
@@ -299,18 +315,23 @@ const RecentSearches: React.FC = () => {
       const sortedResults = unifiedResults.sort((a, b) => b.timestamp - a.timestamp);
       
       setSearchResults(sortedResults);
+      hasLoadedOnceRef.current = true;
     } catch (error) {
       console.error('Error loading search history:', error);
-      setError('Failed to load search history');
+      if (!options?.silent) {
+        setError('Failed to load search history');
+      }
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [user?.uid]);
 
   const loadRef = useRef(loadSearchHistory);
   loadRef.current = loadSearchHistory;
 
-  const scheduledLoad = useCallback(() => {
+  const scheduledLoad = useCallback((silent = false) => {
     if (!user?.uid) return;
     const now = Date.now();
     if (loadTimeoutRef.current) {
@@ -319,15 +340,17 @@ const RecentSearches: React.FC = () => {
     }
     const elapsed = now - lastLoadRef.current;
     const isFirstLoad = lastLoadRef.current === 0;
+    const runLoad = () => {
+      lastLoadRef.current = Date.now();
+      loadRef.current({ silent: silent || hasLoadedOnceRef.current });
+    };
     if (isFirstLoad || elapsed >= MIN_INTERVAL_MS) {
-      lastLoadRef.current = now;
-      loadRef.current();
+      runLoad();
       return;
     }
     loadTimeoutRef.current = setTimeout(() => {
       loadTimeoutRef.current = null;
-      lastLoadRef.current = Date.now();
-      loadRef.current();
+      runLoad();
     }, DEBOUNCE_MS);
   }, [user?.uid]);
 
@@ -344,11 +367,11 @@ const RecentSearches: React.FC = () => {
             (item) => item.status === 'processing' || item.status === 'pending'
           );
           if (hasProcessing) {
-            scheduledLoad();
+            scheduledLoad(true);
           }
           return current;
         });
-      }, 10000);
+      }, 5000);
       return () => {
         unsubscribe();
         clearInterval(pollInterval);
@@ -363,8 +386,17 @@ const RecentSearches: React.FC = () => {
   }, [user?.uid, scheduledLoad, authLoading]);
 
   // Format time ago string with status prefix
-  const formatTimeAgo = (timestamp: number, status: string): string => {
+  const formatTimeAgo = (timestamp: number, status: string, search?: UnifiedSearchResult): string => {
     try {
+      if (
+        search &&
+        (status === 'pending' || status === 'processing') &&
+        search.totalRecords &&
+        (search.processedCount ?? 0) > 0
+      ) {
+        return `${search.processedCount}/${search.totalRecords}`;
+      }
+
       const timeAgo = formatDistanceToNow(new Date(timestamp), { addSuffix: true });
       
       // Map status to display text
@@ -628,20 +660,20 @@ const RecentSearches: React.FC = () => {
                         <CheckCircle className="h-4 w-4 text-green-500 mr-1.5" />
                         <span className="text-green-500">{formatTimeAgo(search.timestamp, search.status)}</span>
                       </>
-                    ) : search.status === 'pending' ? (
+                    ) : search.status === 'pending' || search.status === 'processing' ? (
                       <>
                         <Loader className="h-4 w-4 text-amber-500 animate-spin mr-1.5" />
-                        <span className="text-amber-500/80">{formatTimeAgo(search.timestamp, search.status)}</span>
+                        <span className="text-amber-500/80">{formatTimeAgo(search.timestamp, search.status, search)}</span>
                       </>
                     ) : search.status === 'failed' ? (
                       <>
                         <XCircle className="h-4 w-4 text-destructive mr-1.5" />
-                        <span className="text-destructive/80">{formatTimeAgo(search.timestamp, search.status)}</span>
+                        <span className="text-destructive/80">{formatTimeAgo(search.timestamp, search.status, search)}</span>
                       </>
                     ) : (
                       <>
                         <Clock className="h-4 w-4 text-secondary-text mr-1.5" />
-                        <span className="text-secondary-text">{formatTimeAgo(search.timestamp, search.status || 'Unknown')}</span>
+                        <span className="text-secondary-text">{formatTimeAgo(search.timestamp, search.status || 'Unknown', search)}</span>
                       </>
                     )}
                   </div>

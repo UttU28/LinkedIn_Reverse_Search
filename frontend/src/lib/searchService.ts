@@ -35,6 +35,8 @@ export interface SearchHistoryResult {
     includeCompanyLinks?: boolean;
   };
   totalRecords: number;
+  resultsCount?: number;
+  processedCount?: number;
   resultRefPath?: string;
   resultIds?: string[];
   linkedinUrl?: string | null;
@@ -116,6 +118,8 @@ export const fetchSearchHistory = async (userId: string) => {
             status: item.status || 'pending',
             inputMeta: item.inputMeta || {},
             totalRecords: item.totalRecords || 0,
+            resultsCount: item.resultsCount ?? 0,
+            processedCount: item.processedCount ?? 0,
             resultRefPath: item.resultRefPath || '',
             resultIds: item.resultIds || [],
             linkedinUrl: item.linkedinUrl || null,

@@ -269,14 +269,14 @@ class DbService {
       
       // Map the status to search history status
       let historyStatus = status;
-      if (status === 'processing') historyStatus = 'pending';
       if (status === 'error') historyStatus = 'failed';
-      
-      // Update search history
+
+      // Update search history with live batch progress for the dashboard
       await this.updateSearchHistory(userID, historyId, {
         status: historyStatus,
         completedAt: status === 'completed' || status === 'failed' ? new Date() : null,
-        resultsCount: progress?.successful || 0
+        resultsCount: progress?.successful || 0,
+        processedCount: progress?.processed || 0,
       });
       
       return true;
