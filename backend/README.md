@@ -216,4 +216,4 @@ Run the server in development mode:
 npm run dev
 ```
 
-The server will be available at http://localhost:3008.
+The server will be available at http://localhost:3008. :)
