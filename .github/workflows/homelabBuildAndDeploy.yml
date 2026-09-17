@@ -27,6 +27,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.HOMELABOPS_GIT_TOKEN }}
+          logout: false
 
       - name: buildAndPush
         run: |
@@ -35,8 +36,7 @@ jobs:
           image="${{ env.REGISTRY }}/${ownerLower}/linkitup-api"
           docker build -f docker/Dockerfile.api \
             -t "${image}:${shortSha}" -t "${image}:latest" .
-          docker push "${image}:${shortSha}"
-          docker push "${image}:latest"
+          docker push --all-tags "${image}"
 
   buildUi:
     runs-on: self-hosted
@@ -53,6 +53,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.HOMELABOPS_GIT_TOKEN }}
+          logout: false
 
       - name: buildAndPush
         env:
@@ -81,8 +82,7 @@ jobs:
             --build-arg "VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID}" \
             --build-arg "VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}" \
             -t "${image}:${shortSha}" -t "${image}:latest" .
-          docker push "${image}:${shortSha}"
-          docker push "${image}:latest"
+          docker push --all-tags "${image}"
 
   bumpGitOps:
     needs: [buildApi, buildUi]
