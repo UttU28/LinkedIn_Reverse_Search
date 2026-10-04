@@ -389,7 +389,7 @@ async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCou
   }
 
   const baseUrl = (process.env.LOCAL_LLM_BASE_URL || 'http://12.216.3.116:8000/v1').replace(/\/$/, '');
-  const model = process.env.LOCAL_LLM_MODEL || '/root/.cache/huggingface/Gemma-4-31B-IT-NVFP4';
+  const model = process.env.LOCAL_LLM_MODEL || 'qwen3.8-flash-next';
   const timeoutMs = parseInt(process.env.LOCAL_LLM_TIMEOUT_MS || process.env.OLLAMA_TIMEOUT_MS || '180000', 10);
   const apiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENAI_API_KEY || 'local';
 

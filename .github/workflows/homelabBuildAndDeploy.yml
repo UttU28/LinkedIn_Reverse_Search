@@ -17,6 +17,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
     steps:
       - name: checkoutApp
         uses: actions/checkout@v4
@@ -29,20 +31,33 @@ jobs:
           password: ${{ secrets.HOMELABOPS_GIT_TOKEN }}
           logout: false
 
-      - name: buildAndPush
+      - name: buildAndPushIfChanged
+        id: build
         run: |
           ownerLower=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
           shortSha="${GITHUB_SHA::7}"
           image="${{ env.REGISTRY }}/${ownerLower}/linkitup-api"
+          # Tag = hash of exactly what goes into this image; an existing tag means nothing changed.
+          inputsHash=$( { git ls-files -s -- docker/Dockerfile.api backend; echo "args:"; } | sha256sum | cut -c1-12)
+          tag="src-${inputsHash}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if docker manifest inspect "${image}:${tag}" >/dev/null 2>&1; then
+            echo "No changes for linkitup-api — reusing ${image}:${tag}"
+            exit 0
+          fi
           docker build -f docker/Dockerfile.api \
-            -t "${image}:${shortSha}" -t "${image}:latest" .
-          docker push --all-tags "${image}"
+            -t "${image}:${tag}" -t "${image}:${shortSha}" -t "${image}:latest" .
+          docker push "${image}:${tag}"
+          docker push "${image}:${shortSha}"
+          docker push "${image}:latest"
 
   buildUi:
     runs-on: self-hosted
     permissions:
       contents: read
       packages: write
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
     steps:
       - name: checkoutApp
         uses: actions/checkout@v4
@@ -55,7 +70,8 @@ jobs:
           password: ${{ secrets.HOMELABOPS_GIT_TOKEN }}
           logout: false
 
-      - name: buildAndPush
+      - name: buildAndPushIfChanged
+        id: build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
@@ -72,6 +88,17 @@ jobs:
           ownerLower=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
           shortSha="${GITHUB_SHA::7}"
           image="${{ env.REGISTRY }}/${ownerLower}/linkitup-ui"
+          # Build args are baked into the bundle, so they are inputs too (only their hash is used).
+          argsHash=$(printf '%s\n' "${{ env.VITE_API_URL }}" "${VITE_FIREBASE_API_KEY}" "${VITE_FIREBASE_AUTH_DOMAIN}" \
+            "${VITE_FIREBASE_PROJECT_ID}" "${VITE_FIREBASE_APP_ID}" "${VITE_FIREBASE_STORAGE_BUCKET}" \
+            "${VITE_FIREBASE_MESSAGING_SENDER_ID}" "${VITE_STRIPE_PUBLISHABLE_KEY}" | sha256sum | cut -c1-64)
+          inputsHash=$( { git ls-files -s -- docker/Dockerfile.frontend docker/nginx.frontend.conf frontend; echo "args:${argsHash}"; } | sha256sum | cut -c1-12)
+          tag="src-${inputsHash}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if docker manifest inspect "${image}:${tag}" >/dev/null 2>&1; then
+            echo "No changes for linkitup-ui — reusing ${image}:${tag}"
+            exit 0
+          fi
           docker build -f docker/Dockerfile.frontend \
             --build-arg "VITE_API_URL=${{ env.VITE_API_URL }}" \
             --build-arg "VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}" \
@@ -81,8 +108,10 @@ jobs:
             --build-arg "VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET}" \
             --build-arg "VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID}" \
             --build-arg "VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}" \
-            -t "${image}:${shortSha}" -t "${image}:latest" .
-          docker push --all-tags "${image}"
+            -t "${image}:${tag}" -t "${image}:${shortSha}" -t "${image}:latest" .
+          docker push "${image}:${tag}"
+          docker push "${image}:${shortSha}"
+          docker push "${image}:latest"
 
   bumpGitOps:
     needs: [buildApi, buildUi]
@@ -108,12 +137,16 @@ jobs:
         working-directory: homeLabOps
         env:
           IMAGE_OWNER: ${{ github.repository_owner }}
+          API_TAG: ${{ needs.buildApi.outputs.tag }}
+          UI_TAG: ${{ needs.buildUi.outputs.tag }}
         run: |
           ownerLower=$(echo "${IMAGE_OWNER}" | tr '[:upper:]' '[:lower:]')
-          shortSha="${GITHUB_SHA::7}"
           kustomization="apps/linkItUp/kustomization.yaml"
-          for image in linkitup-api linkitup-ui; do
-            awk -v img="ghcr.io/${ownerLower}/${image}" -v tag="${shortSha}" '
+          # Unchanged images keep the same src-<hash> tag, so they are not redeployed.
+          for pair in "linkitup-api=${API_TAG}" "linkitup-ui=${UI_TAG}"; do
+            image="${pair%%=*}"
+            tag="${pair#*=}"
+            awk -v img="ghcr.io/${ownerLower}/${image}" -v tag="${tag}" '
               $0 ~ "name: " img { inBlock=1 }
               inBlock && $0 ~ /^[[:space:]]*newTag:/ {
                 sub(/newTag:.*/, "newTag: \"" tag "\"")
@@ -138,5 +171,5 @@ jobs:
             echo "No tag changes to commit."
             exit 0
           fi
-          git commit -m "chore(linkitup): bump images to ${GITHUB_SHA::7}"
+          git commit -m "chore(linkitup): deploy changed images from ${GITHUB_SHA::7}"
           git push origin HEAD

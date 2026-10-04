@@ -9,6 +9,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../deployLib.sh
 source "${ROOT}/../dktp/deployLib.sh"
+for arg in "$@"; do [[ "$arg" == "--build" ]] && export DEPLOY_FORCE_BUILD=1; done
 cd "$ROOT"
 
 BLUE='\033[0;34m'
@@ -55,8 +56,8 @@ if [[ ! -f package.json ]]; then
   err "Backend package.json not found"
   exit 1
 fi
-step "Installing backend npm packages…"
-npm install --silent >/dev/null 2>&1 || npm install >/dev/null 2>&1
+step "Backend npm packages (only if package files changed)…"
+npmInstallIfChanged linkitup-backend-deps "${ROOT}/backend"
 if [[ ! -f ecosystem.config.js ]]; then
   err "Backend ecosystem.config.js not found"
   exit 1
@@ -71,8 +72,8 @@ if [[ ! -f package.json ]]; then
   err "Frontend package.json not found"
   exit 1
 fi
-step "Installing frontend npm packages…"
-npm install --silent >/dev/null 2>&1 || npm install >/dev/null 2>&1
+step "Frontend npm packages (only if package files changed)…"
+npmInstallIfChanged linkitup-frontend-deps "${ROOT}/frontend"
 if [[ ! -f ecosystem.config.cjs ]]; then
   err "Frontend ecosystem.config.cjs not found"
   exit 1
