@@ -377,10 +377,48 @@ function buildUserPromptWithData(jsonData, userPrompt) {
   return userPromptWithData;
 }
 
+// The server runs one Qwen at a time; these are tried in order when picking what it serves.
+const KNOWN_LOCAL_MODELS = ['qwen3.8-flash-next', 'qwen-3.6'];
+const LOCAL_MODEL_CACHE_MS = 60000;
+let localModelCache = null;
+
+/**
+ * The model the local server is serving now: LOCAL_LLM_MODEL if up, else Qwen 3.8, else 3.6.
+ */
+async function resolveLocalModel(baseUrl, apiKey, refresh = false) {
+  const preferred = process.env.LOCAL_LLM_MODEL || '';
+  if (refresh || !localModelCache || Date.now() - localModelCache.at > LOCAL_MODEL_CACHE_MS) {
+    let served = [];
+    try {
+      const response = await axios.get(`${baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 4000
+      });
+      served = (response.data?.data || []).map((row) => row.id).filter(Boolean);
+    } catch (error) {
+      log(`Could not list local LLM models: ${error.message}`, 'warn');
+    }
+    localModelCache = { served, at: Date.now() };
+  }
+  const served = localModelCache.served;
+  const match = [preferred, ...KNOWN_LOCAL_MODELS].find((name) => name && served.includes(name));
+  const model = match || served[0] || preferred || KNOWN_LOCAL_MODELS[0];
+  if (localModelCache.logged !== model) {
+    log(`Local LLM model: ${model}`, 'info');
+    localModelCache.logged = model;
+  }
+  return model;
+}
+
+function isModelMissingError(error) {
+  const text = JSON.stringify(error.response?.data || error.message || '').toLowerCase();
+  return error.response?.status === 404 && (text.includes('does not exist') || text.includes('model'));
+}
+
 /**
  * Local OpenAI-compatible LLM (vLLM / Saral homelab at :8000/v1).
  */
-async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCount = 0) {
+async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCount = 0, refreshModel = false) {
   if (!callLocalLlm.rateLimiter) {
     callLocalLlm.rateLimiter = new RateLimiter(
       parseInt(process.env.LOCAL_LLM_REQUESTS_PER_MINUTE || process.env.OLLAMA_REQUESTS_PER_MINUTE || 30, 10),
@@ -389,11 +427,11 @@ async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCou
   }
 
   const baseUrl = (process.env.LOCAL_LLM_BASE_URL || 'http://12.216.3.116:8000/v1').replace(/\/$/, '');
-  const model = process.env.LOCAL_LLM_MODEL || 'qwen3.8-flash-next';
   const timeoutMs = parseInt(process.env.LOCAL_LLM_TIMEOUT_MS || process.env.OLLAMA_TIMEOUT_MS || '180000', 10);
   const apiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENAI_API_KEY || 'local';
 
   try {
+    const model = await resolveLocalModel(baseUrl, apiKey, refreshModel);
     await callLocalLlm.rateLimiter.acquire();
 
     const response = await axios.post(
@@ -426,6 +464,11 @@ async function callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCou
 
     return content.trim();
   } catch (error) {
+    if (!refreshModel && isModelMissingError(error)) {
+      // The server switched between Qwen 3.8 and 3.6; pick the new one and retry once.
+      log('Local LLM model changed on the server, re-checking available models', 'warn');
+      return callLocalLlm(jsonData, systemPrompt, userPromptWithData, retryCount, true);
+    }
     const isRetryable = isRateLimitOrTransientError(error) ||
       error.code === 'ECONNREFUSED' ||
       error.code === 'ECONNRESET' ||
